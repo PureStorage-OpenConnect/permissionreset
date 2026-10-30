@@ -1,0 +1,231 @@
+# GitHub-hosted runners only. Never add a self-hosted runner to this public repo: a pull request
+# from a fork would run its code on that machine.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Files not formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: vet
+        run: go vet ./...
+
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: test
+        run: go test -count=1 -race -timeout 5m -coverprofile=coverage.out ./...
+
+      - name: coverage check
+        run: |
+          # Safety-critical packages: 60% floor. internal/apply is excluded
+          # because its hot paths (setxattr, NFSv4 ACL encode/decode over NFS)
+          # need a real mount and cannot run in CI (41% offline).
+          threshold=60
+          fail=0
+          for pkg in internal/checkpoint internal/nfs4acl internal/spec internal/walk internal/run internal/speccapture; do
+            pct=$(go test -coverprofile=/dev/null -covermode=atomic "./${pkg}" 2>&1 | grep -oP 'coverage: \K[0-9.]+')
+            if [ -z "$pct" ]; then
+              echo "WARNING: no coverage data for $pkg"
+              continue
+            fi
+            echo "$pkg: ${pct}%"
+            if awk "BEGIN{exit !($pct < $threshold)}"; then
+              echo "FAIL: $pkg coverage ${pct}% is below ${threshold}% minimum"
+              fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ] || exit 1
+          echo "All safety-critical packages above ${threshold}% coverage threshold."
+
+  # Advisory until the darwin test fixes land: 4 packages (cmd/permissionreset, cmd/sweep,
+  # internal/run, internal/treegen) assume Linux behavior -- ENOTSUP where macOS getxattr returns
+  # ENOATTR, and a sweep that darwin refuses by design. Remove continue-on-error once they pass.
+  test-macos:
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: test
+        run: go test -count=1 -race -timeout 5m ./...
+
+  # Fails when a tracked file names an internal host, address, domain or person. The denylist itself
+  # names those, so it is not in the repo: it arrives as the PUBLIC_SCAN_DENYLIST secret, which
+  # GitHub does not pass to pull requests from forks. Those skip with a notice and are checked again
+  # on the push to main.
+  public-scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: scan
+        env:
+          DENYLIST: ${{ secrets.PUBLIC_SCAN_DENYLIST }}
+        run: |
+          if [ -z "$DENYLIST" ]; then
+            echo "::notice::PUBLIC_SCAN_DENYLIST is not available to this run; scan skipped"
+            exit 0
+          fi
+          printf '%s\n' "$DENYLIST" > "$RUNNER_TEMP/denylist.txt"
+          tools/public-scan/scan.sh --denylist "$RUNNER_TEMP/denylist.txt"
+
+  vulncheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./... || echo "::warning::govulncheck found vulnerabilities (see above)"
+        continue-on-error: true
+
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: build
+        run: make build
+
+      # The test-macos job executes the darwin build; this step type-checks the
+      # other targets. go vet rather than only go build because vet type-checks
+      # _test.go files, and a good deal of this program's platform-dependent
+      # code lives in tests.
+      - name: cross-compile and vet
+        run: |
+          set -euo pipefail
+          for target in linux/arm64 darwin/amd64 darwin/arm64; do
+            goos="${target%/*}"
+            goarch="${target#*/}"
+            echo "=== ${target} ==="
+            GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -o /dev/null ./cmd/permissionreset/
+            GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -o /dev/null ./cmd/generate_tree/
+            GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -o /dev/null ./cmd/sweep/
+            GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -o /dev/null ./cmd/build_spec/
+            GOOS="$goos" GOARCH="$goarch" go vet ./...
+          done
+
+          # build-spec is the only command that compiles on Windows today;
+          # walk and apply use syscall.Stat_t which has no Windows equivalent.
+          echo "=== windows/amd64 (build-spec only) ==="
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o /dev/null ./cmd/build_spec/
+
+      - name: smoke test - permissionreset
+        run: |
+          ./permissionreset -version
+          ./permissionreset -help || true
+          # Dry-run on a temp tree: builds a small tree, runs without --apply (default dry-run).
+          tmp=$(mktemp -d)
+          mkdir -p "$tmp/sub"
+          touch "$tmp/sub/file.txt"
+          cat > "$tmp/spec.yaml" <<'SPEC'
+          protocol: posix
+          default:
+            mode: "0755"
+          rules:
+            - match:
+                type: directory
+              mode: "0755"
+            - match:
+                type: file
+              mode: "0644"
+          SPEC
+          ./permissionreset -spec "$tmp/spec.yaml" "$tmp"
+          rm -rf "$tmp"
+
+      - name: smoke test - sweep
+        run: |
+          ./sweep -version
+          ./sweep -help || true
+
+      - name: smoke test - build-spec
+        run: |
+          ./build-spec -version
+          ./build-spec -help || true
+
+      - name: build-spec dependency guard
+        run: make build-spec-depguard
+
+      - name: smoke test - generate-tree
+        run: |
+          ./generate-tree -help || true
+
+  gui-module:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: gui/buildspec/go.mod
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            gui/buildspec/go.sum
+
+      # Ubuntu 24.04 ships WebKitGTK 4.1 only; Wails selects it with the webkit2_41 tag.
+      - name: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: vet
+        working-directory: gui/buildspec
+        run: go vet -tags webkit2_41 ./...
+
+      - name: test
+        working-directory: gui/buildspec
+        run: go test -tags webkit2_41 -count=1 -race -timeout 5m ./...

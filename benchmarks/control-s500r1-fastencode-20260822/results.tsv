@@ -1,0 +1,8 @@
+run	transport	connections	wall_clock	objects_per_second	applied	user_cpu	system_cpu	proc_cpu_pct	machine_cpu	mount_ops	mount_setacl_ops	mount_setacl_rtt_ms	exit_status
+kernel	kernel	1	0:09.59	118080	1104409	9.67	55.91	683%	user_pct=9.3 system_pct=55.7 irq_pct=0.0 softirq_pct=9.7 kernel_pct=65.5 iowait_pct=0.1 idle_pct=25.2 	1856483	1104410	0.504147	0
+userspace-c1	userspace	1	0:10.18	111029	1104409	33.98	7.80	410%	user_pct=27.3 system_pct=5.8 irq_pct=0.0 softirq_pct=3.0 kernel_pct=8.8 iowait_pct=0.1 idle_pct=63.8 	0	0	0	0
+userspace-c2	userspace	2	0:07.27	157227	1104409	25.83	5.98	437%	user_pct=29.3 system_pct=6.0 irq_pct=0.0 softirq_pct=3.8 kernel_pct=9.8 iowait_pct=0.1 idle_pct=60.8 	0	0	0	0
+userspace-c4	userspace	4	0:06.57	175599	1104409	26.80	7.42	520%	user_pct=33.7 system_pct=7.7 irq_pct=0.0 softirq_pct=6.2 kernel_pct=13.9 iowait_pct=0.1 idle_pct=52.2 	0	0	0	0
+userspace-c8	userspace	8	0:06.47	177448	1104409	28.16	9.19	576%	user_pct=36.5 system_pct=9.6 irq_pct=0.0 softirq_pct=8.1 kernel_pct=17.7 iowait_pct=0.2 idle_pct=45.6 	0	0	0	0
+userspace-c16	userspace	16	0:06.57	173933	1104409	29.36	11.15	615%	user_pct=37.6 system_pct=11.4 irq_pct=0.0 softirq_pct=9.4 kernel_pct=20.8 iowait_pct=0.1 idle_pct=41.4 	0	0	0	0
+userspace-c32	userspace	32	0:06.70	171850	1104409	30.06	11.84	624%	user_pct=37.4 system_pct=11.6 irq_pct=0.0 softirq_pct=10.4 kernel_pct=22.0 iowait_pct=0.1 idle_pct=40.5 	0	0	0	0

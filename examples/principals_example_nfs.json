@@ -1,0 +1,16 @@
+{
+  "domain": "corp.example.com",
+  "roles": {
+    "owner_primary":     "alice",
+    "owner_secondary":   "bob",
+    "owner_tertiary":    "carol",
+    "user_collaborator": "dave",
+    "user_auditor":      "erin",
+    "user_denied":       "frank",
+    "service_account":   "arraysvc",
+    "group_primary":     "storageadmins",
+    "group_secondary":   "opsadmins",
+    "group_readonly":    "readonly",
+    "group_array":       "arrayadmins"
+  }
+}

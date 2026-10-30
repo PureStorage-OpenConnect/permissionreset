@@ -1,0 +1,32 @@
+# NFSv4 ACL using only special principals (works on any FlashBlade)
+# Directories get inheritable ACEs, files get non-inheritable
+protocol: nfsv4
+
+default:
+  acl:
+    - "A::OWNER@:rwaDxtTcCoy"
+    - "A:g:GROUP@:rxtncy"
+    - "A::EVERYONE@:rxtncy"
+
+rules:
+  - match:
+      type: directory
+    acl:
+      - "A:fd:OWNER@:rwaDxtTcCoy"
+      - "A:fdg:GROUP@:rwaDxtTcCoy"
+      - "A:fd:EVERYONE@:rxtncy"
+
+  - match:
+      type: file
+      pattern: "*.sh"
+    acl:
+      - "A::OWNER@:rwaxTcCoy"
+      - "A:g:GROUP@:rxncy"
+      - "A::EVERYONE@:rxncy"
+
+  - match:
+      type: file
+    acl:
+      - "A::OWNER@:rwaTcCoy"
+      - "A:g:GROUP@:rncy"
+      - "A::EVERYONE@:rncy"

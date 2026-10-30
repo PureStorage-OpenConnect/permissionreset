@@ -1,0 +1,1290 @@
+<title>Spec File Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fff5e3;
+    --fg: #2d2a27;
+    --fg-secondary: #73716f;
+    --fg-tertiary: #9e9b98;
+    --surface: #fffdf9;
+    --surface-alt: #f0ece5;
+    --border: #e7e3dc;
+    --border-light: #efede8;
+    --primary: #ff7023;
+    --primary-deep: #d55d1d;
+    --accent-sage: #5a6359;
+    --accent-sage-light: #8fa596;
+    --accent-cinnamon: #bd673d;
+    --destructive: #da4d72;
+    --code-bg: #f0ece5;
+    --code-fg: #2d2a27;
+    --code-comment: #8fa596;
+    --code-keyword: #bd673d;
+    --code-string: #5a6359;
+    --callout-warn-bg: #fff0e0;
+    --callout-warn-border: #ff7023;
+    --callout-err-bg: #fdeef2;
+    --callout-err-border: #da4d72;
+    --table-stripe: #f7f4ee;
+    --shadow: rgba(45, 42, 39, 0.06);
+    --shadow-md: rgba(45, 42, 39, 0.10);
+    --radius: 8px;
+    --radius-sm: 4px;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1a1815;
+      --fg: #e8e4dc;
+      --fg-secondary: #a09c96;
+      --fg-tertiary: #73716f;
+      --surface: #242019;
+      --surface-alt: #2d2920;
+      --border: #3d3830;
+      --border-light: #332f28;
+      --primary: #ff8a45;
+      --primary-deep: #ff7023;
+      --accent-sage: #8fa596;
+      --accent-sage-light: #5a6359;
+      --accent-cinnamon: #d4875e;
+      --destructive: #e8749a;
+      --code-bg: #2d2920;
+      --code-fg: #e8e4dc;
+      --code-comment: #8fa596;
+      --code-keyword: #d4875e;
+      --code-string: #8fa596;
+      --callout-warn-bg: #2d2518;
+      --callout-warn-border: #d55d1d;
+      --callout-err-bg: #2d1a20;
+      --callout-err-border: #da4d72;
+      --table-stripe: #242019;
+      --shadow: rgba(0, 0, 0, 0.2);
+      --shadow-md: rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #1a1815;
+    --fg: #e8e4dc;
+    --fg-secondary: #a09c96;
+    --fg-tertiary: #73716f;
+    --surface: #242019;
+    --surface-alt: #2d2920;
+    --border: #3d3830;
+    --border-light: #332f28;
+    --primary: #ff8a45;
+    --primary-deep: #ff7023;
+    --accent-sage: #8fa596;
+    --accent-sage-light: #5a6359;
+    --accent-cinnamon: #d4875e;
+    --destructive: #e8749a;
+    --code-bg: #2d2920;
+    --code-fg: #e8e4dc;
+    --code-comment: #8fa596;
+    --code-keyword: #d4875e;
+    --code-string: #8fa596;
+    --callout-warn-bg: #2d2518;
+    --callout-warn-border: #d55d1d;
+    --callout-err-bg: #2d1a20;
+    --callout-err-border: #da4d72;
+    --table-stripe: #242019;
+    --shadow: rgba(0, 0, 0, 0.2);
+    --shadow-md: rgba(0, 0, 0, 0.3);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    margin: 0;
+    padding: 0;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+  }
+
+  /* --- Typography --- */
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-wrap: balance;
+    margin: 0 0 0.5rem;
+    letter-spacing: -0.02em;
+  }
+
+  .subtitle {
+    font-size: 1.05rem;
+    color: var(--fg-secondary);
+    margin: 0 0 2.5rem;
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1.25;
+    text-wrap: balance;
+    margin: 3rem 0 1rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+
+  h2:first-of-type {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
+
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    line-height: 1.3;
+    margin: 2rem 0 0.75rem;
+    color: var(--fg);
+  }
+
+  h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--fg-secondary);
+    margin: 1.5rem 0 0.5rem;
+  }
+
+  p {
+    margin: 0 0 1rem;
+  }
+
+  a {
+    color: var(--primary-deep);
+    text-decoration: underline;
+    text-decoration-color: var(--border);
+    text-underline-offset: 2px;
+  }
+
+  a:hover {
+    text-decoration-color: var(--primary-deep);
+  }
+
+  strong {
+    font-weight: 600;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2.5rem 0;
+  }
+
+  /* --- Inline code --- */
+
+  code {
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+    font-size: 0.875em;
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 0.15em 0.4em;
+    border-radius: var(--radius-sm);
+  }
+
+  /* --- Code blocks --- */
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    margin: 0 0 1.25rem;
+    line-height: 1.55;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.82rem;
+  }
+
+  .code-label {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-tertiary);
+    margin-bottom: 0.4rem;
+  }
+
+  /* Syntax highlighting */
+  .hl-comment { color: var(--code-comment); font-style: italic; }
+  .hl-key { color: var(--code-keyword); font-weight: 500; }
+  .hl-string { color: var(--code-string); }
+  .hl-special { color: var(--primary-deep); font-weight: 500; }
+
+  /* --- ACE anatomy figure --- */
+
+  .ace-anatomy {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+
+  .ace-anatomy pre {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.7;
+  }
+
+  .ace-anatomy code {
+    background: none;
+    padding: 0;
+  }
+
+  .ace-field-type { color: var(--primary-deep); font-weight: 600; }
+  .ace-field-flags { color: var(--accent-cinnamon); font-weight: 600; }
+  .ace-field-who { color: var(--accent-sage); font-weight: 600; }
+  .ace-field-perms { color: var(--fg); font-weight: 600; }
+  .ace-label { color: var(--fg-secondary); }
+
+  /* --- Tables --- */
+
+  .table-wrap {
+    overflow-x: auto;
+    margin: 0 0 1.25rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--fg-secondary);
+    padding: 0.65rem 1rem;
+    background: var(--surface-alt);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--border-light);
+    vertical-align: top;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  tr:nth-child(even) td {
+    background: var(--table-stripe);
+  }
+
+  td code {
+    font-size: 0.82em;
+    white-space: nowrap;
+  }
+
+  /* --- Callouts --- */
+
+  .callout {
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin: 1.25rem 0;
+    font-size: 0.9rem;
+    line-height: 1.55;
+  }
+
+  .callout-warn {
+    background: var(--callout-warn-bg);
+    border-left: 3px solid var(--callout-warn-border);
+  }
+
+  .callout-err {
+    background: var(--callout-err-bg);
+    border-left: 3px solid var(--callout-err-border);
+  }
+
+  .callout-label {
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.3rem;
+  }
+
+  .callout-warn .callout-label { color: var(--callout-warn-border); }
+  .callout-err .callout-label { color: var(--callout-err-border); }
+
+  .callout p:last-child {
+    margin-bottom: 0;
+  }
+
+  /* --- Blockquotes --- */
+
+  blockquote {
+    border-left: 3px solid var(--primary);
+    margin: 1.25rem 0;
+    padding: 0.5rem 1.25rem;
+    color: var(--fg);
+    font-weight: 500;
+  }
+
+  blockquote p {
+    margin: 0;
+  }
+
+  /* --- Lists --- */
+
+  ul, ol {
+    padding-left: 1.5rem;
+    margin: 0 0 1rem;
+  }
+
+  li {
+    margin-bottom: 0.35rem;
+  }
+
+  li::marker {
+    color: var(--fg-tertiary);
+  }
+
+  /* --- Wrong/Right pairs --- */
+
+  .example-pair {
+    display: grid;
+    gap: 0.75rem;
+    margin: 1rem 0 1.25rem;
+  }
+
+  @media (min-width: 640px) {
+    .example-pair {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .example-wrong, .example-right {
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    font-size: 0.82rem;
+  }
+
+  .example-wrong {
+    background: var(--callout-err-bg);
+    border: 1px solid var(--callout-err-border);
+  }
+
+  .example-right {
+    background: var(--callout-warn-bg);
+    border: 1px solid var(--accent-sage);
+  }
+
+  .example-wrong pre, .example-right pre {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .example-tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.4rem;
+  }
+
+  .example-wrong .example-tag { color: var(--destructive); }
+  .example-right .example-tag { color: var(--accent-sage); }
+
+  /* --- TOC --- */
+
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    margin: 0 0 2.5rem;
+  }
+
+  .toc-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--fg-secondary);
+    margin: 0 0 0.6rem;
+  }
+
+  .toc ol {
+    margin: 0;
+    padding-left: 1.25rem;
+    list-style-type: decimal;
+  }
+
+  .toc li {
+    margin-bottom: 0.2rem;
+    font-size: 0.875rem;
+  }
+
+  .toc a {
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .toc a:hover {
+    color: var(--primary-deep);
+  }
+
+  /* --- Badge --- */
+
+  .badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.2em 0.6em;
+    border-radius: 999px;
+    background: var(--primary);
+    color: var(--bg);
+    vertical-align: middle;
+    margin-left: 0.3em;
+  }
+
+  /* --- Quick-ref card at bottom --- */
+
+  .quick-ref {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin: 2rem 0;
+  }
+
+  .quick-ref h3 {
+    margin-top: 0;
+  }
+
+  .quick-ref-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .quick-ref-grid {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+  }
+
+  .quick-ref-section h4 {
+    margin-top: 0;
+    color: var(--primary-deep);
+  }
+
+  .quick-ref-section p {
+    font-size: 0.82rem;
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  /* --- Responsive --- */
+
+  @media (max-width: 480px) {
+    .page {
+      padding: 2rem 1rem 3rem;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+    }
+
+    h2 {
+      font-size: 1.2rem;
+    }
+
+    pre {
+      padding: 0.75rem 1rem;
+      font-size: 0.78rem;
+    }
+  }
+</style>
+
+<div class="page">
+
+<h1>Writing a permissionreset Spec File</h1>
+<p class="subtitle">A guide for anyone whose ACL experience starts and ends with right-click, Properties, Security tab in Windows.</p>
+
+<nav class="toc">
+  <div class="toc-title">Contents</div>
+  <ol>
+    <li><a href="#what">What this file does</a></li>
+    <li><a href="#skeleton">The skeleton</a></li>
+    <li><a href="#protocol">Protocol</a></li>
+    <li><a href="#posix">POSIX specs</a></li>
+    <li><a href="#nfsv4">NFSv4 specs (the Windows-like ACLs)</a></li>
+    <li><a href="#rules">The rules engine</a></li>
+    <li><a href="#exclude">Exclude patterns</a></li>
+    <li><a href="#example">Worked example</a></li>
+    <li><a href="#mistakes">Common mistakes</a></li>
+    <li><a href="#sacl">Audit ACEs (SACL) on FlashArray</a></li>
+    <li><a href="#validate">Validating your spec</a></li>
+    <li><a href="#quickref">Quick reference</a></li>
+  </ol>
+</nav>
+
+<!-- ========== WHAT ========== -->
+<h2 id="what">What this file does</h2>
+
+<p>When you right-click a folder in Windows and open the Security tab, you see a list of users and groups, each with Allow/Deny checkboxes for permissions like "Read," "Write," "Full Control." A permissionreset spec file is the text equivalent of that dialog&mdash;it describes what the permissions <em>should</em> look like, and permissionreset stamps them onto every file and folder in a directory tree.</p>
+
+<p>The spec is a YAML file. You pass it with <code>--spec</code>:</p>
+
+<pre><code>permissionreset --spec myspec.yaml /mnt/data/share</code></pre>
+
+<p>permissionreset reads the spec, walks every file and directory under <code>/mnt/data/share</code>, and sets permissions to match.</p>
+
+<!-- ========== SKELETON ========== -->
+<h2 id="skeleton">The skeleton</h2>
+
+<p>Every spec file has this shape:</p>
+
+<pre><code><span class="hl-key">protocol:</span> <span class="hl-string">nfsv4</span>          <span class="hl-comment"># or "posix"</span>
+
+<span class="hl-key">default:</span>
+  <span class="hl-key">acl:</span>
+    - <span class="hl-string">"A::OWNER@:rwaTcCoy"</span>
+    - <span class="hl-string">"A:g:GROUP@:rncy"</span>
+    - <span class="hl-string">"A::EVERYONE@:rncy"</span>
+
+<span class="hl-key">rules:</span>
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">directory</span>
+    <span class="hl-key">acl:</span>
+      - <span class="hl-string">"A:fd:OWNER@:rwaDxtTcCoy"</span>
+      - <span class="hl-string">"A:fdg:GROUP@:rxtncy"</span>
+      - <span class="hl-string">"A:fd:EVERYONE@:rxtncy"</span>
+
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">file</span>
+      <span class="hl-key">pattern:</span> <span class="hl-string">"*.sh"</span>
+    <span class="hl-key">acl:</span>
+      - <span class="hl-string">"A::OWNER@:rwaxTcCoy"</span>
+      - <span class="hl-string">"A:g:GROUP@:rxncy"</span>
+
+<span class="hl-key">exclude:</span>
+  - <span class="hl-string">".snapshot"</span>
+  - <span class="hl-string">"*.tmp"</span></code></pre>
+
+<p>Three sections:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Section</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>protocol</code></td><td>Which permission system to use</td></tr>
+    <tr><td><code>default</code> + <code>rules</code></td><td>What permissions to set on what</td></tr>
+    <tr><td><code>exclude</code></td><td>What to skip</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ========== PROTOCOL ========== -->
+<h2 id="protocol">Protocol</h2>
+
+<pre><code><span class="hl-key">protocol:</span> <span class="hl-string">nfsv4</span></code></pre>
+
+<p>Two choices:</p>
+
+<ul>
+  <li><strong><code>posix</code></strong> &mdash; Traditional Unix permissions (owner/group/other, the <code>chmod 0755</code> style). Simple but limited: three permission slots, no named users or groups beyond owner and group.</li>
+  <li><strong><code>nfsv4</code></strong> &mdash; NFSv4 ACLs. The NFS equivalent of what you see in the Windows Security tab: a list of entries, each granting or denying specific permissions to a specific user or group. This is what you want for FlashBlade multiprotocol shares.</li>
+</ul>
+
+<p>The protocol determines which fields are valid. An <code>nfsv4</code> spec uses <code>acl:</code> lists. A <code>posix</code> spec uses <code>mode:</code>. Mixing them is an error&mdash;permissionreset rejects it before touching any files.</p>
+
+<!-- ========== POSIX ========== -->
+<h2 id="posix">POSIX specs (the simple case)</h2>
+
+<p>If you only need basic Unix permissions, POSIX specs are straightforward:</p>
+
+<pre><code><span class="hl-key">protocol:</span> <span class="hl-string">posix</span>
+
+<span class="hl-key">default:</span>
+  <span class="hl-key">mode:</span> <span class="hl-string">"0664"</span>
+  <span class="hl-key">owner:</span> <span class="hl-string">serviceaccount</span>
+  <span class="hl-key">group:</span> <span class="hl-string">engineering</span>
+
+<span class="hl-key">rules:</span>
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">directory</span>
+    <span class="hl-key">mode:</span> <span class="hl-string">"2775"</span>
+
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">file</span>
+      <span class="hl-key">pattern:</span> <span class="hl-string">"*.sh"</span>
+    <span class="hl-key">mode:</span> <span class="hl-string">"0775"</span></code></pre>
+
+<h3>Mode strings</h3>
+
+<p>Mode is a four-digit octal number in quotes. If you have used <code>chmod</code>, this is the same thing:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Digit position</th><th>Controls</th><th>Common values</th></tr></thead>
+  <tbody>
+    <tr><td>First (special)</td><td>setuid / setgid / sticky</td><td><code>0</code> = none, <code>2</code> = setgid, <code>4</code> = setuid</td></tr>
+    <tr><td>Second (owner)</td><td>Owner permissions</td><td><code>7</code> = rwx, <code>6</code> = rw-, <code>5</code> = r-x</td></tr>
+    <tr><td>Third (group)</td><td>Group permissions</td><td><code>7</code> = rwx, <code>5</code> = r-x, <code>4</code> = r--</td></tr>
+    <tr><td>Fourth (other)</td><td>Everyone else</td><td><code>5</code> = r-x, <code>4</code> = r--, <code>0</code> = ---</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><code>"2775"</code> means: setgid + owner rwx + group rwx + other r-x. Setgid on a directory makes new files inherit the directory's group&mdash;useful for shared project folders.</p>
+
+<h3>Owner and group</h3>
+
+<pre><code><span class="hl-key">owner:</span> <span class="hl-string">serviceaccount</span>
+<span class="hl-key">group:</span> <span class="hl-string">engineering</span></code></pre>
+
+<p>These set the file owner and group. They require <code>--set-owner</code> on the command line (and root or <code>CAP_CHOWN</code> on the system). Without <code>--set-owner</code>, permissionreset ignores these fields.</p>
+
+<!-- ========== NFSv4 ========== -->
+<h2 id="nfsv4">NFSv4 specs (the Windows-like ACLs)</h2>
+
+<p>This is where the real power is, and where the syntax needs explanation.</p>
+
+<h3>How NFSv4 ACLs map to the Windows Security tab</h3>
+
+<p>In Windows, the Security tab shows something like:</p>
+
+<pre><code>Group or user names:
+  Administrators        Allow: Full Control
+  DOMAIN\ProjectTeam    Allow: Read &amp; Execute
+  DOMAIN\Auditors       Allow: Read
+  Everyone              Deny: Write</code></pre>
+
+<p>Each row is an <strong>Access Control Entry (ACE)</strong>. The full list is the <strong>Access Control List (ACL)</strong>. NFSv4 ACLs work the same way&mdash;an ordered list of entries, each granting or denying permissions to someone.</p>
+
+<p>The difference is the syntax. In Windows you click checkboxes; in an NFSv4 spec you write a compact string.</p>
+
+<h3>Reading an ACE string</h3>
+
+<p>Every ACE is a colon-separated string with four fields:</p>
+
+<div class="ace-anatomy">
+<pre><code><span class="ace-field-type">A</span>:<span class="ace-field-flags">fdg</span>:<span class="ace-field-who">storageadmins@example.com</span>:<span class="ace-field-perms">rwaDxtTcCoy</span>
+<span class="ace-label">│  │    │                          │</span>
+<span class="ace-label">│  │    │                          └─ <span class="ace-field-perms">Permissions</span> (what they can do)</span>
+<span class="ace-label">│  │    └─ <span class="ace-field-who">Who</span> (which user or group)</span>
+<span class="ace-label">│  └─ <span class="ace-field-flags">Flags</span> (inheritance + group marker)</span>
+<span class="ace-label">└─ <span class="ace-field-type">Type</span> (Allow or Deny)</span></code></pre>
+</div>
+
+<h3>Field 1: Type &mdash; Allow or Deny</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Letter</th><th>Meaning</th><th>Windows equivalent</th></tr></thead>
+  <tbody>
+    <tr><td><code>A</code></td><td>Allow</td><td>A checkmark in the Allow column</td></tr>
+    <tr><td><code>D</code></td><td>Deny</td><td>A checkmark in the Deny column</td></tr>
+    <tr><td><code>U</code></td><td>Audit</td><td>"Auditing" entries in Advanced Security Settings &mdash; goes in <code>sacl:</code>, not <code>acl:</code> (<a href="#sacl">see below</a>)</td></tr>
+    <tr><td><code>L</code></td><td>Alarm</td><td>Not accepted</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>You will almost always use <code>A</code> (Allow). Deny rules (<code>D</code>) go <strong>before</strong> Allow rules&mdash;order matters, just like in Windows Advanced Security Settings.</p>
+
+<h3>Field 2: Flags &mdash; Inheritance</h3>
+
+<p>In Windows, when you open Advanced Security Settings and look at the "Applies to" column, you see values like "This folder, subfolders and files" or "This folder only." Flags are the NFSv4 way of expressing the same thing.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Flag</th><th>Name</th><th>What it means</th></tr></thead>
+  <tbody>
+    <tr><td><code>f</code></td><td>File inherit</td><td>New files in this directory inherit this ACE</td></tr>
+    <tr><td><code>d</code></td><td>Directory inherit</td><td>New subdirectories inherit this ACE</td></tr>
+    <tr><td><code>g</code></td><td>Group</td><td>This ACE applies to a group, not a user</td></tr>
+    <tr><td><code>i</code></td><td>Inherit-only</td><td>This ACE applies only to children, not to the directory itself</td></tr>
+    <tr><td><code>n</code></td><td>No-propagate</td><td>Children inherit this ACE but don't pass it to their children</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The flags you will use most:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Flags</th><th>Windows "Applies to" equivalent</th></tr></thead>
+  <tbody>
+    <tr><td><em>(empty)</em></td><td>This object only</td></tr>
+    <tr><td><code>fd</code></td><td>This folder, subfolders and files</td></tr>
+    <tr><td><code>d</code></td><td>This folder and subfolders</td></tr>
+    <tr><td><code>f</code></td><td>This folder and files</td></tr>
+    <tr><td><code>fdi</code></td><td>Subfolders and files only (not this folder)</td></tr>
+    <tr><td><code>g</code></td><td><em>(marks the principal as a group&mdash;see below)</em></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-label">Important</div>
+  <p>The <code>g</code> flag is special. It does not control inheritance. It tells the system that the principal is a group, not a user. The NFS kernel needs this to look up the name correctly. <strong>Every group principal must have <code>g</code> in its flags.</strong> Forgetting <code>g</code> on a group is a common mistake that causes silent lookup failures.</p>
+</div>
+
+<p>For directories, you almost always want <code>fd</code> (file and directory inherit) so permissions flow down to new files and subdirectories. For files, you use no inheritance flags (files cannot have children).</p>
+
+<p>This is why most specs have separate rules for directories and files:</p>
+
+<pre><code><span class="hl-key">rules:</span>
+  <span class="hl-comment"># Directories get inheritable ACEs</span>
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">directory</span>
+    <span class="hl-key">acl:</span>
+      - <span class="hl-string">"A:fd:OWNER@:rwaDxtTcCoy"</span>       <span class="hl-comment"># fd = inherit to files and dirs</span>
+      - <span class="hl-string">"A:fdg:GROUP@:rxtncy"</span>            <span class="hl-comment"># fdg = inherit + it's a group</span>
+
+  <span class="hl-comment"># Files get non-inheritable ACEs</span>
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">file</span>
+    <span class="hl-key">acl:</span>
+      - <span class="hl-string">"A::OWNER@:rwaTcCoy"</span>             <span class="hl-comment"># no flags = this object only</span>
+      - <span class="hl-string">"A:g:GROUP@:rncy"</span>                <span class="hl-comment"># g only = group, no inherit</span></code></pre>
+
+<h3>Field 3: Who &mdash; The principal</h3>
+
+<p>This is the user or group the ACE applies to. Three formats:</p>
+
+<h4>Special principals</h4>
+<p>Work everywhere, no configuration needed:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Principal</th><th>Windows equivalent</th></tr></thead>
+  <tbody>
+    <tr><td><code>OWNER@</code></td><td>The file's owner (like "CREATOR OWNER")</td></tr>
+    <tr><td><code>GROUP@</code></td><td>The file's primary group (like "CREATOR GROUP")</td></tr>
+    <tr><td><code>EVERYONE@</code></td><td>Everyone (like the "Everyone" group)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Named principals</h4>
+<p>Require idmapd/SSSD configured for the domain:</p>
+
+<pre><code>arraysvc@corp.example.com
+storageadmins@corp.example.com</code></pre>
+
+<p>These are like <code>DOMAIN\username</code> in Windows but written as <code>name@domain</code>. They require the NFS client's identity-mapping service (idmapd) to resolve the name. If idmapd is not configured for the domain, setxattr fails with EINVAL.</p>
+
+<h4>Numeric IDs</h4>
+<p>Always accepted, but may not round-trip cleanly:</p>
+
+<pre><code>10001
+1000001138</code></pre>
+
+<p>These are raw UID/GID numbers. The kernel may resolve a numeric ID to <code>user@domain</code> before sending it to the server. If that happens, the stored form differs from what you wrote, and <code>--compare</code> and <code>--validate</code> report mismatches.</p>
+
+<div class="callout callout-warn">
+  <div class="callout-label">Recommendation</div>
+  <p>After a test apply, run <code>nfs4_getfacl</code> on one object and use whatever form the server actually stored. That is the only way <code>--compare</code> and <code>--validate</code> produce correct results.</p>
+</div>
+
+<h3>Field 4: Permissions &mdash; What they can do</h3>
+
+<p>Each letter enables one permission. Here is the complete map, with the closest Windows equivalent:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Letter</th><th>Permission</th><th>On files</th><th>On directories</th><th>Windows equivalent</th></tr></thead>
+  <tbody>
+    <tr><td><code>r</code></td><td>Read data</td><td>Read the file</td><td>List the directory</td><td>List folder / read data</td></tr>
+    <tr><td><code>w</code></td><td>Write data</td><td>Write to the file</td><td>Create files in the directory</td><td>Create files / write data</td></tr>
+    <tr><td><code>a</code></td><td>Append data</td><td>Append to the file</td><td>Create subdirectories</td><td>Create folders / append data</td></tr>
+    <tr><td><code>x</code></td><td>Execute</td><td>Execute the file</td><td>Enter (cd into) the directory</td><td>Traverse folder / execute file</td></tr>
+    <tr><td><code>d</code></td><td>Delete</td><td>Delete this object</td><td>Delete this object</td><td>Delete</td></tr>
+    <tr><td><code>D</code></td><td>Delete child</td><td><em>(not meaningful)</em></td><td>Delete items inside</td><td>Delete subfolders and files</td></tr>
+    <tr><td><code>t</code></td><td>Read attributes</td><td>Read metadata</td><td>Read metadata</td><td>Read attributes</td></tr>
+    <tr><td><code>T</code></td><td>Write attributes</td><td>Modify metadata</td><td>Modify metadata</td><td>Write attributes</td></tr>
+    <tr><td><code>n</code></td><td>Read named attrs</td><td>Read extended attributes</td><td>Read extended attributes</td><td>Read extended attributes</td></tr>
+    <tr><td><code>N</code></td><td>Write named attrs</td><td>Write extended attributes</td><td>Write extended attributes</td><td>Write extended attributes</td></tr>
+    <tr><td><code>c</code></td><td>Read ACL</td><td>Read this ACL</td><td>Read this ACL</td><td>Read permissions</td></tr>
+    <tr><td><code>C</code></td><td>Write ACL</td><td>Modify this ACL</td><td>Modify this ACL</td><td>Change permissions</td></tr>
+    <tr><td><code>o</code></td><td>Write owner</td><td>Change ownership</td><td>Change ownership</td><td>Take ownership</td></tr>
+    <tr><td><code>y</code></td><td>Synchronize</td><td><em>(NFS protocol detail)</em></td><td><em>(NFS protocol detail)</em></td><td>Synchronize</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Common permission bundles</h4>
+<p>Compare to the Windows "basic permissions":</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Windows basic permission</th><th>Equivalent letters</th></tr></thead>
+  <tbody>
+    <tr><td>Full Control</td><td><code>rwaDdxtTnNcCoy</code> (everything)</td></tr>
+    <tr><td>Modify</td><td><code>rwadxtTnNcy</code> (no delete-child, no write-ACL, no write-owner)</td></tr>
+    <tr><td>Read &amp; Execute</td><td><code>rxtncy</code> (read, execute, read attrs, read named attrs, read ACL, sync)</td></tr>
+    <tr><td>Read</td><td><code>rtncy</code> (same but no execute)</td></tr>
+    <tr><td>Write</td><td><code>watTnNcy</code> (write, append, write attrs, write named, read ACL, sync)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>There is no single "Full Control" shorthand. You spell out every letter. This is intentional&mdash;it forces you to be explicit about what you are granting.</p>
+
+<!-- ========== RULES ========== -->
+<h2 id="rules">The rules engine</h2>
+
+<h3>How matching works</h3>
+
+<p>permissionreset walks every file and directory. For each one, it checks the rules <strong>in order, top to bottom</strong>, and uses the <strong>first match</strong>. If nothing matches, it uses <code>default</code>.</p>
+
+<p>This is exactly like Windows' inherited vs. explicit ACLs&mdash;more specific rules go first, catch-all at the bottom.</p>
+
+<pre><code><span class="hl-key">default:</span>
+  <span class="hl-key">acl:</span> [...]        <span class="hl-comment"># catch-all: anything not matched by a rule</span>
+
+<span class="hl-key">rules:</span>
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">directory</span>   <span class="hl-comment"># matches all directories</span>
+    <span class="hl-key">acl:</span> [...]
+
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">file</span>
+      <span class="hl-key">pattern:</span> <span class="hl-string">"*.sh"</span>   <span class="hl-comment"># matches only .sh files</span>
+    <span class="hl-key">acl:</span> [...]
+
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">file</span>        <span class="hl-comment"># matches all remaining files</span>
+    <span class="hl-key">acl:</span> [...]</code></pre>
+
+<h3>Match criteria</h3>
+
+<p>Each rule has a <code>match:</code> block with two optional fields:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Field</th><th>Values</th><th>Behavior</th></tr></thead>
+  <tbody>
+    <tr><td><code>type</code></td><td><code>file</code>, <code>directory</code>, or omit</td><td>Restricts to files or directories. Omit to match both.</td></tr>
+    <tr><td><code>pattern</code></td><td>A glob like <code>*.sh</code></td><td>Matched against the <strong>base name</strong> only (not the full path). <code>*</code> matches any sequence except <code>/</code>, <code>?</code> matches one character, <code>[abc]</code> matches a character class.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>If both are omitted, the rule matches everything&mdash;put it last or it will shadow all rules after it.</p>
+
+<h3>Rules replace, they do not merge</h3>
+
+<div class="callout callout-err">
+  <div class="callout-label">Critical</div>
+  <p><strong>A matching rule replaces the default entirely. It does not inherit anything from <code>default</code>.</strong></p>
+  <p>In Windows terms: imagine the Security tab where a subfolder has "Include inheritable permissions from this object's parent" unchecked. The subfolder's ACL is entirely its own.</p>
+</div>
+
+<p>Example of the trap:</p>
+
+<pre><code><span class="hl-key">protocol:</span> <span class="hl-string">posix</span>
+<span class="hl-key">default:</span>
+  <span class="hl-key">mode:</span> <span class="hl-string">"0664"</span>
+  <span class="hl-key">owner:</span> <span class="hl-string">serviceaccount</span>
+  <span class="hl-key">group:</span> <span class="hl-string">engineering</span>
+
+<span class="hl-key">rules:</span>
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">file</span>
+      <span class="hl-key">pattern:</span> <span class="hl-string">"*.sh"</span>
+    <span class="hl-key">mode:</span> <span class="hl-string">"0775"</span>
+    <span class="hl-comment"># owner and group are NOT inherited from default!</span>
+    <span class="hl-comment"># This rule sets mode only. Owner/group are left alone.</span></code></pre>
+
+<p>For <code>*.sh</code> files, the effective permissions are <code>mode: "0775"</code> and nothing else. If you want scripts to also get <code>owner: serviceaccount</code> and <code>group: engineering</code>, you must say so in the rule:</p>
+
+<pre><code>  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">file</span>
+      <span class="hl-key">pattern:</span> <span class="hl-string">"*.sh"</span>
+    <span class="hl-key">mode:</span> <span class="hl-string">"0775"</span>
+    <span class="hl-key">owner:</span> <span class="hl-string">serviceaccount</span>
+    <span class="hl-key">group:</span> <span class="hl-string">engineering</span></code></pre>
+
+<h3>Rule ordering strategy</h3>
+
+<ol>
+  <li><strong>Directory rules</strong> &mdash; with inheritance flags (<code>fd</code>)</li>
+  <li><strong>Specific file rules</strong> &mdash; pattern matches (<code>*.sh</code>, <code>*.dat</code>)</li>
+  <li><strong>General file rule</strong> &mdash; catches remaining files</li>
+  <li><strong>Default</strong> &mdash; catches anything not matched above</li>
+</ol>
+
+<!-- ========== EXCLUDE ========== -->
+<h2 id="exclude">Exclude patterns</h2>
+
+<p>Skip files or directories that should not be touched:</p>
+
+<pre><code><span class="hl-key">exclude:</span>
+  - <span class="hl-string">".snapshot"</span>
+  - <span class="hl-string">"*.tmp"</span>
+  - <span class="hl-string">"logs/*.gz"</span></code></pre>
+
+<p>You can also add excludes on the command line with <code>--exclude</code>. Both sources are merged (neither overrides the other).</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Pattern</th><th>Behavior</th></tr></thead>
+  <tbody>
+    <tr><td>No <code>/</code> in pattern</td><td>Matched against the <strong>base name</strong> at any depth. <code>.snapshot</code> matches every <code>.snapshot</code> directory anywhere in the tree.</td></tr>
+    <tr><td>Contains <code>/</code></td><td>Matched against the <strong>path relative to the target root</strong>. <code>logs/*.gz</code> matches <code>.gz</code> files in the <code>logs/</code> directory directly under the target, but not in <code>data/logs/</code>.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Excluded directories are <strong>pruned</strong>&mdash;permissionreset does not descend into them, saving traversal time. This is the right way to skip <code>.snapshot</code> directories on FlashBlade (they can contain millions of objects).</p>
+
+<p>Restrictions:</p>
+<ul>
+  <li>No <code>**</code> (Go's glob has no recursive wildcard)</li>
+  <li>No absolute paths (patterns are always relative to the target root)</li>
+</ul>
+
+<!-- ========== WORKED EXAMPLE ========== -->
+<h2 id="example">Worked example</h2>
+
+<p>Scenario: a shared project directory on FlashBlade accessed over NFS. Three groups need access:</p>
+
+<ul>
+  <li><strong>storageadmins</strong> &mdash; full control (they manage the share)</li>
+  <li><strong>engineering</strong> &mdash; read, write, execute</li>
+  <li><strong>auditors</strong> &mdash; read only</li>
+</ul>
+
+<p>The NFS user running permissionreset is <code>arraysvc</code>.</p>
+
+<pre><code><span class="hl-key">protocol:</span> <span class="hl-string">nfsv4</span>
+
+<span class="hl-comment"># Files that don't match any rule get this ACL.</span>
+<span class="hl-comment"># In practice, the file rule below catches all files,</span>
+<span class="hl-comment"># so this is a safety net.</span>
+<span class="hl-key">default:</span>
+  <span class="hl-key">acl:</span>
+    - <span class="hl-string">"A::arraysvc@example.com:rwaDdxtTnNcCoy"</span>
+    - <span class="hl-string">"A:g:storageadmins@example.com:rwaDdxtTnNcCoy"</span>
+    - <span class="hl-string">"A:g:engineering@example.com:rwadxtTnNcy"</span>
+    - <span class="hl-string">"A:g:auditors@example.com:rxtncy"</span>
+
+<span class="hl-key">rules:</span>
+  <span class="hl-comment"># Directories: same principals, but with inheritance flags</span>
+  <span class="hl-comment"># so new files/subdirs pick up these ACEs automatically.</span>
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">directory</span>
+    <span class="hl-key">acl:</span>
+      - <span class="hl-string">"A:fd:arraysvc@example.com:rwaDdxtTnNcCoy"</span>
+      - <span class="hl-string">"A:fdg:storageadmins@example.com:rwaDdxtTnNcCoy"</span>
+      - <span class="hl-string">"A:fdg:engineering@example.com:rwadxtTnNcy"</span>
+      - <span class="hl-string">"A:fdg:auditors@example.com:rxtncy"</span>
+
+  <span class="hl-comment"># Shell scripts: engineering gets execute</span>
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">file</span>
+      <span class="hl-key">pattern:</span> <span class="hl-string">"*.sh"</span>
+    <span class="hl-key">acl:</span>
+      - <span class="hl-string">"A::arraysvc@example.com:rwaDdxtTnNcCoy"</span>
+      - <span class="hl-string">"A:g:storageadmins@example.com:rwaDdxtTnNcCoy"</span>
+      - <span class="hl-string">"A:g:engineering@example.com:rwaxdtTnNcy"</span>
+      - <span class="hl-string">"A:g:auditors@example.com:rxtncy"</span>
+
+  <span class="hl-comment"># All other files: engineering can read and write but not execute</span>
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">file</span>
+    <span class="hl-key">acl:</span>
+      - <span class="hl-string">"A::arraysvc@example.com:rwaDdxtTnNcCoy"</span>
+      - <span class="hl-string">"A:g:storageadmins@example.com:rwaDdxtTnNcCoy"</span>
+      - <span class="hl-string">"A:g:engineering@example.com:rwadtTnNcy"</span>
+      - <span class="hl-string">"A:g:auditors@example.com:rtncy"</span>
+
+<span class="hl-key">exclude:</span>
+  - <span class="hl-string">".snapshot"</span></code></pre>
+
+<p>What happens for each object type:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Object</th><th>Matched by</th><th>ACL applied</th></tr></thead>
+  <tbody>
+    <tr><td><code>/mnt/data/share/</code></td><td>directory rule</td><td>4 ACEs with <code>fd</code>/<code>fdg</code> flags</td></tr>
+    <tr><td><code>/mnt/data/share/src/</code></td><td>directory rule</td><td>Same 4 inheritable ACEs</td></tr>
+    <tr><td><code>/mnt/data/share/deploy.sh</code></td><td><code>*.sh</code> file rule</td><td>4 ACEs, engineering gets <code>x</code></td></tr>
+    <tr><td><code>/mnt/data/share/README.md</code></td><td>generic file rule</td><td>4 ACEs, engineering has no <code>x</code></td></tr>
+    <tr><td><code>/mnt/data/share/.snapshot/</code></td><td>excluded</td><td>Skipped entirely (not descended)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Why arraysvc is listed first</h3>
+
+<p>The user running permissionreset needs traverse permission (<code>x</code> on directories, read on the ACL) throughout the tree. If permissionreset fixes a directory's ACL and the new ACL locks out the running user, it cannot descend into that directory to fix its children. Putting the running user first with full control prevents this.</p>
+
+<!-- ========== MISTAKES ========== -->
+<h2 id="mistakes">Common mistakes</h2>
+
+<h3>Forgetting <code>g</code> on group principals</h3>
+
+<div class="example-pair">
+  <div class="example-wrong">
+    <div class="example-tag">Wrong</div>
+    <pre><code>"A:fd:storageadmins@example.com:rwaDxtTcCoy"</code></pre>
+  </div>
+  <div class="example-right">
+    <div class="example-tag">Right</div>
+    <pre><code>"A:fd<strong>g</strong>:storageadmins@example.com:rwaDxtTcCoy"</code></pre>
+  </div>
+</div>
+
+<p>Without <code>g</code>, the NFS kernel tries to look up <code>storageadmins</code> as a user, which either fails or maps to the wrong entity.</p>
+
+<h3>Using inheritance flags on file rules</h3>
+
+<div class="example-pair">
+  <div class="example-wrong">
+    <div class="example-tag">Wrong</div>
+    <pre><code>"A:<strong>fd</strong>:OWNER@:rwaTcCoy"
+<span class="hl-comment"># files cannot have children</span></code></pre>
+  </div>
+  <div class="example-right">
+    <div class="example-tag">Right</div>
+    <pre><code>"A::OWNER@:rwaTcCoy"
+<span class="hl-comment"># no inheritance flags on files</span></code></pre>
+  </div>
+</div>
+
+<h3>Mixing protocol fields</h3>
+
+<pre><code><span class="hl-comment"># WRONG: mode is a posix field, acl is an nfsv4 field</span>
+<span class="hl-key">protocol:</span> <span class="hl-string">nfsv4</span>
+<span class="hl-key">default:</span>
+  <span class="hl-key">mode:</span> <span class="hl-string">"0755"</span>
+  <span class="hl-key">acl:</span>
+    - <span class="hl-string">"A::OWNER@:rwaDxtTcCoy"</span></code></pre>
+
+<p>permissionreset rejects this at load time. Pick one protocol.</p>
+
+<h3>Relying on OWNER@ in production</h3>
+
+<p><code>OWNER@</code> resolves to whoever owns the file right now. On Windows-written data imported to FlashBlade, that might be <code>nobody</code> or a numeric ID without traverse permission. Use named principals in production specs; reserve <code>OWNER@</code> / <code>GROUP@</code> / <code>EVERYONE@</code> for quick tests.</p>
+
+<h3>Assuming the default inherits into rules</h3>
+
+<pre><code><span class="hl-key">default:</span>
+  <span class="hl-key">acl:</span>
+    - <span class="hl-string">"A::arraysvc@example.com:rwaDdxtTnNcCoy"</span>
+    - <span class="hl-string">"A:g:storageadmins@example.com:rwaDdxtTnNcCoy"</span>
+    - <span class="hl-string">"A:g:auditors@example.com:rxtncy"</span>
+
+<span class="hl-key">rules:</span>
+  - <span class="hl-key">match:</span>
+      <span class="hl-key">type:</span> <span class="hl-string">directory</span>
+    <span class="hl-key">acl:</span>
+      - <span class="hl-string">"A:fd:OWNER@:rwaDxtTcCoy"</span>
+      <span class="hl-comment"># arraysvc, storageadmins, auditors are NOT here.</span>
+      <span class="hl-comment"># Directories get ONLY the one OWNER@ ACE.</span></code></pre>
+
+<!-- ========== SACL ========== -->
+<h2 id="sacl">Audit ACEs (SACL) on FlashArray</h2>
+
+<p>A FlashArray NFSv4 ACL holds two lists in one attribute: the DACL (<code>A</code> allow and <code>D</code> deny entries, who may do what) and the SACL (<code>U</code> audit entries, which accesses get logged). permissionreset writes the SACL from a separate <code>sacl:</code> key. <code>U</code> and <code>L</code> lines are refused in <code>acl:</code>.</p>
+
+<p>Both FlashArray and FlashBlade (multiprotocol file systems, Purity//FB 4.8.0 measured) return audit ACEs inside <code>system.nfs4_acl</code>, so on both a DACL write without them deletes them (RISKS.md #10, #51). The section was written against FlashArray; FlashBlade SACL writes over NFS are stored but otherwise untested. All of it needs <a href="#sacl-mode"><code>--sacl</code></a>. Without <code>--sacl</code>, a DACL reset is refused when the target root already carries audit ACEs.</p>
+
+<h3>Writing an audit ACE</h3>
+
+<p>An audit ACE uses the same four fields as any other ACE, with type <code>U</code> and one or both of two extra flags:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Flag</th><th>Name</th><th>What it means</th></tr></thead>
+  <tbody>
+    <tr><td><code>S</code></td><td>Successful access</td><td>Log accesses that were allowed</td></tr>
+    <tr><td><code>F</code></td><td>Failed access</td><td>Log accesses that were denied</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>A <code>U</code> ACE must carry <code>S</code>, <code>F</code> or both. The permission letters say which accesses to log. The inheritance flags work as they do for <code>A</code>/<code>D</code>: directories carry <code>fd</code> so new children inherit the audit entry, and files carry none.</p>
+
+<pre><code><span class="hl-key">sacl:</span>
+  - <span class="hl-string">"U:fdSF:EVERYONE@:rwadxTNcCoy"</span>   <span class="hl-comment"># directory: log every allowed and denied access, inherited</span></code></pre>
+
+<p>Only <code>U</code> is accepted in <code>sacl:</code>. <code>L</code> (alarm) ACEs cannot be written, and FlashArray does not act on them.</p>
+
+<h3>Two kinds of rule</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Rule has</th><th>What permissionreset writes on each object it matches</th></tr></thead>
+  <tbody>
+    <tr><td><code>sacl:</code> and no <code>acl:</code></td><td><strong>Keeps the object's own DACL</strong> and replaces only its SACL.</td></tr>
+    <tr><td><code>acl:</code> and <code>sacl:</code></td><td>The spec's DACL and the spec's SACL, as given. The object's DACL is replaced.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The first kind is the one to use on a migrated tree whose DACLs differ from object to object. For each object, permissionreset reads the ACL, keeps every <code>A</code>/<code>D</code> entry byte for byte in its original order, drops every <code>U</code>/<code>L</code> entry, adds the rule's SACL at the end, and writes the result. The result depends only on the object's DACL and the spec, so a second run changes nothing (with <code>--compare</code>, a rerun writes 0 objects).</p>
+
+<p><code>examples/nfsv4_sacl_keep_dacl.yaml</code> is a complete DACL-keeping spec:</p>
+
+<pre><code><span class="hl-key">protocol:</span> <span class="hl-string">nfsv4</span>
+<span class="hl-key">rules:</span>
+  - <span class="hl-key">match:</span> {<span class="hl-key">type:</span> <span class="hl-string">directory</span>}
+    <span class="hl-key">sacl:</span>
+      - <span class="hl-string">"U:fdSF:EVERYONE@:rwadxTNcCoy"</span>
+  - <span class="hl-key">match:</span> {<span class="hl-key">type:</span> <span class="hl-string">file</span>}
+    <span class="hl-key">sacl:</span>
+      - <span class="hl-string">"U:SF:EVERYONE@:rwadxTNcCoy"</span></code></pre>
+
+<p>An object whose ACL has no <code>A</code>/<code>D</code> entries is not written and is reported as failed: a SACL-only ACL would take away all access.</p>
+
+<p><code>sacl: []</code> means "no audit ACEs". On a DACL-keeping rule it removes every audit ACE and keeps the DACL. On a rule with <code>acl:</code> it writes the DACL with an empty SACL.</p>
+
+<p><code>--validate</code> on a DACL-keeping rule checks only the SACL: the object's <code>U</code> entries must match the spec's, in order, at the end of the ACL. The DACL is not compared, because the spec does not define one.</p>
+
+<h3 id="sacl-mode">SACL mode: <code>--sacl</code></h3>
+
+<p>Writing audit ACEs is opt-in. Without <code>--sacl</code>, permissionreset runs <code>acl:</code> specs as it always has, and refuses any spec that names <code>sacl:</code> (<code>sacl: []</code> included, since it deletes audit ACEs):</p>
+
+<pre><code>ERROR: the following NFSv4 rule(s) set sacl: (audit ACEs):
+  rule[0]
+Writing audit ACEs is SACL mode. Pass --sacl to turn it on.</code></pre>
+
+<p>With <code>--sacl</code>, a second check applies. On FlashArray, writing a DACL with no SACL deletes the object's existing audit ACEs, so an NFSv4 rule (or <code>default:</code>) that sets <code>acl:</code> and has no <code>sacl:</code> key at all is refused before anything is touched:</p>
+
+<pre><code>ERROR: the following NFSv4 rule(s) set acl: with no sacl: key:
+  rule[0]
+On FlashArray, writing the DACL without a SACL deletes the object's existing audit ACEs.
+Add sacl: [] to that rule to say an empty audit ACL is intended, or run without --sacl if this is not a FlashArray SACL run.</code></pre>
+
+<p><code>--sacl</code> also turns on <a href="#sacl-preflight">the preflight</a> and the audit-policy NOTE.</p>
+
+<div class="callout callout-warn">
+  <div class="callout-label">Important</div>
+  <p><strong>Without <code>--sacl</code>, only the root is checked.</strong> An <code>acl:</code> spec without <code>--sacl</code> is refused when the target root carries audit ACEs, and under <code>--compare</code> so is each object that carries them. A subtree with audit ACEs under a root without them is not caught unless <code>--compare</code> is on, and that run deletes them, on FlashArray and FlashBlade alike (RISKS.md #10). On any tree that uses auditing, always pass <code>--sacl</code>.</p>
+</div>
+
+<h3>Required privilege: the audit bypass</h3>
+
+<p>Writing audit ACEs needs the array's audit bypass. That means one of:</p>
+<ul>
+  <li>root over AUTH_SYS with root squash off on the export (kernel transport: mount NFSv4.1 as root; userspace transport: <code>--auth-uid 0</code>), or</li>
+  <li>an AD identity the array grants the bypass directly.</li>
+</ul>
+<p>Domain Admins membership is not enough.</p>
+
+<p>The bypass covers the read too. On Purity//FA before 6.12.1, an ACL read by an identity without the bypass empties the SACL of an object that is still inheriting it. So the bypass is required, not optional, and there is no flag to skip the check.</p>
+
+<h3 id="sacl-preflight">The preflight</h3>
+
+<p>Any <code>--sacl</code> run of a spec with a <code>sacl:</code> key &mdash; <code>sacl: []</code> included, since that rule still reads every object &mdash; runs a probe in apply, <code>--compare</code> and <code>--validate</code> alike, but not in <code>--dry-run</code>. The probe runs before the walk: it writes a temporary file with a DACL and an audit ACE, then reads it back.</p>
+<ul>
+  <li>If the write is refused, the run stops with <code>preflight: audit (SACL) ACE write was refused -- the running identity lacks the array's audit bypass</code>, followed by the list of identities that have the bypass.</li>
+  <li>If the write is accepted but the read-back has no <code>U</code> entries, the run stops with <code>preflight: audit (SACL) ACEs were accepted but the array did not retain them</code>.</li>
+</ul>
+
+<p>Every such run also prints this NOTE, whatever the preflight finds:</p>
+
+<pre><code>NOTE: sacl: writes audit ACEs, but logging them still needs an audit policy turned
+      on for the managed directory -- permissionreset cannot check that over NFS.</code></pre>
+
+<h3>Limits</h3>
+
+<ol>
+  <li><strong>New objects are not protected on Purity//FA 6.10.6 and 6.11.x.</strong> Files and folders created after the run inherit from their parent, and one ACL read over NFSv4.1 by a user without the bypass leaves them with an empty SACL. SMB reads do not do this. 6.12.1 fixed it. Use 6.12.1 or later where auditing must hold, or rerun permissionreset on a schedule.</li>
+  <li><strong>Parent SACL edits do not reach stamped children.</strong> Every object holds its own copy. To change the audit rule, change the spec and rerun.</li>
+  <li><strong>Logging needs an audit policy on the managed directory.</strong> The SACL is stored without one, but nothing is logged. permissionreset cannot check this over NFS.</li>
+  <li><strong>64 KB ACL size.</strong> <code>XATTR_SIZE_MAX</code> bounds the encoded ACL. A very large DACL plus SACL fails that object with <code>E2BIG</code>.</li>
+  <li><strong>The read-write gap (DACL-keeping rules).</strong> A DACL change someone makes between permissionreset' read and its write of the same object is lost. The window is milliseconds per object. Run in a quiet window.</li>
+  <li><strong>Replacing a file avoids its SACL.</strong> In place, a user without the bypass cannot remove the SACL (not by a DACL write, <code>chmod</code> or <code>nfs4_setfacl -x</code>) on 6.10.6 or 6.12.1. A file that is copied and renamed over the original, or re-created, carries only the parent's inherited SACL, so on 6.10.6/6.11.x it is exposed to limit 1.</li>
+</ol>
+
+<h3>Capturing a SACL spec with build-spec</h3>
+
+<p><code>build-spec</code> reads one directory and one file and decides by what it finds:</p>
+<ul>
+  <li><strong>No audit ACEs:</strong> the same DACL spec as before, with no <code>sacl:</code> key. It runs without <code>--sacl</code>. To run it in SACL mode, add <code>sacl: []</code> (or the audit ACEs you want) to each rule.</li>
+  <li><strong>Audit ACEs:</strong> DACL-keeping <code>sacl:</code>-only rules, run with <code>--sacl</code>. An exemplar with none of its own gets <code>sacl: []</code>. <code>--with-dacl</code> adds the exemplars' DACLs as <code>acl:</code> as well, which turns the rules into ones that replace every object's DACL.</li>
+</ul>
+<p><code>L</code> ACEs are dropped with a NOTE. Capture FlashArray exemplars with the bypass: without it the array returns no audit ACEs, and before 6.12.1 that read also empties an inheriting SACL on the exemplar.</p>
+
+<!-- ========== VALIDATE ========== -->
+<h2 id="validate">Validating your spec</h2>
+
+<p>Before running a real repair:</p>
+
+<pre><code><span class="hl-comment"># Dry run: shows what would happen, changes nothing</span>
+permissionreset --spec myspec.yaml --dry-run /mnt/data/share
+
+<span class="hl-comment"># Apply to a small test directory first</span>
+permissionreset --spec myspec.yaml /mnt/data/share/testdir
+
+<span class="hl-comment"># Verify after applying: checks every object matches the spec</span>
+permissionreset --spec myspec.yaml --validate /mnt/data/share/testdir</code></pre>
+
+<p>For a spec with <code>sacl:</code>, add <code>--sacl</code> to each command (see <a href="#sacl-mode">SACL mode</a>).</p>
+
+<p>Spec validation happens at load time. If you have a typo in a permission letter, an invalid glob pattern, or a cross-protocol field, permissionreset tells you immediately and exits before touching anything.</p>
+
+<!-- ========== QUICK REF ========== -->
+<h2 id="quickref">Quick reference: NFSv4 ACE format</h2>
+
+<div class="quick-ref">
+  <div class="ace-anatomy" style="margin-top: 0;">
+    <pre><code><span class="ace-field-type">TYPE</span> : <span class="ace-field-flags">FLAGS</span> : <span class="ace-field-who">WHO</span> : <span class="ace-field-perms">PERMISSIONS</span>
+ <span class="ace-field-type">A</span>   :  <span class="ace-field-flags">fdg</span>  : <span class="ace-field-who">storageadmins@example.com</span> : <span class="ace-field-perms">rwaDxtTcCoy</span></code></pre>
+  </div>
+
+  <div class="quick-ref-grid">
+    <div class="quick-ref-section">
+      <h4>Types</h4>
+      <p><code>A</code> Allow &nbsp; <code>D</code> Deny (in <code>acl:</code>)<br><code>U</code> Audit (in <code>sacl:</code> only)<br><code>L</code> Alarm: not accepted</p>
+    </div>
+    <div class="quick-ref-section">
+      <h4>Flags</h4>
+      <p><code>f</code> file-inherit &nbsp; <code>d</code> dir-inherit<br><code>g</code> group &nbsp; <code>i</code> inherit-only<br><code>n</code> no-propagate<br><code>S</code> audit success &nbsp; <code>F</code> audit failure (<code>U</code> only)</p>
+    </div>
+    <div class="quick-ref-section">
+      <h4>Permissions</h4>
+      <p><code>r</code> read &nbsp; <code>w</code> write &nbsp; <code>a</code> append<br><code>x</code> execute &nbsp; <code>d</code> delete &nbsp; <code>D</code> delete-child<br><code>t</code> read-attrs &nbsp; <code>T</code> write-attrs<br><code>n</code> read-named &nbsp; <code>N</code> write-named<br><code>c</code> read-ACL &nbsp; <code>C</code> write-ACL<br><code>o</code> write-owner &nbsp; <code>y</code> synchronize</p>
+    </div>
+  </div>
+</div>
+
+</div>

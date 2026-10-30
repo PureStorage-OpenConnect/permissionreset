@@ -1,0 +1,24 @@
+permissionreset
+generate-tree
+# Anchored: unanchored, "sweep" would also ignore the cmd/sweep source directory.
+/sweep
+# Anchored: unanchored, "build-spec" would also ignore the cmd/build_spec source directory.
+/build-spec
+/permissionreset-tuning.yaml
+dist/
+__pycache__/
+*.pyc
+acl_manifest.json
+.fb-credentials
+.fb-last-snapshot
+swagger.json
+build-spec.exe
+.DS_Store
+
+# Wails desktop app build outputs and generated bindings
+gui/buildspec/build/bin/
+gui/buildspec/frontend/wailsjs/
+gui/buildspec/buildspec
+
+# Private lab instructions for Claude Code; tracked only in the lab repository
+CLAUDE.local.md

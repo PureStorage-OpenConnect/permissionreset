@@ -1,0 +1,16 @@
+{
+  "domain": "example.net",
+  "roles": {
+    "owner_primary":     "OWNER@",
+    "owner_secondary":   "OWNER@",
+    "owner_tertiary":    "OWNER@",
+    "user_collaborator": "EVERYONE@",
+    "user_auditor":      "EVERYONE@",
+    "user_denied":       "EVERYONE@",
+    "service_account":   "OWNER@",
+    "group_primary":     "GROUP@",
+    "group_secondary":   "GROUP@",
+    "group_readonly":    "GROUP@",
+    "group_array":       "GROUP@"
+  }
+}

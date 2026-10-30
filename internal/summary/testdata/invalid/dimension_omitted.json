@@ -1,0 +1,157 @@
+{
+  "accounting": {
+    "attempted": 0,
+    "enumeration_complete": true,
+    "excluded": 0,
+    "failed": 0,
+    "included": 10,
+    "succeeded": 0,
+    "unverified": 0
+  },
+  "errors": {
+    "apply": 2,
+    "dir_fix": 3,
+    "duplicate_completions": 0,
+    "total": 6,
+    "walk": 1
+  },
+  "exit_code": 1,
+  "finished_at": "1970-01-01T00:01:00Z",
+  "interrupted": false,
+  "objects": {
+    "applied": 7,
+    "enumerated": 10,
+    "excluded": 0,
+    "failed": 0,
+    "skipped": 2,
+    "symlinks": 1
+  },
+  "options": {
+    "batch_size": 50,
+    "checkpoint_path": "/var/ck",
+    "compare": true,
+    "connections": 16,
+    "dry_run": false,
+    "one_filesystem": false,
+    "pfind": false,
+    "resume": true,
+    "set_owner": true,
+    "workers": 1024,
+    "workers_defaulted": false
+  },
+  "phases": {
+    "apply_seconds": 9,
+    "fused": true,
+    "prepass_seconds": 0,
+    "total_seconds": 10
+  },
+  "prepass": {
+    "dirs_fixed": 4,
+    "errors": 3,
+    "fix_seconds_summed": 1.5,
+    "readdir_seconds_summed": 2.5
+  },
+  "run_id": "00000000000000000000000000000000",
+  "schema_version": 2,
+  "spec": {
+    "path": "/etc/spec.yaml",
+    "protocol": "nfsv4",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "started_at": "1970-01-01T00:00:00Z",
+  "target": "/mnt/fb-perms/tree",
+  "tool": {
+    "commit": "abc123",
+    "date": "2026-08-23",
+    "name": "permissionreset",
+    "version": "1.2.3"
+  },
+  "transport": {
+    "export": "/fb-perms",
+    "filesystem_id": 42,
+    "filesystem_id_source": "fsid",
+    "name": "userspace",
+    "platform": "flashblade",
+    "server": "192.0.2.50:2049"
+  },
+  "verification": {
+    "dimensions": [
+      {
+        "coverage": {
+          "eligible": 0,
+          "enumeration_complete": false,
+          "matched": 0,
+          "mismatched": 0,
+          "not_checked": 0,
+          "unreadable": 0
+        },
+        "does_not_prove": "what the server stored; read-back is nfs_spec_match",
+        "name": "write_accepted",
+        "proves": "the server accepted the write without error",
+        "required": false,
+        "state": "not_checked"
+      },
+      {
+        "coverage": {
+          "eligible": 10,
+          "enumeration_complete": true,
+          "matched": 10,
+          "mismatched": 0,
+          "not_checked": 0,
+          "unreadable": 0
+        },
+        "does_not_prove": "SMB descriptor fidelity or effective access",
+        "name": "nfs_spec_match",
+        "proves": "the NFS-visible ACL equals the spec",
+        "required": true,
+        "state": "matched"
+      },
+      {
+        "coverage": {
+          "eligible": 0,
+          "enumeration_complete": false,
+          "matched": 0,
+          "mismatched": 0,
+          "not_checked": 0,
+          "unreadable": 0
+        },
+        "does_not_prove": "effective access; descriptor equality is not an access check",
+        "name": "smb_descriptor_fidelity",
+        "proves": "the raw SMB descriptor bytes equal the expected descriptor",
+        "required": false,
+        "state": "not_checked"
+      },
+      {
+        "coverage": {
+          "eligible": 0,
+          "enumeration_complete": false,
+          "matched": 0,
+          "mismatched": 0,
+          "not_checked": 0,
+          "unreadable": 0
+        },
+        "does_not_prove": "that audit events are generated or delivered",
+        "name": "sacl_retention",
+        "proves": "audit ACEs present before the run are still present",
+        "required": false,
+        "state": "not_checked"
+      },
+      {
+        "coverage": {
+          "eligible": 0,
+          "enumeration_complete": false,
+          "matched": 0,
+          "mismatched": 0,
+          "not_checked": 0,
+          "unreadable": 0
+        },
+        "does_not_prove": "access for principals that were not tested",
+        "name": "effective_access",
+        "proves": "the server grants the expected access to the tested principals",
+        "required": false,
+        "state": "not_checked"
+      }
+    ],
+    "verdict": "verified"
+  }
+}

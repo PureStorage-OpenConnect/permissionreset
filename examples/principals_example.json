@@ -1,0 +1,36 @@
+{
+  "_comment": [
+    "Principal roster for generate_tree_windows.py.",
+    "Every role maps to a REAL account that must resolve to a SID on the",
+    "generating host. These are deliberately domain accounts, not well-known",
+    "SIDs: an ACE for CORP\\StorageAdmins cannot be collapsed into a POSIX",
+    "mode bit or an NFSv4 OWNER@/GROUP@/EVERYONE@ special principal, so a",
+    "repair tool has to carry the real identity through ID-mapping.",
+    "Roles are referenced by name from the scenario library.",
+    "",
+    "'control' is an OPTIONAL extra safety-ACE grantee. It is not what keeps",
+    "you out of a lockout: the generator always grants a full-control ACE to",
+    "the account running it, because UAC's filtered token makes an admin-group",
+    "ACE inert in a non-elevated process."
+  ],
+
+  "domain": "CORP",
+
+  "roles": {
+    "owner_primary":    "CORP\\alice",
+    "owner_secondary":  "CORP\\bob",
+    "owner_tertiary":   "CORP\\carol",
+
+    "user_collaborator": "CORP\\dave",
+    "user_auditor":      "CORP\\erin",
+    "user_denied":       "CORP\\frank",
+    "service_account":   "CORP\\arraysvc",
+
+    "group_primary":   "CORP\\StorageAdmins",
+    "group_secondary": "CORP\\OpsAdmins",
+    "group_readonly":  "CORP\\ReadOnly",
+    "group_array":     "CORP\\ArrayAdmins",
+
+    "control": "CORP\\Domain Admins"
+  }
+}

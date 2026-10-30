@@ -1,0 +1,174 @@
+{
+  "schema_version": 2,
+  "run_id": "00000000000000000000000000000000",
+  "tool": {
+    "name": "permissionreset",
+    "version": "1.2.3",
+    "commit": "abc123",
+    "date": "2026-08-23"
+  },
+  "target": "/mnt/fb-perms/tree",
+  "transport": {
+    "name": "userspace",
+    "server": "192.0.2.50:2049",
+    "export": "/fb-perms",
+    "platform": "flashblade",
+    "filesystem_id": 42,
+    "filesystem_id_source": "fsid"
+  },
+  "spec": {
+    "path": "/etc/spec.yaml",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "protocol": "nfsv4"
+  },
+  "options": {
+    "workers": 1024,
+    "batch_size": 50,
+    "connections": 16,
+    "workers_defaulted": false,
+    "dry_run": false,
+    "compare": true,
+    "set_owner": true,
+    "pfind": false,
+    "one_filesystem": false,
+    "checkpoint_path": "/var/ck",
+    "resume": true
+  },
+  "objects": {
+    "enumerated": 10,
+    "applied": 7,
+    "skipped": 2,
+    "symlinks": 1,
+    "excluded": 0,
+    "failed": 0
+  },
+  "errors": {
+    "walk": 1,
+    "apply": 2,
+    "dir_fix": 3,
+    "duplicate_completions": 0,
+    "total": 6
+  },
+  "prepass": {
+    "dirs_fixed": 4,
+    "errors": 3,
+    "fix_seconds_summed": 1.5,
+    "readdir_seconds_summed": 2.5
+  },
+  "phases": {
+    "prepass_seconds": 0,
+    "apply_seconds": 9,
+    "total_seconds": 10,
+    "fused": true
+  },
+  "interrupted": false,
+  "exit_code": 1,
+  "started_at": "1970-01-01T00:00:00Z",
+  "finished_at": "1970-01-01T00:01:00Z",
+  "accounting": {
+    "included": 10,
+    "excluded": 0,
+    "attempted": 0,
+    "succeeded": 0,
+    "failed": 0,
+    "unverified": 7,
+    "enumeration_complete": true
+  },
+  "verification": {
+    "verdict": "unverified",
+    "dimensions": [
+      {
+        "name": "write_accepted",
+        "required": false,
+        "state": "not_checked",
+        "proves": "the server accepted the write without error",
+        "does_not_prove": "what the server stored; read-back is nfs_spec_match",
+        "coverage": {
+          "eligible": 0,
+          "matched": 0,
+          "mismatched": 0,
+          "unreadable": 0,
+          "not_checked": 0,
+          "enumeration_complete": false
+        }
+      },
+      {
+        "name": "nfs_spec_match",
+        "required": true,
+        "state": "sampled",
+        "proves": "the NFS-visible ACL equals the spec",
+        "does_not_prove": "SMB descriptor fidelity or effective access",
+        "coverage": {
+          "eligible": 10,
+          "matched": 3,
+          "mismatched": 0,
+          "unreadable": 0,
+          "not_checked": 7,
+          "enumeration_complete": true,
+          "sampled": true,
+          "sample_rule": "hash(path) mod 3 == 0"
+        }
+      },
+      {
+        "name": "smb_descriptor_fidelity",
+        "required": false,
+        "state": "not_checked",
+        "proves": "the raw SMB descriptor bytes equal the expected descriptor",
+        "does_not_prove": "effective access; descriptor equality is not an access check",
+        "coverage": {
+          "eligible": 0,
+          "matched": 0,
+          "mismatched": 0,
+          "unreadable": 0,
+          "not_checked": 0,
+          "enumeration_complete": false
+        }
+      },
+      {
+        "name": "sacl_retention",
+        "required": false,
+        "state": "not_checked",
+        "proves": "audit ACEs present before the run are still present",
+        "does_not_prove": "that audit events are generated or delivered",
+        "coverage": {
+          "eligible": 0,
+          "matched": 0,
+          "mismatched": 0,
+          "unreadable": 0,
+          "not_checked": 0,
+          "enumeration_complete": false
+        }
+      },
+      {
+        "name": "effective_access",
+        "required": false,
+        "state": "not_checked",
+        "proves": "the server grants the expected access to the tested principals",
+        "does_not_prove": "access for principals that were not tested",
+        "coverage": {
+          "eligible": 0,
+          "matched": 0,
+          "mismatched": 0,
+          "unreadable": 0,
+          "not_checked": 0,
+          "enumeration_complete": false
+        }
+      },
+      {
+        "name": "audit_event_delivery",
+        "required": false,
+        "state": "not_checked",
+        "proves": "audited access produced events at the collector",
+        "does_not_prove": "events for objects or principals that were not exercised",
+        "coverage": {
+          "eligible": 0,
+          "matched": 0,
+          "mismatched": 0,
+          "unreadable": 0,
+          "not_checked": 0,
+          "enumeration_complete": false
+        }
+      }
+    ]
+  }
+}

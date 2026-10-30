@@ -1,0 +1,8202 @@
+[
+ {
+  "pattern": "",
+  "name": "",
+  "match": true
+ },
+ {
+  "pattern": "",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "*",
+  "name": "",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "a",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "b",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "x",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "ab",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "abc",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "abbc",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "abxbc",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "ac",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "a.tmp",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "A.TMP",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "a.tmpx",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": ".tmp",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "audit",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "audit-2026",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "Audit",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": ".snapshot",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "snapshot",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": ".hidden",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "ax",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "bx",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "dx",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "]",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "-",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "*",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "a?",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "a",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "*",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "*",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "*",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "*",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "*",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "*",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "*",
+  "name": "日本語",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "本",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "語x",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "😀.txt",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "😀",
+  "match": true
+ },
+ {
+  "pattern": "*",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "x",
+  "match": true
+ },
+ {
+  "pattern": "**x",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "a.tmpx",
+  "match": true
+ },
+ {
+  "pattern": "**x",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "ax",
+  "match": true
+ },
+ {
+  "pattern": "**x",
+  "name": "bx",
+  "match": true
+ },
+ {
+  "pattern": "**x",
+  "name": "dx",
+  "match": true
+ },
+ {
+  "pattern": "**x",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "語x",
+  "match": true
+ },
+ {
+  "pattern": "**x",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "**x",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "b",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "x",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "]",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "-",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "*",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "本",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "😀",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "ab",
+  "match": true
+ },
+ {
+  "pattern": "??",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "ac",
+  "match": true
+ },
+ {
+  "pattern": "??",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "ax",
+  "match": true
+ },
+ {
+  "pattern": "??",
+  "name": "bx",
+  "match": true
+ },
+ {
+  "pattern": "??",
+  "name": "dx",
+  "match": true
+ },
+ {
+  "pattern": "??",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "a?",
+  "match": true
+ },
+ {
+  "pattern": "??",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "語x",
+  "match": true
+ },
+ {
+  "pattern": "??",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "??",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "a",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "ab",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": "abc",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": "abbc",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": "abxbc",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": "ac",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": "a.tmp",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "a.tmpx",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "audit",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": "audit-2026",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "ax",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "a?",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": "a",
+  "match": true
+ },
+ {
+  "pattern": "a*",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "a*",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "a.tmp",
+  "match": true
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": ".tmp",
+  "match": true
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "*.tmp",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "A.TMP",
+  "match": true
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "*.TMP",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "ab",
+  "match": true
+ },
+ {
+  "pattern": "a*b",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "a*b",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "abc",
+  "match": true
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "abbc",
+  "match": true
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "abxbc",
+  "match": true
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "a*b*c",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "x",
+  "match": true
+ },
+ {
+  "pattern": "*x*",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "abxbc",
+  "match": true
+ },
+ {
+  "pattern": "*x*",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "a.tmpx",
+  "match": true
+ },
+ {
+  "pattern": "*x*",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "ax",
+  "match": true
+ },
+ {
+  "pattern": "*x*",
+  "name": "bx",
+  "match": true
+ },
+ {
+  "pattern": "*x*",
+  "name": "dx",
+  "match": true
+ },
+ {
+  "pattern": "*x*",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "語x",
+  "match": true
+ },
+ {
+  "pattern": "*x*",
+  "name": "😀.txt",
+  "match": true
+ },
+ {
+  "pattern": "*x*",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "*x*",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "abc",
+  "match": true
+ },
+ {
+  "pattern": "a?c",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "a?c",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "audit",
+  "match": true
+ },
+ {
+  "pattern": "audit*",
+  "name": "audit-2026",
+  "match": true
+ },
+ {
+  "pattern": "audit*",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "audit*",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": ".snapshot",
+  "match": true
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": ".snapshot",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": ".tmp",
+  "match": true
+ },
+ {
+  "pattern": ".*",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": ".snapshot",
+  "match": true
+ },
+ {
+  "pattern": ".*",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": ".hidden",
+  "match": true
+ },
+ {
+  "pattern": ".*",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": ".*",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "a",
+  "match": true
+ },
+ {
+  "pattern": "[abc]",
+  "name": "b",
+  "match": true
+ },
+ {
+  "pattern": "[abc]",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "a",
+  "match": true
+ },
+ {
+  "pattern": "[abc]",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[abc]",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "ax",
+  "match": true
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "bx",
+  "match": true
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[a-c]x",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "dx",
+  "match": true
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "語x",
+  "match": true
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[^a-c]x",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[]]",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[a-]",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "]",
+  "match": true
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[\\]]",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "-",
+  "match": true
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[\\-]",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "*",
+  "match": true
+ },
+ {
+  "pattern": "\\*",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "\\*",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "a?",
+  "match": true
+ },
+ {
+  "pattern": "a\\?",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "a\\?",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "x\\",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[a",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[a-",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[]",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[^]",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "a[",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "logs/old.gz",
+  "match": true
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "logs/*.gz",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "logs/old.gz",
+  "match": true
+ },
+ {
+  "pattern": "logs/*",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "logs/",
+  "match": true
+ },
+ {
+  "pattern": "logs/*",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "logs/*",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "a/b",
+  "match": true
+ },
+ {
+  "pattern": "*/b",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "x/b",
+  "match": true
+ },
+ {
+  "pattern": "*/b",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "*/b",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "a/b/c",
+  "match": true
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "a/x/c",
+  "match": true
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "a/*/c",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "logs/old.gz",
+  "match": true
+ },
+ {
+  "pattern": "*/*",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "logs/",
+  "match": true
+ },
+ {
+  "pattern": "*/*",
+  "name": "a/b",
+  "match": true
+ },
+ {
+  "pattern": "*/*",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "x/b",
+  "match": true
+ },
+ {
+  "pattern": "*/*",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "*/*",
+  "name": "a/",
+  "match": true
+ },
+ {
+  "pattern": "日本*",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "日本語",
+  "match": true
+ },
+ {
+  "pattern": "日本*",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "日本*",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "?本",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "本",
+  "match": true
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "😀",
+  "match": false
+ },
+ {
+  "pattern": "[日-語]",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "b",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "x",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "]",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "-",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "*",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "a",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "本",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "😀*",
+  "name": "😀.txt",
+  "match": true
+ },
+ {
+  "pattern": "😀*",
+  "name": "😀",
+  "match": true
+ },
+ {
+  "pattern": "😀*",
+  "name": "a/",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "b",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "x",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "ab",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "abc",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "abbc",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "abxbc",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "ac",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a.tmp",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "A.TMP",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a.tmpx",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": ".tmp",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "audit",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "audit-2026",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "Audit",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": ".snapshot",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "snapshot",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": ".hidden",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "ax",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "bx",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "dx",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "]",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "-",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "*",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "a?",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "logs/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "logs/a/old.gz",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "logs/",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a/b",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a/b/c",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "a/x/c",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "x/b",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "日本語",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "本",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "語x",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "😀.txt",
+  "match": false
+ },
+ {
+  "pattern": "?",
+  "name": "😀",
+  "match": true
+ },
+ {
+  "pattern": "?",
+  "name": "a/",
+  "match": false
+ }
+]

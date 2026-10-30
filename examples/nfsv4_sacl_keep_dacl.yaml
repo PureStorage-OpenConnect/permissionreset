@@ -1,0 +1,17 @@
+# Add file access auditing to a migrated tree without touching its DACLs.
+#
+# Rules with sacl: and no acl: keep each object's own DACL byte for byte and
+# replace only its audit (U) ACEs. Run as an identity with the array's audit
+# bypass: root over AUTH_SYS with root squash off, or a bypass-granted AD
+# identity. The preflight refuses otherwise.
+#
+# Directories carry fd so new children inherit the audit ACEs. Logging also
+# needs an audit policy on the managed directory, which the tool cannot check.
+protocol: nfsv4
+rules:
+  - match: {type: directory}
+    sacl:
+      - "U:fdSF:EVERYONE@:rwadxTNcCoy"
+  - match: {type: file}
+    sacl:
+      - "U:SF:EVERYONE@:rwadxTNcCoy"

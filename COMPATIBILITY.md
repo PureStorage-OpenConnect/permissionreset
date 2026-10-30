@@ -1,0 +1,99 @@
+# Compatibility Matrix
+
+Tested configurations for `permissionreset`. Entries are added after a successful apply + validate cycle on real hardware. Untested configurations may work but carry no guarantee.
+
+**macOS**: builds, ships, and runs `--transport=userspace`. No verified-in-the-field column yet —
+one will be added once someone runs a real repair from a Mac. Everything below that mentions idmapd
+applies to `--transport=kernel` and therefore to Linux only: the userspace transport sends the
+principal string verbatim and the array resolves it.
+
+## Tested Configurations
+
+| Field | client-a | client-b |
+|---|---|---|
+| **FlashBlade model** | S500R1 | S200 |
+| **Purity//FB version** | 4.8.0 | 4.8.0 |
+| **Access-control style** | NFSv4 ACL | NFSv4 ACL |
+| **Client hostname** | client-a | client-b |
+| **Client OS** | Ubuntu 24.04.4 LTS | CentOS Stream 9 |
+| **Client kernel** | 6.8.0-138-generic | 5.14.0-737.el9.x86_64 |
+| **Client arch** | x86_64 (amd64) | x86_64 (amd64) |
+| **Client CPU** | Xeon Gold 6226R, 12 cores | Xeon (Icelake, virtual), 4 vCPU |
+| **Client RAM** | 8 GB | 16 GB |
+| **NFS version** | 4.1 | 4.1 |
+| **Mount options** | `nconnect=16,noatime,nodiratime` | `nconnect=16,noatime,nodiratime` |
+| **Security** | `sec=sys` | `sec=sys` |
+| **Identity mapping** (kernel transport only) | idmapd, domain `corp.example.com` | idmapd, `Domain` unset — defaults to DNS domain `example.net` |
+| **Kerberos** | Yes (user principal in the AD realm) | No (`krb5-workstation` not installed, no keytab) |
+| **Go toolchain** | 1.25.0 | 1.26.5 (Red Hat 1.26.5-1.el9) |
+| **nfs-utils version** | 2.6.4 | 2.5.4 (`nfs-utils-2.5.4-45.el9`) |
+| **Transport tested** | kernel, userspace | kernel, userspace |
+| **Peak throughput (kernel)** | 118K ops/sec | 34K ops/sec cold, 43K warm |
+| **Peak throughput (userspace)** | 152K ops/sec @ c4+ | 34K ops/sec @ c16 stock; 66K tuned |
+| **Tree scale tested** | 1.1M objects | 1.1M objects |
+
+### Notes on the client-b / S200 column
+
+- **VM, not bare metal.** 4 vCPU on OpenShift Virtualization. Both transports are client-CPU-bound
+  here, so these throughput figures characterise the VM at least as much as the S200 — see
+  `benchmarks/userspace-transport-control-s200.md`, where the kernel arm spends 70.3% of the machine
+  in kernel mode.
+- **Kernel figures are cache-sensitive.** 34,369 obj/s cold (caches dropped, the fair comparison) and
+  43,212 obj/s warm — a 25.7% swing. The userspace transport moves <4% between the two, having no
+  client-side cache to warm. Quote the cold number unless you say otherwise.
+- **Userspace: two numbers, two meanings.** 33,717 obj/s @ c16 is the control sweep at stock settings
+  (workers 128, batch 50), directly comparable to the client-a column. 65,814 paths/s is the
+  confirmed median from the tuning sweep at this pair's swept-optimal knobs
+  (`connections=32 slots=0 workers=1024 batch-size=10 max-ops-per-compound=16`) —
+  `benchmarks/tuning-sweeper-live-s200-20260824.md`.
+- **A third mount exists** on this client for assertions only: `/mnt/bench-perms-readback`
+  (`vers=4.1,actimeo=0,nosharecache`). It is not the mount under test; the row above describes
+  `/mnt/bench-perms`. A `vers=3` mount also exists and is unused by these runs.
+- The previous `55K ops/sec (4 vCPU)` entry has been replaced: no S200 measurement in `benchmarks/`
+  produces it, and the nearest 55K figures are pre-decoder-wiring S500R1 runs (see `README.md`
+  "Earlier same-day runs").
+
+## FlashArray (audit ACEs, `--sacl`)
+
+DACL-keeping SACL specs only (`examples/nfsv4_sacl_keep_dacl.yaml`). No spec-DACL run has been
+tested on FlashArray.
+
+| Field | client-c → lab array A | client-c → lab array B |
+|---|---|---|
+| **Purity//FA version** | 6.10.6 | 6.12.1 |
+| **Client OS / kernel** | Ubuntu 24.04.4 LTS, 6.8.0-142-generic | same |
+| **Client CPU** | 12 | same |
+| **NFS version / security** | 4.1, `sec=sys`, root mount | same |
+| **Transport tested** | kernel (userspace refuses FlashArray) | kernel |
+| **Tree scale tested** | 6,006 objects | 6,006 and 1,135,009 objects |
+| **Throughput** | — (medium tree only) | ~20,500 objects/s, 64 workers |
+| **DACLs changed / SACL mismatches** | 0 / 0 | 0 / 0 |
+| **Audit records checked** | Yes (audit policy + log target) | No (no audit policy on the array) |
+
+Details: `benchmarks/sacl-fa-20261015/`.
+
+## How to Add an Entry
+
+After a successful run on new hardware, add a column with:
+
+```bash
+uname -r                              # kernel
+cat /etc/os-release | grep VERSION=   # OS
+nproc && free -h | grep Mem           # CPU count, RAM
+mount | grep <export>                 # mount options, NFS version
+cat /etc/idmapd.conf | grep Domain    # identity domain
+go version                            # Go toolchain
+nfsstat --version                     # nfs-utils
+```
+
+Then run apply + validate on a known tree and record the throughput.
+
+## Known Limitations
+
+- **arm64**: cross-compiles but untested on hardware
+- **macOS**: builds and ships; `--transport=userspace` is the only transport and the default there, and `--transport=kernel` is refused by value. `--pfind`/`--no-pfind` are hidden and refused. `sweep` refuses at startup on macOS — every scratch backend it can build reads its trial tree through a mounted path. `generate-tree` is not ported. The offline test suite runs on Linux; macOS is compile-and-vet verified in CI.
+- **Windows**: does not build yet. `internal/walk`, `internal/apply`, `internal/nfs4acl`, `internal/transport` and `internal/treegen` use Linux syscalls with no Windows equivalent, and `internal/platform` has no Windows capability file yet; the port is a follow-up.
+- **POSIX-only mode**: tested on local filesystems only, not on NFS mounts
+- **SMB backend**: none by design — NFSv4 ACLs are authoritative for SMB clients on FlashBlade; `protocol: smb` rejected at spec load. NFSv4-to-SMB rendering verification pending
+- **FlashArray**: userspace transport refuses FlashArray by design; kernel transport tested for DACL-keeping SACL specs only (table above)
+- **sec=krb5**: untested (identity mapping behavior may differ)

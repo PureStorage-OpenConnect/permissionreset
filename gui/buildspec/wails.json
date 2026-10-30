@@ -1,0 +1,16 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "buildspec",
+  "outputfilename": "buildspec",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Pure Storage Specialists"
+  },
+  "width": 1320,
+  "height": 840,
+  "minWidth": 1100,
+  "minHeight": 700
+}

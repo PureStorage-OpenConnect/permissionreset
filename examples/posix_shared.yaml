@@ -1,0 +1,27 @@
+# Example: standard shared project directory
+# Dirs get 2775 (setgid, group-writable), files get 0664, scripts get 0775
+protocol: posix
+
+default:
+  mode: "0664"
+  owner: projectadmin
+  group: engineering
+
+rules:
+  - match:
+      type: directory
+    mode: "2775"
+
+  - match:
+      type: file
+      pattern: "*.sh"
+    mode: "0775"
+
+  - match:
+      type: file
+      pattern: "*.py"
+    mode: "0775"
+
+  - match:
+      type: file
+    mode: "0664"
