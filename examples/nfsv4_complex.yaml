@@ -1,0 +1,26 @@
+# Complex NFSv4 ACL spec matching the ACE count of Windows-written data.
+# 5 ACEs per directory (inheritable), 9 ACEs per file.
+# Uses the same CORP domain numeric IDs present in acltree/data.
+protocol: nfsv4
+
+default:
+  acl:
+    - "A::OWNER@:rwaDdxtTnNcCoy"
+    - "A:g:GROUP@:rwadxtTnNcy"
+    - "A::EVERYONE@:rwatTnNcy"
+    - "A::1000001138:rwadxtTnNcCoy"
+    - "A:g:1000001116:rwadxtTnNcy"
+    - "A:g:1000001118:rxtncy"
+    - "A::10001:rwadxtTnNcCoy"
+    - "A:g:10002:rwadxtTnNcCoy"
+    - "A::3000099976:rwadxtTnNcCoy"
+
+rules:
+  - match:
+      type: directory
+    acl:
+      - "A:fd:OWNER@:rwaDdxtTnNcCoy"
+      - "A:fdg:GROUP@:rwadxtTnNcy"
+      - "A:fd:1000001138:rwaDdxtTnNcCoy"
+      - "A:fdg:1000001116:rwadxtTnNcy"
+      - "A:fdg:1000001118:rxtncy"

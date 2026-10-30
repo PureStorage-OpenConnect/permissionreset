@@ -1,0 +1,78 @@
+# NFSv4 ACL spec for eDiscovery permission repair.
+#
+# After forensic zip unpack onto FlashBlade, files land with whatever
+# permissions the archive contained (often wrong or missing). This spec
+# sets the ACLs needed for Relativity cataloging: the legal team gets
+# read access, the service account gets full control for ingestion, and
+# storage admins retain ownership.
+#
+# PRINCIPAL FORMAT — READ THIS BEFORE EDITING
+#
+# The `who` field in each ACE goes through the NFS client's id-mapping
+# (idmapd/sssd/nsswitch) on both write (setxattr) and read (getxattr).
+# What you write in the spec may not match what the server stores.
+#
+# Three formats and their behavior:
+#
+#   OWNER@/GROUP@/EVERYONE@
+#     Always works. No mapping. But OWNER@ resolves to the file's uid
+#     as seen by the NFS client, which on Windows-written data may be
+#     nobody or a numeric ID without traverse permission. The pre-pass
+#     can lock itself out of subtrees. Avoid in production specs.
+#
+#   Numeric IDs (e.g. 10001, 1000001125)
+#     Always accepted by setxattr. But the kernel may resolve resolvable
+#     IDs to user@domain before sending to the server (e.g. 10001 becomes
+#     jdoe@corp.example.com). The stored form then differs
+#     from the spec, breaking --compare and --validate.
+#
+#   user@domain (e.g. arraysvc@corp.example.com)
+#     Only works if the NFS client's idmapd can resolve the name back to
+#     a uid. Fails with EINVAL if idmapd is not configured for the domain.
+#     When it works, the stored form matches the spec exactly.
+#
+# RECOMMENDATION: run nfs4_getfacl on one object after a test apply to
+# see what the server actually stores. Use that exact form in the spec.
+# That is the only way --compare and --validate produce correct results.
+#
+# This example uses user@domain principals, which requires idmapd to be
+# configured for corp.example.com. If that is not the case,
+# use numeric IDs instead (see nfsv4_complex.yaml for an example).
+#
+# The spec MUST include the NFS user running permissionreset (or a group they
+# belong to) with traverse permission, otherwise the pre-pass will lock
+# itself out of directories it fixes.
+protocol: nfsv4
+
+default:
+  acl:
+    - "A::arraysvc@corp.example.com:rwaDdxtTnNcCoy"
+    - "A:g:storageadmins@corp.example.com:rwaDdxtTnNcCoy"
+    - "A:g:legalhold@corp.example.com:rxtncy"
+    - "A::relativitysvc@corp.example.com:rwadxtTnNcCoy"
+
+rules:
+  - match:
+      type: directory
+    acl:
+      - "A:fd:arraysvc@corp.example.com:rwaDdxtTnNcCoy"
+      - "A:fdg:storageadmins@corp.example.com:rwaDdxtTnNcCoy"
+      - "A:fdg:legalhold@corp.example.com:rxtncy"
+      - "A:fd:relativitysvc@corp.example.com:rwadxtTnNcCoy"
+
+  - match:
+      type: file
+      pattern: "*.dat"
+    acl:
+      - "A::arraysvc@corp.example.com:rwaDdxtTnNcCoy"
+      - "A:g:storageadmins@corp.example.com:rwaDdxtTnNcCoy"
+      - "A:g:legalhold@corp.example.com:rtncy"
+      - "A::relativitysvc@corp.example.com:rwadxtTnNcCoy"
+
+  - match:
+      type: file
+    acl:
+      - "A::arraysvc@corp.example.com:rwaDdxtTnNcCoy"
+      - "A:g:storageadmins@corp.example.com:rwaDdxtTnNcCoy"
+      - "A:g:legalhold@corp.example.com:rxtncy"
+      - "A::relativitysvc@corp.example.com:rwadxtTnNcCoy"

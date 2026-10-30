@@ -1,0 +1,24 @@
+# Golden input for TestRunSaclPlanGolden: one rule of each shape
+# Set-SaclOnly has to tell apart.
+protocol: nfsv4
+exclude:
+  - .snapshot
+  - ./logs/*.gz
+default:
+  sacl:
+    - "U:fdSF:EVERYONE@:rwadDxtTcCoy"
+rules:
+  - match: {type: directory, pattern: "audit*"}
+    sacl:
+      - "U:fdiS:sacl-map2@example.net:wadD"
+      - "U:gF:GROUP@:d"
+  - match: {type: file, pattern: "*.tmp"}
+    sacl: []
+  - match: {pattern: "*.db"}
+    acl:
+      - "A::OWNER@:rwaxtTcCoy"
+    sacl:
+      - "U:IS:1000003:w"
+  - match: {type: file}
+    acl:
+      - "A::OWNER@:rwatTcCoy"

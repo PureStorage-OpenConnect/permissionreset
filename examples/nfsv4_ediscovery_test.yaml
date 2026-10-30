@@ -1,0 +1,38 @@
+# Test variant of nfsv4_ediscovery.yaml using only principals that
+# currently resolve on this system. Substitutions:
+#   relativitysvc -> jdoe (running user)
+#   legalhold     -> readonly (gid 10022)
+protocol: nfsv4
+
+default:
+  acl:
+    - "A::arraysvc@corp.example.com:rwaDdxtTnNcCoy"
+    - "A:g:storageadmins@corp.example.com:rwaDdxtTnNcCoy"
+    - "A:g:readonly@corp.example.com:rxtncy"
+    - "A::jdoe@corp.example.com:rwadxtTnNcCoy"
+
+rules:
+  - match:
+      type: directory
+    acl:
+      - "A:fd:arraysvc@corp.example.com:rwaDdxtTnNcCoy"
+      - "A:fdg:storageadmins@corp.example.com:rwaDdxtTnNcCoy"
+      - "A:fdg:readonly@corp.example.com:rxtncy"
+      - "A:fd:jdoe@corp.example.com:rwadxtTnNcCoy"
+
+  - match:
+      type: file
+      pattern: "*.dat"
+    acl:
+      - "A::arraysvc@corp.example.com:rwaDdxtTnNcCoy"
+      - "A:g:storageadmins@corp.example.com:rwaDdxtTnNcCoy"
+      - "A:g:readonly@corp.example.com:rtncy"
+      - "A::jdoe@corp.example.com:rwadxtTnNcCoy"
+
+  - match:
+      type: file
+    acl:
+      - "A::arraysvc@corp.example.com:rwaDdxtTnNcCoy"
+      - "A:g:storageadmins@corp.example.com:rwaDdxtTnNcCoy"
+      - "A:g:readonly@corp.example.com:rxtncy"
+      - "A::jdoe@corp.example.com:rwadxtTnNcCoy"

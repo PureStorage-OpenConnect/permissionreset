@@ -1,0 +1,32 @@
+probing 192.0.2.50:2049
+
+EXCHANGE_ID ok
+  clientid       0x00e0000000000002
+  sequenceid     1
+  eir_flags      0x00010000
+  server_owner   b'192.0.2.50'
+  server_scope   b'192.0.2.50'
+
+CREATE_SESSION ok
+  sessionid      00e00000000000020000000000000000
+  csr_sequence   1
+  csr_flags      0x00000000
+
+  granted fore channel attributes
+    ca_headerpadsize             0
+    ca_maxrequestsize            526336
+    ca_maxresponsesize           526336
+    ca_maxresponsesize_cached    1104
+    ca_maxoperations             16
+    ca_maxrequests               128
+
+  granted back channel attributes
+    ca_maxoperations             2
+    ca_maxrequests               1
+
+  => 16 ops per COMPOUND, minus 1 for SEQUENCE = 15 usable
+  => 7 PUTFH+SETATTR pairs per round trip
+  => 128 COMPOUNDs in flight per connection
+
+DESTROY_SESSION  ok
+DESTROY_CLIENTID ok

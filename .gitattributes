@@ -1,0 +1,21 @@
+# Commits to this repository come from Windows, macOS and Linux. Without these
+# rules, the line endings a file receives depend on each contributor's
+# core.autocrlf setting, so identical content can read as modified on one
+# platform and clean on another.
+
+# Store text with LF in the repository and check it out with LF everywhere.
+# gofmt, the shell scripts under benchmarks/ and the Makefile all require LF,
+# and CI runs gofmt on Linux.
+* text=auto eol=lf
+
+# Binary assets and fixtures. The NFS wire captures under
+# internal/nfs41/testdata are byte-exact protocol data; any end-of-line
+# conversion corrupts them and breaks the decoder tests.
+*.bin   binary
+*.pcap  binary
+*.gz    binary
+*.png   binary
+*.ico   binary
+*.pgo   binary
+*.pprof binary
+*.prof  binary

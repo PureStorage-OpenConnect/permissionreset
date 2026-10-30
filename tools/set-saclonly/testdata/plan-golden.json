@@ -1,0 +1,145 @@
+{
+  "schema": 1,
+  "source": "testdata/saclplan.yaml",
+  "protocol": "nfsv4",
+  "exclude": {
+    "patterns": [
+      ".snapshot",
+      "./logs/*.gz"
+    ],
+    "base": [
+      ".snapshot"
+    ],
+    "path": [
+      "logs/*.gz"
+    ]
+  },
+  "default": {
+    "label": "default",
+    "match": {
+      "type": "",
+      "pattern": ""
+    },
+    "sacl_set": true,
+    "keep_dacl": true,
+    "has_acl": false,
+    "has_dacl": false,
+    "has_mode": false,
+    "owner": "",
+    "group": "",
+    "sacl": [
+      {
+        "line": "U:fdSF:EVERYONE@:rwadDxtTcCoy",
+        "nfs4_flags": 51,
+        "nfs4_mask": 2032103,
+        "windows_type": 2,
+        "windows_flags": 195,
+        "windows_mask": 2032103,
+        "principal": "EVERYONE@",
+        "group": false,
+        "sid": "S-1-1-0",
+        "sddl": "(AU;OICISAFA;0x1f01e7;;;WD)"
+      }
+    ]
+  },
+  "rules": [
+    {
+      "label": "rule[0]",
+      "match": {
+        "type": "directory",
+        "pattern": "audit*"
+      },
+      "sacl_set": true,
+      "keep_dacl": true,
+      "has_acl": false,
+      "has_dacl": false,
+      "has_mode": false,
+      "owner": "",
+      "group": "",
+      "sacl": [
+        {
+          "line": "U:fdiS:sacl-map2@example.net:wadD",
+          "nfs4_flags": 27,
+          "nfs4_mask": 65606,
+          "windows_type": 2,
+          "windows_flags": 75,
+          "windows_mask": 65606,
+          "principal": "sacl-map2@example.net",
+          "group": false,
+          "sid": "",
+          "sddl": ""
+        },
+        {
+          "line": "U:gF:GROUP@:d",
+          "nfs4_flags": 96,
+          "nfs4_mask": 65536,
+          "windows_type": 2,
+          "windows_flags": 128,
+          "windows_mask": 65536,
+          "principal": "GROUP@",
+          "group": true,
+          "sid": "S-1-3-1",
+          "sddl": "(AU;FA;0x10000;;;CG)"
+        }
+      ]
+    },
+    {
+      "label": "rule[1]",
+      "match": {
+        "type": "file",
+        "pattern": "*.tmp"
+      },
+      "sacl_set": true,
+      "keep_dacl": true,
+      "has_acl": false,
+      "has_dacl": false,
+      "has_mode": false,
+      "owner": "",
+      "group": "",
+      "sacl": []
+    },
+    {
+      "label": "rule[2]",
+      "match": {
+        "type": "",
+        "pattern": "*.db"
+      },
+      "sacl_set": true,
+      "keep_dacl": false,
+      "has_acl": true,
+      "has_dacl": false,
+      "has_mode": false,
+      "owner": "",
+      "group": "",
+      "sacl": [
+        {
+          "line": "U:IS:1000003:w",
+          "nfs4_flags": 144,
+          "nfs4_mask": 2,
+          "windows_type": 2,
+          "windows_flags": 80,
+          "windows_mask": 2,
+          "principal": "1000003",
+          "group": false,
+          "sid": "",
+          "sddl": ""
+        }
+      ]
+    },
+    {
+      "label": "rule[3]",
+      "match": {
+        "type": "file",
+        "pattern": ""
+      },
+      "sacl_set": false,
+      "keep_dacl": false,
+      "has_acl": true,
+      "has_dacl": false,
+      "has_mode": false,
+      "owner": "",
+      "group": "",
+      "sacl": []
+    }
+  ]
+}

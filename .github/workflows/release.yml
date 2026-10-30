@@ -1,0 +1,107 @@
+# Build and publish a GitHub release when a version tag is pushed.
+# Release creation calls the GitHub API with curl rather than a third-party action, so the job
+# depends on nothing outside the actions/* namespace.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: test
+        run: go test -count=1 -race -timeout 5m ./...
+
+      - name: build release binaries
+        run: make release
+
+      # The SBOM runs against the UNPACKED binaries, before archiving:
+      # `go version -m` reads a Go binary from disk and cannot look inside a
+      # tarball. dist/*/ is the staging directory per platform.
+      - name: sbom
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          echo "# SBOM — $(git describe --tags --always)" > sbom.txt
+          echo "# Generated $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> sbom.txt
+          echo "" >> sbom.txt
+          for bin in */permissionreset */generate-tree */sweep */build-spec; do
+            echo "=== $bin ===" >> sbom.txt
+            go version -m "./$bin" >> sbom.txt
+            echo "" >> sbom.txt
+          done
+
+      - name: archive
+        run: make release-archive
+
+      # Hashed after archiving and over the archives only: those are what an
+      # operator downloads, so those are what the checksums have to describe.
+      - name: checksums
+        working-directory: dist
+        run: sha256sum *.tar.gz *.zip > SHA256SUMS 2>/dev/null || sha256sum *.tar.gz > SHA256SUMS
+
+      - name: create release and upload assets
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          repo="${GITHUB_REPOSITORY}"
+          api="https://api.github.com"
+
+          # Create the release
+          release_json=$(curl -sfS \
+            -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${api}/repos/${repo}/releases" \
+            -d "{
+              \"tag_name\": \"${tag}\",
+              \"name\": \"${tag}\",
+              \"generate_release_notes\": true
+            }")
+
+          upload_url=$(echo "$release_json" | grep -o '"upload_url": *"[^"]*"' | head -1 | sed 's/"upload_url": *"//;s/{.*//;s/"$//')
+
+          if [ -z "$upload_url" ]; then
+            echo "Failed to create release:"
+            echo "$release_json"
+            exit 1
+          fi
+
+          echo "Release created. Uploading assets..."
+
+          # Upload each file in dist/
+          for file in dist/*; do
+            name=$(basename "$file")
+            content_type="application/octet-stream"
+            case "$name" in
+              *.txt|SHA256SUMS) content_type="text/plain" ;;
+              *.tar.gz)         content_type="application/gzip" ;;
+              *.zip)            content_type="application/zip" ;;
+            esac
+
+            echo "  Uploading $name..."
+            curl -sfS \
+              -X POST \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Content-Type: ${content_type}" \
+              --data-binary "@${file}" \
+              "${upload_url}?name=${name}" > /dev/null
+
+          done
+
+          echo "All assets uploaded."

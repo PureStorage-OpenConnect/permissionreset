@@ -1,0 +1,19 @@
+# Partition manifest for permissionreset --partitions (docs/partitions.md).
+#
+#   permissionreset --partitions examples/partitions/manifest.yaml               # dry run, no state kept
+#   permissionreset --partitions examples/partitions/manifest.yaml --apply       # first run
+#   permissionreset --partitions examples/partitions/manifest.yaml --apply --resume   # after a failure
+version: 1
+root: /mnt/fb/data              # the tree the partitions divide
+spec: ../nfsv4_complex.yaml     # relative to this file
+exclude:                        # unioned with the spec's exclude:; slash patterns anchor at root
+  - .snapshot
+state_dir: partitions.state     # state.json, report.json, per-partition checkpoint/evidence/logs
+evidence: true                  # default; per-attempt evidence directories
+partitions:                     # disjoint subtrees; everything else is the implicit "residual"
+  - name: projects
+    path: projects
+  - name: home-a-m
+    path: home/a-m
+  - name: home-n-z
+    path: home/n-z
