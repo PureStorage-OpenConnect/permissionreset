@@ -1,9 +1,10 @@
 # permissionreset
 
-Parallel recursive ACL/permission repair for FlashBlade and FlashArray over NFS.
+**Reset permissions on 100 million files in under 30 minutes, not days.**
 
-Turns multi-day `chmod -R` or `find | xargs nfs4_setfacl` operations into hours: a 110M-object
-tree was repaired in 27.8 minutes. See [Performance](#performance) for the measurements.
+Parallel NFSv4 ACL and permission repair for FlashBlade and FlashArray. The jobs that take days
+with `chmod -R` or `find | xargs nfs4_setfacl` finish in minutes: a 110M-object tree was repaired
+in 27.8 minutes. See [Performance](#performance) for the measurements.
 
 ## Support Statement
 
