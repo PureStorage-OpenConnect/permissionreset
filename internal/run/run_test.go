@@ -511,7 +511,9 @@ func TestRunNoLongerRefusesKeepDACL(t *testing.T) {
 	if !errors.Is(err, errRunFailed) {
 		t.Fatalf("Run() error = %v, want errRunFailed (ENOTSUP on the tmpdir's nfs4_acl xattr)", err)
 	}
-	if !strings.Contains(errOut.String(), "operation not supported") && !strings.Contains(errOut.String(), "not supported") {
+	// Darwin's local filesystems do support xattrs, so there the same read
+	// fails ENOATTR ("attribute not found") rather than ENOTSUP.
+	if !strings.Contains(errOut.String(), "not supported") && !strings.Contains(errOut.String(), "attribute not found") {
 		t.Fatalf("stderr = %q, want it to show the preflight actually attempted a real ACL read (ENOTSUP), not an early refusal", errOut.String())
 	}
 }
