@@ -24,6 +24,21 @@ make build                                                              # or dow
 Without `--apply`, a run changes nothing. Write your own spec with [docs/spec-guide.md](docs/spec-guide.md),
 or capture one from an existing directory with [`build-spec`](#build-spec).
 
+## Why it is fast
+
+It is not magic or secret information. It is three clever ideas working together:
+
+1. **One ACL, every protocol.** FlashArray and FlashBlade keep one NFSv4 ACL per object. SMB clients
+   see it as an NTFS ACL, and NFSv3 clients see it as POSIX mode bits. An ACL changed from Linux over
+   NFSv4.1 shows up in Windows over SMB, so the fastest protocol can do the work for all of them.
+   (FlashArray returns inherited ACEs as explicit ones over NFS; see [RISKS.md](RISKS.md) #11.)
+2. **Every blade at once.** FlashBlade spreads the work across all its blades when the client opens
+   many connections (`nconnect`) and keeps many requests in flight. Go goroutines make thousands of
+   parallel workers cheap.
+3. **Direct RPCs, nothing extra.** The userspace transport speaks NFSv4.1 to the array itself. It
+   sends only the RPCs the repair needs, and folds the read and the write of a directory into one
+   pass, so the kernel client's extra lookups and attribute traffic are gone.
+
 ## Documentation
 
 | Document | Contents |
