@@ -88,7 +88,7 @@ A directory is emitted only after its own readdir, so the apply stage cannot mak
 
 ### Multiprotocol (SMB)
 
-FlashBlade is inherently multiprotocol: an NFSv4 ACL written via `setxattr` is the authoritative ACL, translated to an NTFS security descriptor at evaluation time, so it is exactly what SMB clients see and enforce. An SMB-side repair backend is deliberately not implemented — SMB on FlashBlade has no multichannel, so it could never approach NFS-side throughput, and it would set the same underlying ACL anyway. The Windows tree generator exists to prove ACL fidelity (SMB-written and NFSv4-written ACLs are equivalent), not as a repair path. Remaining work is verification, not implementation: confirm NFSv4-written ACLs render and enforce correctly from a Windows SMB client.
+FlashBlade is inherently multiprotocol: an NFSv4 ACL written via `setxattr` is the authoritative ACL, translated to an NTFS security descriptor at evaluation time, so it is exactly what SMB clients see and enforce. An SMB-side repair backend is deliberately not implemented — SMB on FlashBlade has no multichannel, so it could never approach NFS-side throughput, and it would set the same underlying ACL anyway. The Windows tree generator exists to prove ACL fidelity (SMB-written and NFSv4-written ACLs are equivalent), not as a repair path.
 
 ## Performance
 
