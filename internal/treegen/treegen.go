@@ -1395,7 +1395,7 @@ func ensureSafetyRoot(target, safetyPrincipal string) error {
 	}
 	raw, err := nfs4acl.GetACL(target)
 	if err != nil {
-		if errors.Is(err, unix.ENOTSUP) || errors.Is(err, unix.ENODATA) || errors.Is(err, unix.ENOTTY) {
+		if errors.Is(err, unix.ENOTSUP) || errors.Is(err, errNoAttr) || errors.Is(err, unix.ENOTTY) {
 			return nil
 		}
 		return fmt.Errorf("read ACL of %s: %w", target, err)

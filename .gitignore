@@ -1,5 +1,6 @@
-permissionreset
-generate-tree
+# Anchored: unanchored, "permissionreset" would also ignore the cmd/permissionreset source directory.
+/permissionreset
+/generate-tree
 # Anchored: unanchored, "sweep" would also ignore the cmd/sweep source directory.
 /sweep
 # Anchored: unanchored, "build-spec" would also ignore the cmd/build_spec source directory.
