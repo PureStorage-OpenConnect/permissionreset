@@ -1,8 +1,27 @@
 # permissionreset
 
-Parallel recursive ACL/permission repair for FlashBlade.
+Parallel recursive ACL/permission repair for FlashBlade and FlashArray over NFS.
 
-Turns multi-day `chmod -R` or `find | xargs nfs4_setfacl` operations into hours. The Go implementation applies NFSv4 ACLs via direct `setxattr` syscall — no subprocess per file. Measured throughput: 118K ops/sec (kernel transport) and 200K ops/sec (userspace transport with READDIR+SETATTR fold) on a FlashBlade S500R1 with a 12-CPU client, cold cache, on the 1.1M-object dataset — **1.70× over kernel**; this 200K figure does not carry to the 110M-object scale below. 110M-object dataset validated at 82,628 main-pass ops/sec / 65,638 overall ops/sec (27.8 min; overall includes the 343.5s pre-pass). See [benchmarks/PERFORMANCE.md](benchmarks/PERFORMANCE.md) for full detail and caveats.
+Turns multi-day `chmod -R` or `find | xargs nfs4_setfacl` operations into hours: a 110M-object
+tree was repaired in 27.8 minutes. See [Performance](#performance) for the measurements.
+
+## Support Statement
+
+This tool is provided under Best Efforts support by the Pure Portfolio Solutions Group, Open Source Integrations team.
+For feature requests and bugs please use GitHub Issues.
+We will address these as soon as we can, but there are no specific SLAs.
+
+## Quick start
+
+```bash
+make build                                                              # or download a release archive
+./permissionreset --spec examples/nfsv4_basic.yaml /mnt/fb/data         # dry run: reports what would change
+./permissionreset --spec examples/nfsv4_basic.yaml --apply /mnt/fb/data # make the changes
+./permissionreset --spec examples/nfsv4_basic.yaml --validate /mnt/fb/data
+```
+
+Without `--apply`, a run changes nothing. Write your own spec with [docs/spec-guide.md](docs/spec-guide.md),
+or capture one from an existing directory with [`build-spec`](#build-spec).
 
 ## Documentation
 
@@ -55,6 +74,10 @@ A directory is emitted only after its own readdir, so the apply stage cannot mak
 
 FlashBlade is inherently multiprotocol: an NFSv4 ACL written via `setxattr` is the authoritative ACL, translated to an NTFS security descriptor at evaluation time, so it is exactly what SMB clients see and enforce. An SMB-side repair backend is deliberately not implemented — SMB on FlashBlade has no multichannel, so it could never approach NFS-side throughput, and it would set the same underlying ACL anyway. The Windows tree generator exists to prove ACL fidelity (SMB-written and NFSv4-written ACLs are equivalent), not as a repair path. Remaining work is verification, not implementation: confirm NFSv4-written ACLs render and enforce correctly from a Windows SMB client.
 
+## Performance
+
+The Go implementation applies NFSv4 ACLs via direct `setxattr` syscall — no subprocess per file. Measured throughput: 118K ops/sec (kernel transport) and 200K ops/sec (userspace transport with READDIR+SETATTR fold) on a FlashBlade S500R1 with a 12-CPU client, cold cache, on the 1.1M-object dataset — **1.70× over kernel**; this 200K figure does not carry to the 110M-object scale below. 110M-object dataset validated at 82,628 main-pass ops/sec / 65,638 overall ops/sec (27.8 min; overall includes the 343.5s pre-pass). See [benchmarks/PERFORMANCE.md](benchmarks/PERFORMANCE.md) for full detail and caveats.
+
 ## Deployment
 
 The Go binary is a single static file with zero runtime dependencies — no Go runtime, no Python, no `nfs4-acl-tools` package. Just the binary plus a YAML spec file.
@@ -67,7 +90,7 @@ CGO_ENABLED=0 go build -o permissionreset ./cmd/permissionreset/
 scp permissionreset user@client:/usr/local/bin/
 ```
 
-`make build` produces `permissionreset`, `generate-tree` and `sweep` for the host platform. Linux and macOS both build and both ship; **Windows does not build yet** and is tracked as a follow-up. There is no cgo, so `GOOS`/`GOARCH` cross-compilation is straightforward, and CI cross-builds and vets `linux/arm64`, `darwin/amd64` and `darwin/arm64` on every change. Repair over the kernel transport requires Linux (`setxattr("system.nfs4_acl", ...)` is a Linux NFS client feature); the userspace transport works on both and is the only transport on macOS. `generate-tree` and `sweep` still need a mounted export, so they remain Linux-only in practice. The offline test suite runs on Linux.
+`make build` produces `permissionreset`, `generate-tree` and `sweep` for the host platform. Linux and macOS both build and both ship; **Windows does not build yet** and is tracked as a follow-up. There is no cgo, so `GOOS`/`GOARCH` cross-compilation is straightforward, and CI cross-builds and vets `linux/arm64`, `darwin/amd64` and `darwin/arm64` on every change. Repair over the kernel transport requires Linux (`setxattr("system.nfs4_acl", ...)` is a Linux NFS client feature); the userspace transport works on both and is the only transport on macOS. `generate-tree` and `sweep` still need a mounted export, so they remain Linux-only in practice. The offline test suite runs on Linux and macOS.
 
 `make release` builds all three static binaries for `linux/amd64`, `linux/arm64`, `darwin/amd64` and `darwin/arm64`; `make release-archive` packs each platform into `dist/permissionreset_<version>_<goos>_<goarch>.tar.gz`, one top-level directory per archive carrying the three binaries plus `README.md`, `LICENSE` and `INSTALL.md`. Pushing a `v*` tag runs both, computes `SHA256SUMS` and an SBOM, and publishes the archives to a GitHub release.
 
@@ -281,4 +304,8 @@ MOUNT=/mnt/fb SERVER=192.0.2.50 EXPORT=/fb-perms tools/build-spec-differential.s
 PATH="/usr/local/go/bin:$PATH" go test ./...
 ```
 
-Run `grep -rc '^func Test' --include='*_test.go' .` for the current count — it changes with every commit. All packages report `ok` in a bare local run; a subset of `internal/nfs41`'s tests are named `*_live_test.go` and exercise a real FlashBlade/NFS server rather than local tmpdir fakes. CI (`.github/workflows/ci.yml`) runs `gofmt`, `go vet`, `staticcheck`, `go test -race` with a per-package coverage floor on every push and PR.
+Run `grep -rc '^func Test' --include='*_test.go' .` for the current count — it changes with every commit. All packages report `ok` in a bare local run on Linux or macOS; a subset of `internal/nfs41`'s tests are named `*_live_test.go` and exercise a real FlashBlade/NFS server rather than local tmpdir fakes. CI (`.github/workflows/ci.yml`) runs `gofmt`, `go vet`, `staticcheck`, `go test -race` with a per-package coverage floor on every push and PR.
+
+## License
+
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
