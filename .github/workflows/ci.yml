@@ -74,12 +74,8 @@ jobs:
           [ "$fail" -eq 0 ] || exit 1
           echo "All safety-critical packages above ${threshold}% coverage threshold."
 
-  # Advisory until the darwin test fixes land: 4 packages (cmd/permissionreset, cmd/sweep,
-  # internal/run, internal/treegen) assume Linux behavior -- ENOTSUP where macOS getxattr returns
-  # ENOATTR, and a sweep that darwin refuses by design. Remove continue-on-error once they pass.
   test-macos:
     runs-on: macos-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
