@@ -577,8 +577,12 @@ func (s *fakeServer) handleRecord(c *fakeConn, record []byte) {
 		return
 	}
 
+	// The call leaves the in-flight count before its reply is written, so a
+	// client that has its answer never sees the call still counted. A deferred
+	// decrement ran after the write and let the client race ahead of it.
 	s.enterRequest()
-	defer s.exitRequest()
+	exit := sync.OnceFunc(s.exitRequest)
+	defer exit()
 
 	// The hold is applied after the request is counted as in flight, so
 	// WaitForInFlight sees calls pile up rather than racing the hold.
@@ -603,10 +607,12 @@ func (s *fakeServer) handleRecord(c *fakeConn, record []byte) {
 		}
 	default:
 		// Procedure the fake does not implement. Refuse at the RPC layer.
+		exit()
 		s.writeRecord(c, encodeAcceptedFailure(xid, xdr.PROC_UNAVAIL))
 		return
 	}
 
+	exit()
 	s.writeRecord(c, encodeAcceptedReply(xid, payload))
 }
 
