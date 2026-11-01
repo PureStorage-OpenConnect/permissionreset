@@ -28,10 +28,9 @@ or capture one from an existing directory with [`build-spec`](#build-spec).
 
 It is not magic or secret information. It is three clever ideas working together:
 
-1. **One ACL, every protocol.** FlashArray and FlashBlade keep one NFSv4 ACL per object. SMB clients
-   see it as an NTFS ACL, and NFSv3 clients see it as POSIX mode bits. An ACL changed from Linux over
-   NFSv4.1 shows up in Windows over SMB, so the fastest protocol can do the work for all of them.
-   (FlashArray returns inherited ACEs as explicit ones over NFS; see [RISKS.md](RISKS.md) #11.)
+1. **One ACL, both protocols.** FlashArray and FlashBlade keep one NFSv4 ACL per object, and SMB
+   clients see it as an NTFS ACL. An ACL changed from Linux over NFSv4.1 shows up in Windows over
+   SMB, so the faster protocol can do the work for both.
 2. **Every blade at once.** FlashBlade spreads the work across all its blades when the client opens
    many connections (`nconnect`) and keeps many requests in flight. Go goroutines make thousands of
    parallel workers cheap.
