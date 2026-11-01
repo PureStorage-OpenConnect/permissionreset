@@ -361,9 +361,12 @@ loop:
 	if n != total {
 		t.Errorf("emitted %d entries, want %d", n, total)
 	}
-	// Extra goroutines: the producer, the sampler and one per token.
-	if extra := maxG.Load() - int64(baseG); extra > workers+2 {
-		t.Errorf("peak goroutines %d above baseline, want <= %d", extra, workers+2)
+	// Extra goroutines: the producer, the sampler and one per token. A worker
+	// gives its token back just before it returns, so a new worker can start
+	// while the old one is still counted; allow one such exiting goroutine per
+	// token. An unbounded walk of this tree would start over a hundred.
+	if extra := maxG.Load() - int64(baseG); extra > 2*workers+2 {
+		t.Errorf("peak goroutines %d above baseline, want <= %d", extra, 2*workers+2)
 	}
 	// Open handles: one listing per goroutine in process (tokens + the
 	// producer), plus the sampler's own /proc/self/fd read.
