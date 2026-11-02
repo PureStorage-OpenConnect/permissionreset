@@ -23,3 +23,6 @@ gui/buildspec/buildspec
 
 # Private lab instructions for Claude Code; tracked only in the lab repository
 CLAUDE.local.md
+
+# Environment-specific maintenance installation handoff; never publish.
+/MAINTENANCE-HANDOFF.local.md
