@@ -241,7 +241,9 @@ func applyNFSv4(t transport.Transport, ref transport.Ref, isDir bool, s *spec.Sp
 		return Result{Error: fmt.Errorf("encode ACL for %s: spec rule lists %d ACEs but none encoded", path, len(perms.ACL))}
 	}
 
-	if opts.Compare {
+	// A dry run does not read: run.Run proves the audit bypass only before a
+	// real apply, and an unproven read can empty inherited auditing (PS-02).
+	if opts.Compare && !opts.DryRun {
 		// Read through the transport, compare structurally. bytes.Equal is wrong
 		// here even though both sides are the same wire format: a server is free
 		// to normalise what it stores, and these do -- FlashArray drops the g

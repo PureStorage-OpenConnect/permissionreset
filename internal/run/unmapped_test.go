@@ -339,3 +339,66 @@ func TestRunHighIDNamedPrincipal(t *testing.T) {
 		t.Errorf("stderr does not name the resolved id:\n%s", errOut.String())
 	}
 }
+
+// TestNeedsAuditBypassProof pins which nfsv4 runs read existing objects' ACLs
+// and so must prove the audit bypass first: --validate always reads, and
+// --compare reads before a blind acl:+sacl: write it may skip.
+func TestNeedsAuditBypassProof(t *testing.T) {
+	_, dacl := writeSpec(t, "protocol: nfsv4\ndefault:\n  acl:\n    - \"A::OWNER@:rwaDxtTnNcCoy\"\n")
+	_, both := writeSpec(t, saclSpecDACL)
+	_, posix := writeSpec(t, posixSpec)
+	cases := []struct {
+		name string
+		cfg  Config
+		want bool
+	}{
+		{"DACL reset apply", Config{Spec: dacl}, true},
+		{"DACL reset validate", Config{Spec: dacl, Validate: true}, true},
+		{"acl+sacl apply", Config{Spec: both, Sacl: true}, false},
+		{"acl+sacl compare", Config{Spec: both, Sacl: true, Compare: true}, true},
+		{"acl+sacl validate", Config{Spec: both, Sacl: true, Validate: true}, true},
+		{"posix validate", Config{Spec: posix, Validate: true}, false},
+		{"posix compare", Config{Spec: posix, Compare: true}, false},
+	}
+	for _, c := range cases {
+		if got := needsAuditBypassProof(c.cfg); got != c.want {
+			t.Errorf("%s: needsAuditBypassProof = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+// TestPreflightCompareFailsClosedWithoutBypass: --compare reads every object
+// before an acl:+sacl: write, so a failed proof stops the run before the live
+// root is touched.
+func TestPreflightCompareFailsClosedWithoutBypass(t *testing.T) {
+	_, s := writeSpec(t, saclSpecDACL)
+	tr := &orderingTransport{probeErr: errors.New("probe create denied")}
+	var errOut strings.Builder
+	if err := runPreflight(tr, Config{Root: "/tree", Spec: s, Sacl: true, Compare: true}, &errOut); err == nil {
+		t.Fatal("runPreflight() error = nil, want a refusal")
+	}
+	for _, c := range tr.calls {
+		if strings.HasSuffix(c, ":/tree") {
+			t.Fatalf("live root was touched (%q) despite a failed bypass proof; call trace=%v", c, tr.calls)
+		}
+	}
+}
+
+// TestProveAuditBypassAloneLeavesTheRootUntouched: the --validate proof for a
+// spec with no sacl: key touches only the disposable probe.
+func TestProveAuditBypassAloneLeavesTheRootUntouched(t *testing.T) {
+	_, s := writeSpec(t, "protocol: nfsv4\ndefault:\n  acl:\n    - \"A::OWNER@:rwaDxtTnNcCoy\"\n")
+	tr := &orderingTransport{probeErr: errors.New("probe create denied")}
+	var errOut strings.Builder
+	if err := proveAuditBypass(tr, Config{Root: "/tree", Spec: s, Validate: true}, &errOut); err == nil {
+		t.Fatal("proveAuditBypass() error = nil, want a refusal")
+	}
+	for _, c := range tr.calls {
+		if strings.HasSuffix(c, ":/tree") {
+			t.Fatalf("live root was touched (%q); call trace=%v", c, tr.calls)
+		}
+	}
+	if !strings.Contains(errOut.String(), "ERROR:") {
+		t.Errorf("stderr = %q, want the failure rendered", errOut.String())
+	}
+}

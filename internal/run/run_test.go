@@ -1485,3 +1485,31 @@ func TestCheckpointRefusesTheImplicitDryRun(t *testing.T) {
 		t.Fatal("a refused run wrote a checkpoint; a later --resume would skip the tree")
 	}
 }
+
+// TestValidateProvesAuditBypassForDACLSpec: --validate reads every object of
+// an nfsv4 spec with no sacl: key too, so it must prove the audit bypass
+// before the walk. The local filesystem cannot hold the probe's audit ACE, so
+// the proof fails and the run must stop.
+func TestValidateProvesAuditBypassForDACLSpec(t *testing.T) {
+	root := t.TempDir()
+	specPath, loadedSpec := writeSpec(t, "protocol: nfsv4\ndefault:\n  acl:\n    - \"A::OWNER@:rwaDxtTnNcCoy\"\n")
+
+	var out, errOut strings.Builder
+	res, err := Run(context.Background(), Config{
+		Root:      root,
+		SpecPath:  specPath,
+		Spec:      loadedSpec,
+		Transport: "kernel",
+		Workers:   1,
+		BatchSize: 1,
+		Validate:  true,
+		Quiet:     true,
+		ErrOut:    &errOut,
+	}, &out)
+	if !errors.Is(err, errRunFailed) {
+		t.Fatalf("Run() error = %v, want errRunFailed -- --validate must prove the audit bypass for an nfsv4 spec", err)
+	}
+	if res.Stats.Enumerated != 0 {
+		t.Errorf("enumerated %d objects after a failed proof, want 0", res.Stats.Enumerated)
+	}
+}
