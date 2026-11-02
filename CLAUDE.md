@@ -1,5 +1,14 @@
 # permissionreset
 
+## Required maintenance covenant
+
+Read and follow [MAINTAINERS.md](MAINTAINERS.md) before starting development, verification,
+publication, or release work. It is the authoritative maintenance policy, including product
+ownership, public-safe history, candidate-specific evidence, identity checks, and release gates.
+Follow `CLAUDE.local.md`, when present, for environment-specific coordination; never copy its
+contents into tracked files. At completion, distinguish implementation done from qualification
+pending. Do not infer external or publication authorization from the existence of credentials.
+
 Lab-specific instructions (hosts, mounts, array access rules, chat channels) live in
 `CLAUDE.local.md`, which is gitignored and never published. Never copy anything from it into a
 tracked file; `tools/public-scan/scan.sh` checks for that.

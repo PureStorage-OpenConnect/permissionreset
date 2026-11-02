@@ -39,6 +39,7 @@ Operator-facing runbooks for field deployment. Written for SEs and support engin
 ## Conventions
 
 - Operator docs go in `field-preview/`
-- Design plans and reviews stay in the private lab repository
+- Public-safe design plans and reviews may live here; sensitive investigation and coordination
+  material stays outside the public tree. Follow [the maintenance covenant](../MAINTAINERS.md).
 - Dated investigation notes use `<topic>-YYYYMMDD.md` naming
 - All docs are markdown, no external dependencies
