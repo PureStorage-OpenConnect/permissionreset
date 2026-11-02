@@ -36,6 +36,19 @@ func (f *fakeReader) Stat(r transport.Ref) (transport.Attr, error) {
 	return a, nil
 }
 
+// ProbeTarget and SetACL make fakeReader an auditproof.Prober: the probe is
+// one more map entry, and SetACL keeps what it is given, audit ACEs included.
+func (f *fakeReader) ProbeTarget(dir transport.Ref) (transport.Ref, bool, func() error, error) {
+	probe := dir.Path + "/.probe"
+	f.rawACL[probe] = nfs4acl.Encode([]nfs4acl.ACE{{Type: nfs4acl.TypeAllow, Who: "OWNER@", Mask: nfs4acl.MaskReadData}})
+	return transport.Ref{Path: probe}, false, func() error { delete(f.rawACL, probe); return nil }, nil
+}
+
+func (f *fakeReader) SetACL(r transport.Ref, acl []byte) error {
+	f.rawACL[r.Path] = acl
+	return nil
+}
+
 func (f *fakeReader) GetACL(r transport.Ref) ([]byte, error) {
 	b, ok := f.rawACL[r.Path]
 	if !ok {
@@ -184,7 +197,7 @@ func TestRunExistingOutputRefused(t *testing.T) {
 	d := fakeDepsWithKernel(dirPath, filePath, mountPoint, t)
 
 	var out, errBuf bytes.Buffer
-	code := run([]string{"--transport", "kernel", "--output", outPath, dirPath, filePath},
+	code := run([]string{"--transport", "kernel", "--accept-unproven-read", "--output", outPath, dirPath, filePath},
 		&out, &errBuf, d)
 
 	if code == 0 {
@@ -215,7 +228,7 @@ func TestRunStdoutClean(t *testing.T) {
 	d := fakeDepsWithKernel(dirPath, filePath, mountPoint, t)
 
 	var out, errBuf bytes.Buffer
-	code := run([]string{"--transport", "kernel", "--output", "-", dirPath, filePath},
+	code := run([]string{"--transport", "kernel", "--accept-unproven-read", "--output", "-", dirPath, filePath},
 		&out, &errBuf, d)
 
 	if code != 0 {
@@ -506,7 +519,7 @@ func TestRunOutputFile(t *testing.T) {
 	d := fakeDepsWithKernel(dirPath, filePath, mountPoint, t)
 
 	var out, errBuf bytes.Buffer
-	code := run([]string{"--transport", "kernel", "--output", outPath, dirPath, filePath},
+	code := run([]string{"--transport", "kernel", "--accept-unproven-read", "--output", outPath, dirPath, filePath},
 		&out, &errBuf, d)
 
 	if code != 0 {
@@ -549,6 +562,7 @@ func TestRunUserspaceCapture(t *testing.T) {
 		"--server", server,
 		"--export", export,
 		"--auth-uid", "10010", "--auth-gid", "10000",
+		"--accept-unproven-read",
 		"--output", "-",
 		dirPath, filePath,
 	}, &out, &errBuf, d)
@@ -820,7 +834,7 @@ func TestRunAuditCaptureDefaultAndWithDACL(t *testing.T) {
 		reader.rawACL[dirPath] = mustEncodeACL(t, []string{"A:fd:OWNER@:rwaDxtTcCoy", "U:fdSF:EVERYONE@:rwadxTNcCoy"})
 		d.newKernel = func(_ string) (speccapture.Reader, error) { return reader, nil }
 
-		args := []string{"--transport", "kernel", "--output", "-"}
+		args := []string{"--transport", "kernel", "--accept-unproven-read", "--output", "-"}
 		if withDACL {
 			args = append(args, "--with-dacl")
 		}
@@ -923,5 +937,80 @@ func TestRunHelpListsSaclPlan(t *testing.T) {
 	run([]string{"--help"}, &out, &errBuf, deps{})
 	if !strings.Contains(errBuf.String(), "-sacl-plan") {
 		t.Errorf("help does not list --sacl-plan:\n%s", errBuf.String())
+	}
+}
+
+// ---- read-safety guard (PS-02) ----------------------------------------------
+
+// kernelGuardRun runs a kernel capture with extra flags against a fake mount
+// and returns the exit code, stdout and stderr.
+func kernelGuardRun(t *testing.T, mountFor func(target, mountPoint string) string, extra ...string) (int, string, string) {
+	t.Helper()
+	old := caps
+	caps = platform.Linux()
+	defer func() { caps = old }()
+
+	mountPoint := filepath.Join(t.TempDir(), "mnt")
+	dirPath := filepath.Join(mountPoint, "dir")
+	filePath := filepath.Join(mountPoint, "file.txt")
+	d := fakeDepsWithKernel(dirPath, filePath, mountPoint, t)
+	if mountFor != nil {
+		d.resolveMount = func(target string, _ io.Reader) (tuning.Mount, error) {
+			return tuning.Mount{MountPoint: mountFor(target, mountPoint), FSType: "nfs4", Server: "192.0.2.1", Export: "/export"}, nil
+		}
+	}
+	args := append([]string{"--transport", "kernel", "--output", "-"}, extra...)
+	var out, errBuf bytes.Buffer
+	code := run(append(args, dirPath, filePath), &out, &errBuf, d)
+	return code, out.String(), errBuf.String()
+}
+
+func TestRunRefusesAnUnprovenReadByDefault(t *testing.T) {
+	code, out, stderr := kernelGuardRun(t, nil)
+	if code == 0 {
+		t.Fatal("exit 0, want a refusal")
+	}
+	if out != "" {
+		t.Errorf("stdout = %q, want no YAML", out)
+	}
+	for _, want := range []string{"--probe-dir", "--accept-unproven-read", "Nothing was read"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr missing %q:\n%s", want, stderr)
+		}
+	}
+}
+
+func TestRunProbeDirProvesBeforeCapture(t *testing.T) {
+	code, out, stderr := kernelGuardRun(t, nil, "--probe-dir", "/mnt/scratch")
+	if code != 0 {
+		t.Fatalf("exit %d; stderr: %s", code, stderr)
+	}
+	if !strings.Contains(out, "protocol: nfsv4") {
+		t.Errorf("stdout missing YAML:\n%s", out)
+	}
+	if strings.Contains(stderr, "no audit-bypass proof") {
+		t.Errorf("proven capture printed the unproven-read note:\n%s", stderr)
+	}
+}
+
+func TestRunAcceptUnprovenReadPrintsTheNote(t *testing.T) {
+	code, _, stderr := kernelGuardRun(t, nil, "--accept-unproven-read")
+	if code != 0 {
+		t.Fatalf("exit %d; stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "NOTE: the exemplar ACLs were read with no audit-bypass proof") {
+		t.Errorf("stderr missing the unproven-read NOTE:\n%s", stderr)
+	}
+}
+
+func TestRunProbeDirMustBeOnTheExemplarMount(t *testing.T) {
+	code, _, stderr := kernelGuardRun(t, func(target, mountPoint string) string {
+		if strings.Contains(target, "elsewhere") {
+			return "/other"
+		}
+		return mountPoint
+	}, "--probe-dir", "/elsewhere/scratch")
+	if code == 0 || !strings.Contains(stderr, "same NFS mount") {
+		t.Fatalf("exit %d, want a same-mount refusal; stderr: %s", code, stderr)
 	}
 }

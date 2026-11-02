@@ -34,7 +34,7 @@ function realApi() {
     connect: (req) => App.Connect(req),
     exports: () => App.Exports(),
     listDir: (path, limit) => App.ListDir(path, limit),
-    capture: (dir, file, withDacl) => App.Capture(dir, file, !!withDacl),
+    capture: (dir, file, withDacl, acceptUnproven) => App.Capture(dir, file, !!withDacl, !!acceptUnproven),
     verify: (scratch, dir, file, withDacl) => App.Verify(scratch, dir, file, !!withDacl),
     saveSpec: (yaml, suggestedName) => App.SaveSpec(yaml, suggestedName),
     saclPlan: () => App.SaclPlan(),

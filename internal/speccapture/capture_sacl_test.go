@@ -38,7 +38,7 @@ func hasNote(res *speccapture.Result, sub string) bool {
 func TestCaptureNoAuditKeepsDACLSpec(t *testing.T) {
 	for _, withDACL := range []bool{false, true} {
 		r, dir, file := simpleReader(goldenDirACEs, goldenFileACEs, t)
-		res, err := speccapture.CaptureWithOptions(r, dir, file, speccapture.Options{WithDACL: withDACL})
+		res, err := speccapture.CaptureWithOptions(r, dir, file, speccapture.Options{AcceptUnprovenRead: true, WithDACL: withDACL})
 		if err != nil {
 			t.Fatalf("Capture: %v", err)
 		}
@@ -60,8 +60,8 @@ func TestCaptureNoAuditKeepsDACLSpec(t *testing.T) {
 	}
 	// The default entry point is byte-identical to the explicit default.
 	r, dir, file := simpleReader(goldenDirACEs, goldenFileACEs, t)
-	a, _ := speccapture.Capture(r, dir, file)
-	b, _ := speccapture.CaptureWithOptions(r, dir, file, speccapture.Options{})
+	a, _ := captureUnproven(r, dir, file)
+	b, _ := speccapture.CaptureWithOptions(r, dir, file, speccapture.Options{AcceptUnprovenRead: true})
 	if string(a.YAML) != string(b.YAML) {
 		t.Error("Capture and CaptureWithOptions(Options{}) differ")
 	}
@@ -70,7 +70,7 @@ func TestCaptureNoAuditKeepsDACLSpec(t *testing.T) {
 // Audit ACEs, default: DACL-keeping rules with the U lines in sacl: and no acl:.
 func TestCaptureAuditDefaultKeepsDACL(t *testing.T) {
 	r, dir, file := simpleReader(auditDirACEs, auditFileACEs, t)
-	res, err := speccapture.Capture(r, dir, file)
+	res, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestCaptureAuditDefaultKeepsDACL(t *testing.T) {
 // exemplar says objects of its type carry no audit ACEs.
 func TestCaptureAuditOneExemplarEmitsEmptySACL(t *testing.T) {
 	r, dir, file := simpleReader(auditDirACEs, goldenFileACEs, t)
-	res, err := speccapture.Capture(r, dir, file)
+	res, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestCaptureAuditOneExemplarEmitsEmptySACL(t *testing.T) {
 // --with-dacl: acl: and sacl: together; the guard has nothing to report.
 func TestCaptureAuditWithDACL(t *testing.T) {
 	r, dir, file := simpleReader(auditDirACEs, auditFileACEs, t)
-	res, err := speccapture.CaptureWithOptions(r, dir, file, speccapture.Options{WithDACL: true})
+	res, err := speccapture.CaptureWithOptions(r, dir, file, speccapture.Options{AcceptUnprovenRead: true, WithDACL: true})
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestCaptureDropsAlarmACEs(t *testing.T) {
 		{Type: nfs4acl.TypeAllow, Mask: nfs4acl.MaskReadData, Who: "OWNER@"},
 		{Type: nfs4acl.TypeAlarm, Flags: nfs4acl.FlagFailedAccess, Mask: nfs4acl.MaskReadData, Who: "EVERYONE@"},
 	})
-	res, err := speccapture.Capture(r, dir, file)
+	res, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestCaptureDropsAlarmACEs(t *testing.T) {
 // DACL-keeping spec, with the full ACL (DACL and SACL) replayed on the probes.
 func TestVerifyAuditKeepsShape(t *testing.T) {
 	r, dir, file := simpleReader(auditDirACEs, auditFileACEs, t)
-	in, err := speccapture.Capture(r, dir, file)
+	in, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -220,7 +220,7 @@ func (a fileAuditDroppingVerifier) SetACL(ref transport.Ref, raw []byte) error {
 
 func TestVerifyAuditPartlyDroppedByServer(t *testing.T) {
 	r, dir, file := simpleReader(auditDirACEs, auditFileACEs, t)
-	in, err := speccapture.Capture(r, dir, file)
+	in, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestVerifyAuditPartlyDroppedByServer(t *testing.T) {
 
 func TestVerifyAuditDroppedByServer(t *testing.T) {
 	r, dir, file := simpleReader(auditDirACEs, auditFileACEs, t)
-	in, err := speccapture.Capture(r, dir, file)
+	in, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}

@@ -472,7 +472,10 @@ func toCaptureResult(r *speccapture.Result) CaptureResult {
 // Capture reads the ACLs from dir and file and returns the generated spec.
 // withDACL is build-spec's --with-dacl: when the exemplars carry audit ACEs,
 // also write their DACLs as acl: instead of keeping each object's own.
-func (a *App) Capture(dir, file string, withDACL bool) (CaptureResult, error) {
+// acceptUnprovenRead is build-spec's --accept-unproven-read: without it a
+// plain Capture refuses, because only Verify has a scratch folder to prove the
+// audit bypass in before the exemplars are read.
+func (a *App) Capture(dir, file string, withDACL, acceptUnprovenRead bool) (CaptureResult, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.sess == nil {
@@ -481,7 +484,7 @@ func (a *App) Capture(dir, file string, withDACL bool) (CaptureResult, error) {
 	a.emitLocked("busy", "capturing")
 	defer a.emitLocked("busy", "")
 
-	res, err := a.sess.Capture(dir, file, speccapture.Options{WithDACL: withDACL})
+	res, err := a.sess.Capture(dir, file, speccapture.Options{WithDACL: withDACL, AcceptUnprovenRead: acceptUnprovenRead})
 	if err != nil {
 		return CaptureResult{}, a.handleSessionErr(err)
 	}
@@ -489,7 +492,8 @@ func (a *App) Capture(dir, file string, withDACL bool) (CaptureResult, error) {
 }
 
 // Verify captures dir and file, then replays the result through scratch.
-// withDACL is as for Capture.
+// withDACL is as for Capture. scratch is also where the audit bypass is
+// proven before the exemplars are read.
 func (a *App) Verify(scratch, dir, file string, withDACL bool) (CaptureResult, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

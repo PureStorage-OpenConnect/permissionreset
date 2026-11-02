@@ -86,6 +86,16 @@ func (k *kernelBackend) ReadDirLimited(ref transport.Ref, limit int) ([]transpor
 	return out, truncated, nil
 }
 
+// ProbeTarget and SetACL let speccapture prove the audit bypass on a
+// disposable probe before it reads the exemplars (auditproof.Prober).
+func (k *kernelBackend) ProbeTarget(ref transport.Ref) (transport.Ref, bool, func() error, error) {
+	return k.k.ProbeTarget(ref)
+}
+
+func (k *kernelBackend) SetACL(ref transport.Ref, acl []byte) error {
+	return k.k.SetACL(ref, acl)
+}
+
 func (k *kernelBackend) Verifier() speccapture.ReplayVerifier {
 	return speccapture.KernelVerifier{}
 }
