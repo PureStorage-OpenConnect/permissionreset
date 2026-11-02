@@ -3,6 +3,11 @@
 Thanks for helping. Bug reports, fixes and documentation improvements are all welcome. Everyone
 taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
+The [maintenance covenant](MAINTAINERS.md) defines product ownership, public-safe publication,
+verification evidence, and release requirements. Read it before contributing. Hardware
+qualification is arranged by maintainers when required; contributors can submit changes with
+offline tests and explicitly identify qualification that remains pending.
+
 ## Issues
 
 - **Bugs:** open an issue with the `permissionreset -version` output, the command, the spec and
