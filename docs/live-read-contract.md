@@ -19,6 +19,9 @@ A failure at any step stops the run before the first live read. The errors are
 `ErrAuditPrivilege` (the write was refused) and `ErrAuditNotRetained` (the entry was dropped).
 A POSIX spec has no audit entries and no probe.
 
+`--validate` and capture write only this 1 probe. An `--apply` run then writes more disposable
+probes in the target for the preflight, which writes the spec's DACL. The run removes all of them.
+
 ## Repair runs (`permissionreset`)
 
 | Spec / invocation | What happens |
@@ -30,7 +33,7 @@ A POSIX spec has no audit entries and no probe.
 | Any `sacl:` key without `--sacl` | Refused. |
 | `sacl: []` | Removes the auditing. |
 | `--compare` or `--resume` (forces `--compare`) | Proves the bypass before the first compare read, for every NFSv4 spec. |
-| `--dry-run` | Reads no live ACL and writes nothing. With `--compare`, it does not report converged objects, because that needs a read. |
+| `--dry-run` | Reads no live ACL and writes nothing. With `--compare`, it does not report converged objects, because that needs a read. The summary line `Applied: N` counts objects that a real run would write. |
 | `--validate`, spec with a `sacl:` key | Runs the full preflight, which writes a disposable probe. Then reads and compares. |
 | `--validate`, any other NFSv4 spec | Proves the bypass on a disposable probe. Then reads and compares. |
 | `--validate`, POSIX spec | Reads mode and owner only. No probe. |
@@ -71,5 +74,8 @@ What capture emits:
 - Preserved NFS ACE bytes do not prove identical raw SMB descriptors, inheritance state,
   owner/group or effective access. Check DACL fidelity from SMB.
 - The proof shows that this client, with this identity, keeps audit entries on this export. It does
-  not prove the array's audit policy.
-- This contract has not been qualified on hardware for this candidate.
+  not prove the array's audit policy. It also does not prove that the identity is privileged:
+  an array that does not restrict audit writes by privilege lets any identity that can create the
+  probe pass.
+- The refusal path (`ErrAuditPrivilege`, `ErrAuditNotRetained`) has not been tested on hardware.
+  It needs an array that restricts audit writes by privilege.
