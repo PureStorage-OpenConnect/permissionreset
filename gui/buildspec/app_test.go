@@ -226,7 +226,7 @@ func TestCaptureMapsResult(t *testing.T) {
 	a := newTestApp(&fakeRuntime{})
 	a.sess = fake
 
-	res, err := a.Capture("/d", "/f", false)
+	res, err := a.Capture("/d", "/f", false, true)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -373,7 +373,7 @@ func TestCaptureSaclAndWithDACL(t *testing.T) {
 	a := newTestApp(&fakeRuntime{})
 	a.sess = fake
 
-	res, err := a.Capture("/d", "/f", false)
+	res, err := a.Capture("/d", "/f", false, true)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -383,11 +383,20 @@ func TestCaptureSaclAndWithDACL(t *testing.T) {
 	if fake.gotOpts.WithDACL {
 		t.Fatal("Capture(withDACL=false) passed WithDACL=true")
 	}
-	if _, err := a.Capture("/d", "/f", true); err != nil || !fake.gotOpts.WithDACL {
+	if _, err := a.Capture("/d", "/f", true, true); err != nil || !fake.gotOpts.WithDACL {
 		t.Fatalf("Capture(withDACL=true): err=%v WithDACL=%v", err, fake.gotOpts.WithDACL)
 	}
 	if _, err := a.Verify("/s", "/d", "/f", true); err != nil || !fake.gotOpts.WithDACL {
 		t.Fatalf("Verify(withDACL=true): err=%v WithDACL=%v", err, fake.gotOpts.WithDACL)
+	}
+	if fake.gotOpts.AcceptUnprovenRead {
+		t.Fatal("Verify passed AcceptUnprovenRead=true; its scratch folder proves the bypass instead")
+	}
+	if _, err := a.Capture("/d", "/f", false, false); err != nil || fake.gotOpts.AcceptUnprovenRead {
+		t.Fatalf("Capture(acceptUnprovenRead=false): err=%v AcceptUnprovenRead=%v", err, fake.gotOpts.AcceptUnprovenRead)
+	}
+	if _, err := a.Capture("/d", "/f", false, true); err != nil || !fake.gotOpts.AcceptUnprovenRead {
+		t.Fatalf("Capture(acceptUnprovenRead=true): err=%v AcceptUnprovenRead=%v", err, fake.gotOpts.AcceptUnprovenRead)
 	}
 }
 

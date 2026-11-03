@@ -97,7 +97,7 @@ var (
 
 func TestCaptureSuccess(t *testing.T) {
 	r, dir, file := simpleReader(goldenDirACEs, goldenFileACEs, t)
-	res, err := speccapture.Capture(r, dir, file)
+	res, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestCaptureSuccess(t *testing.T) {
 
 func TestCaptureGoldenReloadsViaSpecParse(t *testing.T) {
 	r, dir, file := simpleReader(goldenDirACEs, goldenFileACEs, t)
-	res, err := speccapture.Capture(r, dir, file)
+	res, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestCaptureDenyBeforeAllowPreserved(t *testing.T) {
 	}
 	fileACEs := []string{"A::OWNER@:rwaTcCoy"}
 	r, dir, file := simpleReader(dirACEs, fileACEs, t)
-	res, err := speccapture.Capture(r, dir, file)
+	res, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestCaptureReversedArgs(t *testing.T) {
 		statErr: map[string]error{},
 		aclErr:  map[string]error{},
 	}
-	_, err := speccapture.Capture(r, mkRef("/vol/file"), mkRef("/vol/dir"))
+	_, err := captureUnproven(r, mkRef("/vol/file"), mkRef("/vol/dir"))
 	if err == nil {
 		t.Fatal("expected error for reversed arguments, got nil")
 	}
@@ -215,7 +215,7 @@ func TestCaptureTwoDirectories(t *testing.T) {
 		statErr: map[string]error{},
 		aclErr:  map[string]error{},
 	}
-	_, err := speccapture.Capture(r, mkRef("/a"), mkRef("/b"))
+	_, err := captureUnproven(r, mkRef("/a"), mkRef("/b"))
 	if err == nil {
 		t.Fatal("expected error for two-directory input, got nil")
 	}
@@ -234,7 +234,7 @@ func TestCaptureTwoFiles(t *testing.T) {
 		statErr: map[string]error{},
 		aclErr:  map[string]error{},
 	}
-	_, err := speccapture.Capture(r, mkRef("/a"), mkRef("/b"))
+	_, err := captureUnproven(r, mkRef("/a"), mkRef("/b"))
 	if err == nil {
 		t.Fatal("expected error for two-file input, got nil")
 	}
@@ -250,7 +250,7 @@ func TestCaptureSymlinkAsFile(t *testing.T) {
 		statErr: map[string]error{},
 		aclErr:  map[string]error{},
 	}
-	_, err := speccapture.Capture(r, mkRef("/d"), mkRef("/l"))
+	_, err := captureUnproven(r, mkRef("/d"), mkRef("/l"))
 	if err == nil {
 		t.Fatal("expected error for symlink file exemplar, got nil")
 	}
@@ -266,7 +266,7 @@ func TestCaptureStatError(t *testing.T) {
 		statErr: map[string]error{"/d": fmt.Errorf("stat failed")},
 		aclErr:  map[string]error{},
 	}
-	_, err := speccapture.Capture(r, mkRef("/d"), mkRef("/f"))
+	_, err := captureUnproven(r, mkRef("/d"), mkRef("/f"))
 	if err == nil {
 		t.Fatal("expected error when Stat fails, got nil")
 	}
@@ -287,7 +287,7 @@ func TestCaptureUnsupportedMaskBit(t *testing.T) {
 		statErr: map[string]error{},
 		aclErr:  map[string]error{},
 	}
-	_, err := speccapture.Capture(r, mkRef("/d"), mkRef("/f"))
+	_, err := captureUnproven(r, mkRef("/d"), mkRef("/f"))
 	if err == nil {
 		t.Fatal("expected error for unsupported mask bit, got nil")
 	}
@@ -308,7 +308,7 @@ func TestIdentitySpecialCounting(t *testing.T) {
 	}
 	fileACEs := []string{"A::OWNER@:rwaTcCoy"}
 	r, dir, file := simpleReader(dirACEs, fileACEs, t)
-	res, err := speccapture.Capture(r, dir, file)
+	res, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -334,7 +334,7 @@ func TestIdentityNamedPrincipal(t *testing.T) {
 	dirACEs := []string{"A::alice@example.com:rwaTcCoy"}
 	fileACEs := []string{"A::bob@example.com:rncy"}
 	r, dir, file := simpleReader(dirACEs, fileACEs, t)
-	res, err := speccapture.Capture(r, dir, file)
+	res, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -356,7 +356,7 @@ func TestIdentityNumericGFlagDistinguishesUserGroup(t *testing.T) {
 	}
 	fileACEs := []string{"A:g:10040:rncy"} // numeric group
 	r, dir, file := simpleReader(dirACEs, fileACEs, t)
-	res, err := speccapture.Capture(r, dir, file)
+	res, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -370,7 +370,7 @@ func TestIdentityNumericGFlagDistinguishesUserGroup(t *testing.T) {
 
 func TestIdentityVerifiedFalseFromCapture(t *testing.T) {
 	r, dir, file := simpleReader(goldenDirACEs, goldenFileACEs, t)
-	res, err := speccapture.Capture(r, dir, file)
+	res, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -399,7 +399,7 @@ func TestIdentityDistinctPrincipals(t *testing.T) {
 		"L:SF:EVERYONE@:rwanNxDtTdcCoy", // alarm: dropped from the spec, not counted
 	}
 	r, dir, file := simpleReader(dirACEs, fileACEs, t)
-	res, err := speccapture.Capture(r, dir, file)
+	res, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -463,11 +463,11 @@ func TestIdentityReportString(t *testing.T) {
 func TestCaptureYAMLDeterministic(t *testing.T) {
 	r1, dir1, file1 := simpleReader(goldenDirACEs, goldenFileACEs, t)
 	r2, dir2, file2 := simpleReader(goldenDirACEs, goldenFileACEs, t)
-	res1, err := speccapture.Capture(r1, dir1, file1)
+	res1, err := captureUnproven(r1, dir1, file1)
 	if err != nil {
 		t.Fatalf("first Capture: %v", err)
 	}
-	res2, err := speccapture.Capture(r2, dir2, file2)
+	res2, err := captureUnproven(r2, dir2, file2)
 	if err != nil {
 		t.Fatalf("second Capture: %v", err)
 	}

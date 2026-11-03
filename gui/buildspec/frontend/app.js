@@ -30,6 +30,7 @@ const state = {
   busy: '',
   verify: { enabled: false, scratch: '', picking: false },
   withDacl: false, // build-spec --with-dacl
+  acceptUnproven: false, // build-spec --accept-unproven-read
   plan: null, // {specPath, json, rules, refused} from build-spec --sacl-plan
   outputName: 'permissionreset-spec.yaml',
 };
@@ -258,7 +259,7 @@ async function doRun() {
   try {
     const res = state.verify.enabled
       ? await api.verify(state.verify.scratch, state.marks.dir, state.marks.file, state.withDacl)
-      : await api.capture(state.marks.dir, state.marks.file, state.withDacl);
+      : await api.capture(state.marks.dir, state.marks.file, state.withDacl, state.acceptUnproven);
     state.result = res;
     state.plan = null;
     render(state);
@@ -1086,6 +1087,18 @@ function renderFooter(s) {
       ]),
     ])
   );
+
+  if (!s.verify.enabled) {
+    out.push(
+      el('label', { class: 'footer__verify', onclick: () => { state.acceptUnproven = !state.acceptUnproven; render(state); } }, [
+        el('span', { class: 'switch' + (s.acceptUnproven ? ' is-on' : '') }, [el('span', { class: 'switch__knob' }, [])]),
+        el('span', {}, [
+          el('span', { class: 'footer__verify-title', style: 'display:block' }, ['Read without proof']),
+          el('span', { class: 'footer__verify-body', style: 'display:block' }, ['Unsafe on some arrays: the read can empty inherited auditing. Verify by replay proves it first']),
+        ]),
+      ])
+    );
+  }
 
   if (s.verify.enabled) {
     const chosen = !!s.verify.scratch;

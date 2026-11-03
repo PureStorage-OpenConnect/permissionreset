@@ -42,6 +42,16 @@ func (u *userspaceBackend) ReadDirLimited(ref transport.Ref, limit int) ([]trans
 	return u.client.ReadDirLimited(ref, limit)
 }
 
+// ProbeTarget and SetACL let speccapture prove the audit bypass on a
+// disposable probe before it reads the exemplars (auditproof.Prober).
+func (u *userspaceBackend) ProbeTarget(ref transport.Ref) (transport.Ref, bool, func() error, error) {
+	return u.client.ProbeTarget(ref)
+}
+
+func (u *userspaceBackend) SetACL(ref transport.Ref, acl []byte) error {
+	return u.client.SetACL(ref, acl)
+}
+
 func (u *userspaceBackend) Verifier() speccapture.ReplayVerifier {
 	return &speccapture.UserspaceVerifier{Client: u.client}
 }

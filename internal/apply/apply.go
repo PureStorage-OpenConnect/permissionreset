@@ -11,10 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/sys/unix"
-
+	"github.com/PureStorage-OpenConnect/permissionreset/internal/auditproof"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/idmap"
-	"github.com/PureStorage-OpenConnect/permissionreset/internal/nfs41/xdr"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/nfs4acl"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/spec"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/transport"
@@ -241,7 +239,9 @@ func applyNFSv4(t transport.Transport, ref transport.Ref, isDir bool, s *spec.Sp
 		return Result{Error: fmt.Errorf("encode ACL for %s: spec rule lists %d ACEs but none encoded", path, len(perms.ACL))}
 	}
 
-	if opts.Compare {
+	// A dry run does not read: run.Run proves the audit bypass only before a
+	// real apply, and an unproven read can empty inherited auditing (PS-02).
+	if opts.Compare && !opts.DryRun {
 		// Read through the transport, compare structurally. bytes.Equal is wrong
 		// here even though both sides are the same wire format: a server is free
 		// to normalise what it stores, and these do -- FlashArray drops the g
@@ -375,52 +375,10 @@ func CheckKeepDACLTarget(t transport.Transport, root transport.Ref) error {
 // unprivileged-write/unprivileged-loss failure; it does not independently
 // prove that a privileged *read* never mutates dynamic inheritance on every
 // array and firmware revision. See PS-02's acceptance notes.
-func ProveAuditBypass(t transport.Transport, ref transport.Ref) (resultErr error) {
-	target, _, cleanup, err := t.ProbeTarget(ref)
-	if err != nil {
-		return fmt.Errorf("prove audit bypass: %w", err)
-	}
-	defer func() {
-		if err := cleanup(); err != nil {
-			if resultErr != nil {
-				resultErr = fmt.Errorf("%w (also failed to clean up probe: %v)", resultErr, err)
-			} else {
-				resultErr = fmt.Errorf("prove audit bypass: %w", err)
-			}
-		}
-	}()
-
-	orig, err := t.GetACL(target)
-	if err != nil {
-		return fmt.Errorf("prove audit bypass: read probe target's ACL: %w", err)
-	}
-	dacl, daclCount, _, err := nfs4acl.SplitACL(orig)
-	if err != nil {
-		return fmt.Errorf("prove audit bypass: split probe target's ACL: %w", err)
-	}
-	if daclCount == 0 {
-		return fmt.Errorf("prove audit bypass: disposable probe target %s has no ALLOW/DENY entries to probe against", target.Path)
-	}
-
-	if err := t.SetACL(target, buildSaclProbe(dacl, []nfs4acl.ACE{placeholderAuditACE})); err != nil {
-		if isAuditAccessDenied(err) {
-			return fmt.Errorf("%w: %v", ErrAuditPrivilege, err)
-		}
-		return fmt.Errorf("prove audit bypass: probe write: %w", err)
-	}
-
-	got, err := t.GetACL(target)
-	if err != nil {
-		return fmt.Errorf("prove audit bypass: probe read-back: %w", err)
-	}
-	aces, err := nfs4acl.DecodeACL(got)
-	if err != nil {
-		return fmt.Errorf("prove audit bypass: decode probe read-back: %w", err)
-	}
-	if !hasAuditACE(aces) {
-		return ErrAuditNotRetained
-	}
-	return nil
+// The proof itself lives in internal/auditproof, so build-spec capture can
+// run it without importing this package.
+func ProveAuditBypass(t transport.Transport, ref transport.Ref) error {
+	return auditproof.Prove(t, ref)
 }
 
 // applyKeepDACL implements the DACL-keeping rule (plan v3 commit 4): the
@@ -876,7 +834,7 @@ func CheckTraversePreserved(s *spec.Spec) error {
 // userspace. It means the identity this run will use does not carry the
 // array's audit bypass -- plain write access to the object is not enough to
 // set a SACL (plan v3's "privilege is required, not just checked").
-var ErrAuditPrivilege = errors.New("preflight: audit (SACL) ACE write was refused -- the running identity lacks the array's audit bypass")
+var ErrAuditPrivilege = auditproof.ErrAuditPrivilege
 
 // ErrAuditNotRetained reports that the preflight's audit-ACE write was
 // accepted but the read-back shows no U entries: the array took the write and
@@ -884,7 +842,7 @@ var ErrAuditPrivilege = errors.New("preflight: audit (SACL) ACE write was refuse
 // read-side half of the same 6.10.6 behavior plan v3 describes -- a read
 // without the bypass empties the SACL -- so it fires on the read-back here
 // exactly as it would on every object a real run touched.
-var ErrAuditNotRetained = errors.New("preflight: audit (SACL) ACEs were accepted but the array did not retain them")
+var ErrAuditNotRetained = auditproof.ErrAuditNotRetained
 
 // ProbePreflight verifies the spec can actually be applied, catching identity
 // mapping failures, permission errors, missing NFSv4 ACL support, and -- when
@@ -1199,15 +1157,6 @@ func countUnmapped(raw []byte) int {
 	return n
 }
 
-// nfsStatuser is implemented by *nfs41.StatusError (its NFSStatus method).
-// Declared locally rather than imported: internal/nfs41's own test files
-// (apply_walk_test.go, differential_test.go) import internal/apply, so
-// internal/apply importing internal/nfs41 back would be a cycle. Duck-typing
-// the one method this needs avoids it.
-type nfsStatuser interface {
-	NFSStatus() uint32
-}
-
 // isAuditAccessDenied reports whether err is the specific "no privilege"
 // answer the audit-ACE write can get back on either transport: EACCES/EPERM
 // from the kernel's setxattr, or NFS4ERR_ACCESS from the userspace client's
@@ -1215,14 +1164,7 @@ type nfsStatuser interface {
 // is left for the generic preflight message -- it is not evidence about the
 // audit bypass specifically.
 func isAuditAccessDenied(err error) bool {
-	if errors.Is(err, unix.EACCES) || errors.Is(err, unix.EPERM) {
-		return true
-	}
-	var se nfsStatuser
-	if errors.As(err, &se) {
-		return se.NFSStatus() == uint32(xdr.NFS4ERR_ACCESS)
-	}
-	return false
+	return auditproof.IsAccessDenied(err)
 }
 
 // probeSaclFallback finds a sacl: to probe with when the rule matched against
@@ -1252,12 +1194,7 @@ func probeSaclFallback(s *spec.Spec) []nfs4acl.ACE {
 
 // placeholderAuditACE is the probe's audit ACE for a spec whose only sacl:
 // keys are empty. The probe target's original ACL is restored afterwards.
-var placeholderAuditACE = nfs4acl.ACE{
-	Type:  nfs4acl.TypeAudit,
-	Flags: nfs4acl.FlagSuccessAccess | nfs4acl.FlagFailedAccess,
-	Mask:  nfs4acl.MaskReadData,
-	Who:   "EVERYONE@",
-}
+var placeholderAuditACE = auditproof.PlaceholderACE
 
 // buildSaclProbe reassembles dacl -- the ALLOW/DENY region nfs4acl.SplitACL
 // returned, header included -- with a file-shaped copy of saclACEs (see
@@ -1278,24 +1215,12 @@ func buildSaclProbe(dacl []byte, saclACEs []nfs4acl.ACE) []byte {
 // one shape that always applies. The probe is proving the write privilege
 // exists, not exercising these ACEs' inheritance semantics.
 func fileShapedSacl(aces []nfs4acl.ACE) []nfs4acl.ACE {
-	const inheritFlags = nfs4acl.FlagFileInherit | nfs4acl.FlagDirInherit |
-		nfs4acl.FlagNoPropInherit | nfs4acl.FlagInheritOnly
-	out := make([]nfs4acl.ACE, len(aces))
-	for i, a := range aces {
-		a.Flags &^= inheritFlags
-		out[i] = a
-	}
-	return out
+	return auditproof.FileShaped(aces)
 }
 
 // hasAuditACE reports whether aces contains at least one U (audit) entry.
 func hasAuditACE(aces []nfs4acl.ACE) bool {
-	for _, a := range aces {
-		if a.Type == nfs4acl.TypeAudit {
-			return true
-		}
-	}
-	return false
+	return auditproof.HasAuditACE(aces)
 }
 
 // PreResolveIdentities validates that all named owner/group principals in the
