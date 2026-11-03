@@ -91,6 +91,27 @@ jobs:
       - name: test
         run: go test -count=1 -race -timeout 5m ./...
 
+  # Builds the release archives exactly as the release workflow does and smoke-checks them, so a
+  # packaging break shows up on the pull request rather than at tag time. Nothing is published.
+  release-smoke:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: build and pack
+        run: make release VERSION=v0.0.0-ci && make release-archive
+
+      - name: smoke-check archives
+        run: tools/release/smoke.sh dist v0.0.0-ci
+
   # Fails when a tracked file names an internal host, address, domain or person. The denylist itself
   # names those, so it is not in the repo: it arrives as the PUBLIC_SCAN_DENYLIST secret, which
   # GitHub does not pass to pull requests from forks. Those skip with a notice and are checked again

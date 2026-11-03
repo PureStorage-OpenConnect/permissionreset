@@ -41,7 +41,7 @@ jobs:
           echo "# SBOM — $(git describe --tags --always)" > sbom.txt
           echo "# Generated $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> sbom.txt
           echo "" >> sbom.txt
-          for bin in */permissionreset */generate-tree */sweep */build-spec; do
+          for bin in */permissionreset */generate-tree */sweep */build-spec */build-spec.exe; do
             echo "=== $bin ===" >> sbom.txt
             go version -m "./$bin" >> sbom.txt
             echo "" >> sbom.txt
@@ -49,6 +49,11 @@ jobs:
 
       - name: archive
         run: make release-archive
+
+      # Extracts every archive away from the checkout and checks contents, links, native binaries
+      # and the shipped example specs. A failure stops the job before anything is published.
+      - name: smoke-check archives
+        run: tools/release/smoke.sh dist "${GITHUB_REF_NAME}"
 
       # Hashed after archiving and over the archives only: those are what an
       # operator downloads, so those are what the checksums have to describe.
