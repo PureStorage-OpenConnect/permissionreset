@@ -3,7 +3,8 @@
 ## build-spec
 
 `build-spec` captures an NFSv4 ACL from one directory and one file and writes a
-`permissionreset`-compatible YAML spec. It ships as a standalone binary for all three platforms.
+`permissionreset`-compatible YAML spec. It is in every release archive: the Linux and macOS
+`.tar.gz` archives and the Windows `.zip` (see [Install from a release](#install-from-a-release)).
 
 **Linux** (kernel NFSv4.1 mount):
 
@@ -23,7 +24,7 @@ build-spec --server 192.0.2.50 --export /data \
   /data/templates/folder /data/templates/file.txt
 ```
 
-**Windows PowerShell** (userspace transport — unzip the release archive first):
+**Windows PowerShell** (userspace transport — from the unzipped `permissionreset_<version>_windows_amd64` directory):
 
 ```powershell
 .\build-spec.exe --server 192.0.2.50 --export /data `
@@ -77,24 +78,38 @@ both still require a Linux host with the export mounted.
 
 ## Install from a release
 
-Download the archive for your platform from the GitHub release and unpack it. Each archive carries
-four binaries — `permissionreset`, `generate-tree`, `sweep` and `build-spec` — plus `README.md`, `LICENSE` and
-`INSTALL.md`, inside a single top-level directory named after the archive.
+Download the archive for your platform from the
+[releases page](https://github.com/PureStorage-OpenConnect/permissionreset/releases/latest) and
+unpack it. Each archive unpacks into a single top-level directory named after itself.
+
+| Your machine | Archive | Contains |
+|---|---|---|
+| Linux x86-64 | `permissionreset_<version>_linux_amd64.tar.gz` | all four binaries |
+| Linux ARM64 | `permissionreset_<version>_linux_arm64.tar.gz` | all four binaries |
+| macOS Intel | `permissionreset_<version>_darwin_amd64.tar.gz` | all four binaries |
+| macOS Apple silicon | `permissionreset_<version>_darwin_arm64.tar.gz` | all four binaries |
+| Windows x86-64 | `permissionreset_<version>_windows_amd64.zip` | `build-spec.exe` only (capture, no repair) |
+
+`uname -sm` prints which Linux or macOS row applies. For a repair you need `permissionreset` and,
+to capture a template, `build-spec`; `generate-tree` and `sweep` are companion tools for test trees
+and tuning. Every archive also carries `LICENSE`, `THIRD-PARTY-NOTICES`, this guide, the README and
+the documents it links to (`docs/`, `examples/`, `COMPATIBILITY.md`, `RISKS.md` and others) at their
+repository paths, so the links work offline, and `tools/set-saclonly/` with its own `build-spec.exe`.
 
 ```bash
 # Linux amd64
-curl -LO <release-url>/permissionreset_<version>_linux_amd64.tar.gz
+curl -LO https://github.com/PureStorage-OpenConnect/permissionreset/releases/download/<version>/permissionreset_<version>_linux_amd64.tar.gz
 tar xzf permissionreset_<version>_linux_amd64.tar.gz
 sudo install permissionreset_<version>_linux_amd64/permissionreset /usr/local/bin/
 
 # macOS Apple silicon
-curl -LO <release-url>/permissionreset_<version>_darwin_arm64.tar.gz
+curl -LO https://github.com/PureStorage-OpenConnect/permissionreset/releases/download/<version>/permissionreset_<version>_darwin_arm64.tar.gz
 tar xzf permissionreset_<version>_darwin_arm64.tar.gz
 sudo install permissionreset_<version>_darwin_arm64/permissionreset /usr/local/bin/
 ```
 
-The four archives are `linux_amd64`, `linux_arm64`, `darwin_amd64` and `darwin_arm64`. macOS ships
-both architectures because Go emits single-architecture binaries. `SHA256SUMS` covers all four.
+macOS ships both architectures because Go emits single-architecture binaries. `SHA256SUMS` covers
+all five archives.
 
 If a tuning file is in use, keep `permissionreset-tuning.yaml` in the same directory as the binary —
 `permissionreset` reads it beside `os.Executable`.
@@ -102,8 +117,15 @@ If a tuning file is in use, keep `permissionreset-tuning.yaml` in the same direc
 Verify the checksum:
 
 ```bash
-sha256sum permissionreset_<version>_linux_amd64.tar.gz
-# Compare against SHA256SUMS from the release
+# Linux (run beside the downloaded SHA256SUMS; prints OK for the archive you have)
+sha256sum --ignore-missing -c SHA256SUMS
+# macOS (no sha256sum by default)
+shasum -a 256 --ignore-missing -c SHA256SUMS
+```
+
+```powershell
+# Windows: compare this with the windows_amd64.zip line in SHA256SUMS
+(Get-FileHash .\permissionreset_<version>_windows_amd64.zip -Algorithm SHA256).Hash.ToLower()
 ```
 
 Verify the version:
@@ -120,14 +142,15 @@ Requires Go 1.25.0 or later.
 git clone https://github.com/PureStorage-OpenConnect/permissionreset.git
 cd permissionreset
 make build
-# Produces: permissionreset, generate-tree, sweep
+# Produces: permissionreset, generate-tree, sweep, build-spec
 ```
 
 For release-quality binaries with version/commit/date stamped:
 
 ```bash
-make release          # dist/permissionreset_<version>_{linux,darwin}_{amd64,arm64}/ staging directories
-make release-archive  # packs each into dist/permissionreset_<version>_<goos>_<goarch>.tar.gz
+make release          # dist/permissionreset_<version>_<goos>_<goarch>/ staging directories (Linux, macOS, Windows)
+make release-archive  # packs each: .tar.gz for Linux and macOS, .zip for Windows
+make release-smoke    # extracts each archive in a temp directory and checks it (tools/release/smoke.sh)
 ```
 
 ## Deploy
