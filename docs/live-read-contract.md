@@ -75,5 +75,7 @@ What capture emits:
   owner/group or effective access. Check DACL fidelity from SMB.
 - The proof shows that this client, with this identity, keeps audit entries on this export. It does
   not prove the array's audit policy.
+- A passing proof does not show that the identity is privileged. On an array that does not gate
+  audit writes by privilege, any identity that can create the probe passes.
 - The refusal path (`ErrAuditPrivilege`, `ErrAuditNotRetained`) has not been tested on hardware.
   It needs a test identity that has no audit bypass.
