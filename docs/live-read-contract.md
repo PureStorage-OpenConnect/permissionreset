@@ -77,5 +77,9 @@ What capture emits:
   not prove the array's audit policy.
 - A passing proof does not show that the identity is privileged. On an array that does not gate
   audit writes by privilege, any identity that can create the probe passes.
-- The refusal path (`ErrAuditPrivilege`, `ErrAuditNotRetained`) has not been tested on hardware.
+- `ErrAuditPrivilege` has been tested on hardware: FlashArray Purity//FA 6.10.x and 6.12.x, kernel
+  transport, as a domain user without the audit bypass. `--apply`, `--validate` and a `--sacl`
+  DACL-keeping `--apply` each stopped when the probe's audit write was refused. No live ACL was
+  read or written, and the target's inherited and explicit auditing was unchanged.
+  `ErrAuditNotRetained` has not been tested on hardware.
   It needs a test identity that has no audit bypass.
