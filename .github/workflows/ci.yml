@@ -1,5 +1,6 @@
 # GitHub-hosted runners only. Never add a self-hosted runner to this public repo: a pull request
 # from a fork would run its code on that machine.
+# Jobs run only in the public repository; a private mirror runs its own workflow instead.
 name: CI
 
 on:
@@ -13,6 +14,7 @@ permissions:
 
 jobs:
   lint:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +42,7 @@ jobs:
           staticcheck ./...
 
   test:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -75,6 +78,7 @@ jobs:
           echo "All safety-critical packages above ${threshold}% coverage threshold."
 
   test-macos:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -92,6 +96,7 @@ jobs:
   # GitHub does not pass to pull requests from forks. Those skip with a notice and are checked again
   # on the push to main.
   public-scan:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -108,6 +113,7 @@ jobs:
           tools/public-scan/scan.sh --denylist "$RUNNER_TEMP/denylist.txt"
 
   vulncheck:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -124,6 +130,7 @@ jobs:
         continue-on-error: true
 
   build:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -200,6 +207,7 @@ jobs:
           ./generate-tree -help || true
 
   gui-module:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
