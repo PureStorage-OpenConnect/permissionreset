@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -213,7 +214,7 @@ func TestListDirRootAllowed(t *testing.T) {
 func TestCaptureRootRejectedAsExemplar(t *testing.T) {
 	b := newFakeSessionBackend("/vol")
 	s := connectFake(t, b, "/vol", Kernel, 0, nil)
-	if _, err := s.Capture("/vol", "/vol/file.txt", speccapture.Options{}); err == nil {
+	if _, err := s.Capture("/vol", "/vol/file.txt", speccapture.Options{AcceptUnprovenRead: true}); err == nil {
 		t.Fatal("expected root rejected as exemplar")
 	}
 }
@@ -221,7 +222,7 @@ func TestCaptureRootRejectedAsExemplar(t *testing.T) {
 func TestCapturePassthrough(t *testing.T) {
 	b := newFakeSessionBackend("/vol")
 	s := connectFake(t, b, "/vol", Kernel, 0, nil)
-	res, err := s.Capture("/vol/dir", "/vol/file.txt", speccapture.Options{})
+	res, err := s.Capture("/vol/dir", "/vol/file.txt", speccapture.Options{AcceptUnprovenRead: true})
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -237,7 +238,7 @@ func TestCaptureOptionsPassthrough(t *testing.T) {
 	b.acls["/vol/dir"] = mustEncodeACL([]string{"A:fd:OWNER@:rwaDxtTcCoy", "U:fdS:EVERYONE@:wadD"})
 	s := connectFake(t, b, "/vol", Kernel, 0, nil)
 	for _, withDACL := range []bool{false, true} {
-		res, err := s.Capture("/vol/dir", "/vol/file.txt", speccapture.Options{WithDACL: withDACL})
+		res, err := s.Capture("/vol/dir", "/vol/file.txt", speccapture.Options{AcceptUnprovenRead: true, WithDACL: withDACL})
 		if err != nil {
 			t.Fatalf("withDACL=%v: Capture: %v", withDACL, err)
 		}
@@ -250,7 +251,7 @@ func TestCaptureOptionsPassthrough(t *testing.T) {
 func TestCaptureArgumentOrderErrorNotSessionLost(t *testing.T) {
 	b := newFakeSessionBackend("/vol")
 	s := connectFake(t, b, "/vol", Kernel, 0, nil)
-	_, err := s.Capture("/vol/file.txt", "/vol/dir", speccapture.Options{})
+	_, err := s.Capture("/vol/file.txt", "/vol/dir", speccapture.Options{AcceptUnprovenRead: true})
 	if err == nil {
 		t.Fatal("expected reversed-argument error")
 	}
@@ -262,7 +263,7 @@ func TestCaptureArgumentOrderErrorNotSessionLost(t *testing.T) {
 func TestCaptureOutsideRootRejected(t *testing.T) {
 	b := newFakeSessionBackend("/vol")
 	s := connectFake(t, b, "/vol", Kernel, 0, nil)
-	if _, err := s.Capture("/other/dir", "/vol/file.txt", speccapture.Options{}); err == nil {
+	if _, err := s.Capture("/other/dir", "/vol/file.txt", speccapture.Options{AcceptUnprovenRead: true}); err == nil {
 		t.Fatal("expected rejection")
 	}
 }
@@ -270,7 +271,7 @@ func TestCaptureOutsideRootRejected(t *testing.T) {
 func TestVerifyOutsideRootRejected(t *testing.T) {
 	b := newFakeSessionBackend("/vol")
 	s := connectFake(t, b, "/vol", Kernel, 0, nil)
-	if _, err := s.Verify("/other/scratch", "/vol/dir", "/vol/file.txt", speccapture.Options{}); err == nil {
+	if _, err := s.Verify("/other/scratch", "/vol/dir", "/vol/file.txt", speccapture.Options{AcceptUnprovenRead: true}); err == nil {
 		t.Fatal("expected rejection")
 	}
 }
@@ -378,5 +379,27 @@ func TestCloseTwice(t *testing.T) {
 	}
 	if b.closeCalls != 1 {
 		t.Fatalf("backend Close called %d times, want 1", b.closeCalls)
+	}
+}
+
+// TestVerifyProvesTheBypassInScratch: Verify uses its scratch folder as the
+// probe directory, so a backend that cannot create a probe is refused before
+// the exemplars are read, even without an explicit ProbeDir.
+func TestVerifyProvesTheBypassInScratch(t *testing.T) {
+	b := newFakeSessionBackend("/vol")
+	s := connectFake(t, b, "/vol", Kernel, 0, nil)
+	_, err := s.Verify("/vol/scratch", "/vol/dir", "/vol/file.txt", speccapture.Options{})
+	if err == nil || !strings.Contains(err.Error(), `probe directory "/vol/scratch"`) {
+		t.Fatalf("Verify err = %v, want the scratch folder used as the probe directory", err)
+	}
+}
+
+// TestCaptureRefusesAnUnprovenRead: a plain Capture with neither a probe
+// directory nor an accepted risk is refused.
+func TestCaptureRefusesAnUnprovenRead(t *testing.T) {
+	b := newFakeSessionBackend("/vol")
+	s := connectFake(t, b, "/vol", Kernel, 0, nil)
+	if _, err := s.Capture("/vol/dir", "/vol/file.txt", speccapture.Options{}); !errors.Is(err, speccapture.ErrUnprovenRead) {
+		t.Fatalf("Capture err = %v, want ErrUnprovenRead", err)
 	}
 }

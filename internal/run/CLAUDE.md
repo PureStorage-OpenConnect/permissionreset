@@ -36,10 +36,10 @@ Config -> transport (kernel or nfs41) -> walk.Prepass (producer goroutine)
 
 Apply and validate share the same batch-dispatch shape (semaphore, WaitGroup, copy-on-dispatch)
 but are separate functions because validate has no checkpoint, no traverse-lockout check, no
-compare mode, and uses `GetACLBatch` for pre-fetching. Validate normally has no preflight probe
-either -- the one exception is a spec with `sacl:`, where `runValidate` calls `runPreflight` itself
-before enumerating, because a privilege or retention failure would otherwise never surface on a
-read-only run.
+compare mode, and uses `GetACLBatch` for pre-fetching. Validate reads every object, so an nfsv4
+validate always proves the audit bypass first (`needsAuditBypassProof`): a spec with `sacl:` runs the
+full `runPreflight`, because a privilege or retention failure would otherwise never surface on a
+read-only run; any other nfsv4 spec runs only `proveAuditBypass`. A posix validate has no probe.
 
 ## sacl: preflight
 

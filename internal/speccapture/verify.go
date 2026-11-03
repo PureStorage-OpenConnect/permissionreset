@@ -198,6 +198,7 @@ func Verify(v ReplayVerifier, scratch, dirExemplar, fileExemplar transport.Ref, 
 	if err != nil {
 		return nil, fmt.Errorf("verified ACLs: %w", err)
 	}
+	result.addProofNote(in.proofNote)
 	// Per exemplar, not in aggregate: a server that kept the directory's U
 	// entries but dropped the file's would otherwise verify, and the file rule
 	// would become sacl: [] -- a rule that removes auditing from every file.

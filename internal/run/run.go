@@ -73,9 +73,7 @@ func runPreflight(tr transport.Transport, cfg Config, errOut io.Writer) error {
 	// disposable probe target FIRST -- never touching root -- and fail closed
 	// before any live read runs at all. This must stay the first thing
 	// runPreflight does.
-	needsSafeRootRead := len(cfg.Spec.KeepDACLRules()) > 0 ||
-		(!cfg.Sacl && !cfg.Validate && len(cfg.Spec.MissingSACL()) > 0)
-	if needsSafeRootRead {
+	if needsAuditBypassProof(cfg) {
 		err = apply.ProveAuditBypass(tr, transport.Ref{Path: cfg.Root})
 	}
 
@@ -94,6 +92,39 @@ func runPreflight(tr transport.Transport, cfg Config, errOut io.Writer) error {
 		}
 		return nil
 	}
+	return renderPreflightErr(err, cfg, errOut)
+}
+
+// needsAuditBypassProof reports whether the run reads existing objects' NFSv4
+// ACLs, so the audit bypass must be proven on a disposable probe first (PS-02,
+// #71): a DACL-keeping rule reads root and every object, a DACL reset that
+// keeps auditing reads every object -- on --validate too, which reads every
+// object whatever the spec says -- and --compare reads every object before
+// the blind write it may then skip, which would leave an audit ACL the read
+// emptied in place.
+func needsAuditBypassProof(cfg Config) bool {
+	if cfg.Spec.Protocol != "nfsv4" {
+		return false
+	}
+	return len(cfg.Spec.KeepDACLRules()) > 0 ||
+		(!cfg.Sacl && len(cfg.Spec.MissingSACL()) > 0) ||
+		cfg.Validate || cfg.Compare
+}
+
+// proveAuditBypass runs only the audit-bypass proof and renders a failure the
+// way runPreflight does. --validate uses it for a spec with no sacl: key: the
+// full preflight would also write the spec's ACL to the probe, which proves
+// nothing a read-only run needs.
+func proveAuditBypass(tr transport.Transport, cfg Config, errOut io.Writer) error {
+	if err := apply.ProveAuditBypass(tr, transport.Ref{Path: cfg.Root}); err != nil {
+		return renderPreflightErr(err, cfg, errOut)
+	}
+	return nil
+}
+
+// renderPreflightErr prints a preflight or audit-bypass failure with its
+// operator text and returns the run error for it.
+func renderPreflightErr(err error, cfg Config, errOut io.Writer) error {
 	switch {
 	case errors.Is(err, apply.ErrUnmappedPrincipal):
 		fmt.Fprintf(errOut, "ERROR: %v\n", err)
@@ -1400,8 +1431,15 @@ func runValidate(ctx context.Context, tr transport.Transport, cfg Config, base R
 	// not to the probe target. Keyed on any sacl: key, sacl: [] included: a
 	// DACL-keeping sacl: [] rule still reads every object, and on Purity//FA
 	// before 6.12.1 that read without the bypass empties an inheriting SACL.
+	// Any other nfsv4 spec still reads every object, so it proves the audit
+	// bypass alone before the walk; a posix spec reads no ACLs.
 	if len(cfg.Spec.SaclRules()) > 0 {
 		if err := runPreflight(tr, cfg, errOut); err != nil {
+			result.Stats, result.Elapsed = st.Snapshot(), time.Since(started)
+			return result, err
+		}
+	} else if needsAuditBypassProof(cfg) {
+		if err := proveAuditBypass(tr, cfg, errOut); err != nil {
 			result.Stats, result.Elapsed = st.Snapshot(), time.Since(started)
 			return result, err
 		}

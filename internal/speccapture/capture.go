@@ -6,9 +6,11 @@
 package speccapture
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/PureStorage-OpenConnect/permissionreset/internal/auditproof"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/nfs4acl"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/spec"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/transport"
@@ -105,14 +107,52 @@ func (r IdentityReport) String() string {
 	return b.String()
 }
 
-// Options selects what a capture with audit ACEs emits. It has no effect when
-// neither exemplar carries an audit (U) ACE: that spec is the DACL spec it has
-// always been.
+// Options selects what a capture with audit ACEs emits and how the capture
+// makes reading the exemplars safe. WithDACL has no effect when neither
+// exemplar carries an audit (U) ACE: that spec is the DACL spec it has always
+// been.
 type Options struct {
 	// WithDACL also writes each exemplar's DACL as acl:. By default a capture
 	// that finds audit ACEs emits DACL-keeping rules (sacl: and no acl:), which
 	// leave every object's own DACL in place and replace only its SACL.
 	WithDACL bool
+
+	// ProbeDir is a directory where the capture may create and remove a
+	// disposable probe to prove the audit bypass before it reads either
+	// exemplar's ACL (PS-02). The Reader must also be an auditproof.Prober.
+	ProbeDir string
+
+	// AcceptUnprovenRead reads the exemplars with no proof. On an array where
+	// an unprivileged read empties inherited auditing, that read can change
+	// the exemplars. Ignored when ProbeDir is set.
+	AcceptUnprovenRead bool
+}
+
+// ErrUnprovenRead reports a capture asked to read exemplar ACLs with neither
+// a probe directory nor an explicit acceptance of the unproven read.
+var ErrUnprovenRead = errors.New("reading the exemplar ACLs needs a proven audit bypass first: " +
+	"give a probe directory where a disposable object can be created and removed, " +
+	"or explicitly accept an unproven read")
+
+// proveReadSafe runs before any exemplar ACL is read. It proves the audit
+// bypass under opts.ProbeDir, or returns ErrUnprovenRead unless the operator
+// accepted the risk, in which case it returns the note to show.
+func proveReadSafe(r Reader, opts Options) (note string, err error) {
+	if opts.ProbeDir != "" {
+		p, ok := r.(auditproof.Prober)
+		if !ok {
+			return "", fmt.Errorf("probe directory %q: this transport cannot create a disposable probe", opts.ProbeDir)
+		}
+		if err := auditproof.Prove(p, transport.Ref{Path: opts.ProbeDir}); err != nil {
+			return "", fmt.Errorf("probe directory %q: %w", opts.ProbeDir, err)
+		}
+		return "", nil
+	}
+	if opts.AcceptUnprovenRead {
+		return "the exemplar ACLs were read with no audit-bypass proof; on an array where an " +
+			"unprivileged read empties inherited auditing, check the exemplars' audit ACEs from SMB", nil
+	}
+	return "", ErrUnprovenRead
 }
 
 // Result holds the output of a successful Capture call.
@@ -126,6 +166,7 @@ type Result struct {
 	YAML      []byte         // validated spec YAML, ready to write to a file
 	Identity  IdentityReport // principal-kind tallies; Verified is always false here
 	opts      Options
+	proofNote string // the unproven-read note, kept for Verify
 }
 
 // HasSACL reports whether either exemplar carried an audit ACE.
@@ -181,6 +222,13 @@ func CaptureWithOptions(r Reader, dir, file transport.Ref, opts Options) (*Resul
 		return nil, fmt.Errorf("file exemplar %q is not a regular file", file.Path)
 	}
 
+	// Prove the read is safe before either ACL is read (PS-02): the warning
+	// about unprivileged reads further down comes too late to protect them.
+	proofNote, err := proveReadSafe(r, opts)
+	if err != nil {
+		return nil, err
+	}
+
 	// Read ACLs individually for precise error attribution.
 	dirRaw, err := r.GetACL(dir)
 	if err != nil {
@@ -208,7 +256,18 @@ func CaptureWithOptions(r Reader, dir, file transport.Ref, opts Options) (*Resul
 		return nil, err
 	}
 	res.Identity = idReport
+	res.addProofNote(proofNote)
 	return res, nil
+}
+
+// addProofNote records the unproven-read note first among the notes, where
+// Verify can carry it into the result it rebuilds.
+func (r *Result) addProofNote(note string) {
+	if note == "" {
+		return
+	}
+	r.proofNote = note
+	r.Notes = append([]string{note}, r.Notes...)
 }
 
 // assemble splits each exemplar's formatted ACEs into DACL and SACL by type,

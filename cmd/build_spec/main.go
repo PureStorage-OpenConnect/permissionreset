@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PureStorage-OpenConnect/permissionreset/internal/auditproof"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/cmdflags"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/nfs41"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/saclplan"
@@ -84,6 +85,8 @@ type buildSpecFlags struct {
 	retryBase   *time.Duration
 	showVersion *bool
 	withDACL    *bool
+	probeDir    *string
+	acceptRead  *bool
 	saclPlan    *string
 	auth        *cmdflags.AuthFlags
 	gate        *cmdflags.Gate
@@ -107,6 +110,10 @@ func registerFlags(fs *flag.FlagSet, errOut io.Writer) (*flag.FlagSet, *buildSpe
 	f.retryBase = fs.Duration("retry-base-delay", 100*time.Millisecond, "exponential backoff base (userspace only)")
 	f.withDACL = fs.Bool("with-dacl", false, "when the exemplars carry audit (U) ACEs, also write their DACLs as acl: -- "+
 		"by default such a spec keeps each object's own DACL and replaces only its SACL")
+	f.probeDir = fs.String("probe-dir", "", "directory on the same mount (userspace: server path inside the export) where a "+
+		"disposable probe proves the audit bypass before the exemplars are read; defaults to the --verify-write directory")
+	f.acceptRead = fs.Bool("accept-unproven-read", false, "read the exemplar ACLs with no audit-bypass proof; on an array "+
+		"where an unprivileged read empties inherited auditing, this can change the exemplars")
 	f.saclPlan = fs.String("sacl-plan", "", "print the SACL plan for this permissionreset spec as JSON on stdout and exit, for "+
 		"tools/set-saclonly/Set-SaclOnly.ps1; reads only the spec and takes no other flag or argument")
 	f.showVersion = fs.Bool("version", false, "print version and exit")
@@ -178,7 +185,7 @@ func run(args []string, stdout, stderr io.Writer, d deps) int {
 		fmt.Fprintln(stderr, w)
 	}
 
-	opts := speccapture.Options{WithDACL: *f.withDACL}
+	opts := speccapture.Options{WithDACL: *f.withDACL, ProbeDir: *f.probeDir, AcceptUnprovenRead: *f.acceptRead}
 	switch *f.transportFl {
 	case "kernel":
 		return runKernel(fs.Arg(0), fs.Arg(1), *f.output, *f.verifyWrite, opts, d, stdout, stderr)
@@ -250,9 +257,28 @@ func runKernel(dirArg, fileArg, outputPath, verifyWrite string, opts speccapture
 		defer closer.Close()
 	}
 
+	if opts.ProbeDir == "" {
+		opts.ProbeDir = verifyWrite
+	}
+	if opts.ProbeDir != "" {
+		probeAbs, err := filepath.Abs(opts.ProbeDir)
+		if err != nil {
+			return fail("resolve probe directory %q: %v", opts.ProbeDir, err)
+		}
+		probeMount, err := d.resolveMount(probeAbs, bytes.NewReader(mountData))
+		if err != nil {
+			return fail("resolve mount for probe directory %q: %v", opts.ProbeDir, err)
+		}
+		if probeMount.MountPoint != dirMount.MountPoint {
+			return fail("probe directory %q is on mount %q, but exemplars are on %q; "+
+				"use a directory under the same NFS mount", opts.ProbeDir, probeMount.MountPoint, dirMount.MountPoint)
+		}
+		opts.ProbeDir = probeAbs
+	}
+
 	res, err := speccapture.CaptureWithOptions(reader, transport.Ref{Path: dirAbs}, transport.Ref{Path: fileAbs}, opts)
 	if err != nil {
-		return fail("capture: %v", err)
+		return captureFailed(err, stderr)
 	}
 
 	if verifyWrite != "" {
@@ -285,6 +311,24 @@ func runKernel(dirArg, fileArg, outputPath, verifyWrite string, opts speccapture
 
 	printResult(stderr, res)
 	return writeOutput(outputPath, res.YAML, stdout, stderr)
+}
+
+// captureFailed reports a capture error, with what to do next when the
+// capture refused to read the exemplars without a proven audit bypass.
+func captureFailed(err error, stderr io.Writer) int {
+	fmt.Fprintf(stderr, "error: capture: %v\n", err)
+	switch {
+	case errors.Is(err, speccapture.ErrUnprovenRead):
+		fmt.Fprintln(stderr, "hint: pass --probe-dir DIR (a directory on the same mount where a disposable object "+
+			"can be created and removed), or --accept-unproven-read to read without the proof.")
+		fmt.Fprintln(stderr, "Nothing was read.")
+	case errors.Is(err, auditproof.ErrAuditPrivilege):
+		fmt.Fprintln(stderr, "hint: reading the exemplars safely needs the array's audit bypass: root over AUTH_SYS "+
+			"with root squash off, or an identity the array grants the bypass directly. Nothing was read.")
+	case errors.Is(err, auditproof.ErrAuditNotRetained):
+		fmt.Fprintln(stderr, "hint: the array accepted the probe's audit ACE but did not keep it. Nothing was read.")
+	}
+	return 1
 }
 
 // printResult writes the capture notes and the identity summary to stderr.
@@ -353,6 +397,14 @@ func runUserspace(dirArg, fileArg, outputPath, server, export, verifyWrite strin
 	if err := validateUserspaceArgs(dirArg, fileArg, server, export); err != nil {
 		return fail("%v", err)
 	}
+	if opts.ProbeDir == "" {
+		opts.ProbeDir = verifyWrite
+	}
+	if opts.ProbeDir != "" {
+		if err := validateServerPath(opts.ProbeDir, export, "probe directory"); err != nil {
+			return fail("%v", err)
+		}
+	}
 
 	ctx := context.Background()
 	reader, verifier, closer, err := d.newUserspace(ctx, nfs41.Config{
@@ -387,7 +439,7 @@ func runUserspace(dirArg, fileArg, outputPath, server, export, verifyWrite strin
 
 	res, err := speccapture.CaptureWithOptions(reader, dirRef, fileRef, opts)
 	if err != nil {
-		return fail("capture: %v", err)
+		return captureFailed(err, stderr)
 	}
 
 	if verifyWrite != "" {

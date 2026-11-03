@@ -383,6 +383,11 @@ func (s *Session) Capture(dir, file string, opts speccapture.Options) (*speccapt
 	if err := s.checkPath(file, false); err != nil {
 		return nil, err
 	}
+	if opts.ProbeDir != "" {
+		if err := s.checkPath(opts.ProbeDir, false); err != nil {
+			return nil, err
+		}
+	}
 	res, err := speccapture.CaptureWithOptions(s.backend, transport.Ref{Path: dir}, transport.Ref{Path: file}, opts)
 	if err != nil {
 		return nil, classifyLost(err)
@@ -411,6 +416,11 @@ func (s *Session) Verify(scratch, dir, file string, opts speccapture.Options) (*
 	}
 	dirRef := transport.Ref{Path: dir}
 	fileRef := transport.Ref{Path: file}
+	// scratch already takes disposable writes, so it doubles as the probe
+	// directory that proves the audit bypass before the exemplars are read.
+	if opts.ProbeDir == "" {
+		opts.ProbeDir = scratch
+	}
 	res, err := speccapture.CaptureWithOptions(s.backend, dirRef, fileRef, opts)
 	if err != nil {
 		return nil, classifyLost(err)

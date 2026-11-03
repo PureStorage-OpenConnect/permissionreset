@@ -102,7 +102,7 @@ func (f *fakeVerifier) Remove(parent transport.Ref, name string) error {
 func captureResult(t *testing.T, dirACEs, fileACEs []string) *speccapture.Result {
 	t.Helper()
 	r, dir, file := simpleReader(dirACEs, fileACEs, t)
-	res, err := speccapture.Capture(r, dir, file)
+	res, err := captureUnproven(r, dir, file)
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}

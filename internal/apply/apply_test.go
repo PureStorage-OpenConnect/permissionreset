@@ -1718,3 +1718,18 @@ func TestDescribeACLMismatchSkipsOtherFormOfSameIdentity(t *testing.T) {
 		t.Errorf("describeACLMismatch = %q, want it to name ACE 1", d)
 	}
 }
+
+// TestDryRunCompareDoesNotReadTheObject: a dry run has no audit-bypass proof,
+// and an unproven read can empty inherited auditing (PS-02), so --compare on a
+// dry run must not read the object before its blind write would be decided.
+func TestDryRunCompareDoesNotReadTheObject(t *testing.T) {
+	s := loadSpec(t, "protocol: nfsv4\ndefault:\n  acl:\n    - \"A::OWNER@:rwaDxtTnNcCoy\"\n  sacl:\n    - \"U:SF:EVERYONE@:rwaD\"\n")
+	rt := &recordingTransport{}
+	r := ProcessPath(rt, transport.Ref{Path: "/tree/f"}, false, s, Options{DryRun: true, Compare: true}, 0644)
+	if r.Error != nil {
+		t.Fatalf("ProcessPath error = %v", r.Error)
+	}
+	if rt.getACLCalls != 0 || len(rt.setACLCalls) != 0 {
+		t.Fatalf("dry run with --compare: %d GetACL, %d SetACL calls, want 0 and 0", rt.getACLCalls, len(rt.setACLCalls))
+	}
+}
