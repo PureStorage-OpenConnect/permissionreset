@@ -94,7 +94,7 @@ jobs:
   # Fails when a tracked file names an internal host, address, domain or person. The denylist itself
   # names those, so it is not in the repo: it arrives as the PUBLIC_SCAN_DENYLIST secret, which
   # GitHub does not pass to pull requests from forks. Those skip with a notice and are checked again
-  # on the push to main.
+  # on the push to main. Any other run without the secret fails: a skip there would pass unscanned.
   public-scan:
     if: github.repository == 'PureStorage-OpenConnect/permissionreset'
     runs-on: ubuntu-24.04
@@ -104,10 +104,15 @@ jobs:
       - name: scan
         env:
           DENYLIST: ${{ secrets.PUBLIC_SCAN_DENYLIST }}
+          FROM_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
         run: |
           if [ -z "$DENYLIST" ]; then
-            echo "::notice::PUBLIC_SCAN_DENYLIST is not available to this run; scan skipped"
-            exit 0
+            if [ "$FROM_FORK" = true ]; then
+              echo "::notice::PUBLIC_SCAN_DENYLIST is not passed to pull requests from forks; scan skipped until the push to main"
+              exit 0
+            fi
+            echo "::error::PUBLIC_SCAN_DENYLIST is not set; the public scan cannot run"
+            exit 1
           fi
           printf '%s\n' "$DENYLIST" > "$RUNNER_TEMP/denylist.txt"
           tools/public-scan/scan.sh --denylist "$RUNNER_TEMP/denylist.txt"
