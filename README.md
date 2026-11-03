@@ -256,32 +256,46 @@ It refuses to overwrite an existing output file.
 
 A desktop front end is documented in [docs/build-spec-gui.md](docs/build-spec-gui.md).
 
-The identity report on stdout shows the principal strings as read from the array. "write
-verification: not performed" means `--verify-write` was not passed — no probe writes were
-attempted.
+The identity report on stderr shows the principal strings as read from the array; stdout carries
+only YAML, and only with `--output -`. "write verification: not performed" means `--verify-write`
+was not passed. It does not mean nothing was written: see the probe below.
+
+Put every flag before the two paths. Go's flag parser stops at the first positional argument, so
+a flag after the paths is not parsed and the command fails (for a trailing `--output`, with
+`--output is required`).
+
+Before it reads the exemplars, `build-spec` writes and removes one disposable probe in
+`--probe-dir` (a scratch directory on the same mount; for the userspace transport a server path
+inside the export) to prove the identity has the audit bypass. Without `--probe-dir` or
+`--verify-write` it refuses and reads nothing. `--accept-unproven-read` skips the proof instead;
+on an array where an unprivileged read empties inherited auditing, that read can change the
+exemplars.
 
 **Usage:**
 
 ```bash
 # Linux (kernel NFSv4.1 mount)
-build-spec /mnt/fb/templates/folder /mnt/fb/templates/file.txt \
-  --output project-permissions.yaml
+build-spec --output project-permissions.yaml \
+  --probe-dir /mnt/fb/templates/scratch \
+  /mnt/fb/templates/folder /mnt/fb/templates/file.txt
 ```
 
 ```bash
 # macOS / Windows — direct NFSv4.1 (userspace transport)
 build-spec --server 192.0.2.50 --export /data \
   --auth-uid 10010 --auth-gid 10000 \
-  /data/templates/folder /data/templates/file.txt \
-  --output project-permissions.yaml
+  --output project-permissions.yaml \
+  --probe-dir /data/templates/scratch \
+  /data/templates/folder /data/templates/file.txt
 ```
 
 ```powershell
 # Windows PowerShell
 .\build-spec.exe --server 192.0.2.50 --export /data `
   --auth-uid 10010 --auth-gid 10000 `
-  /data/templates/folder /data/templates/file.txt `
-  --output project-permissions.yaml
+  --output project-permissions.yaml `
+  --probe-dir /data/templates/scratch `
+  /data/templates/folder /data/templates/file.txt
 ```
 
 If the exemplars carry audit (`U`) ACEs, the spec has DACL-keeping `sacl:`-only rules (an

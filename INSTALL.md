@@ -8,8 +8,9 @@
 **Linux** (kernel NFSv4.1 mount):
 
 ```bash
-build-spec /mnt/fb/templates/folder /mnt/fb/templates/file.txt \
-  --output project-permissions.yaml
+build-spec --output project-permissions.yaml \
+  --probe-dir /mnt/fb/templates/scratch \
+  /mnt/fb/templates/folder /mnt/fb/templates/file.txt
 ```
 
 **macOS** (userspace transport — no kernel NFS client required):
@@ -17,8 +18,9 @@ build-spec /mnt/fb/templates/folder /mnt/fb/templates/file.txt \
 ```bash
 build-spec --server 192.0.2.50 --export /data \
   --auth-uid 10010 --auth-gid 10000 \
-  /data/templates/folder /data/templates/file.txt \
-  --output project-permissions.yaml
+  --output project-permissions.yaml \
+  --probe-dir /data/templates/scratch \
+  /data/templates/folder /data/templates/file.txt
 ```
 
 **Windows PowerShell** (userspace transport — unzip the release archive first):
@@ -26,14 +28,19 @@ build-spec --server 192.0.2.50 --export /data \
 ```powershell
 .\build-spec.exe --server 192.0.2.50 --export /data `
   --auth-uid 10010 --auth-gid 10000 `
-  /data/templates/folder /data/templates/file.txt `
-  --output project-permissions.yaml
+  --output project-permissions.yaml `
+  --probe-dir /data/templates/scratch `
+  /data/templates/folder /data/templates/file.txt
 ```
 
 `--auth-uid` and `--auth-gid` are required on Windows and macOS. On Linux with a kernel
 mount they are optional (the process UID/GID is used). Pass `--output -` to write YAML to
-stdout. `--verify-write SCRATCH_DIR` is the only mutating mode; omit it for read-only
-operation.
+stdout. Put every flag before the two paths: a flag after them is not parsed and the command fails.
+
+`build-spec` never writes the exemplars, but it is not read-only. Before reading them it writes
+and removes a disposable probe in `--probe-dir` (or the `--verify-write` directory) to prove the
+audit bypass, and refuses without one unless `--accept-unproven-read` is given.
+`--verify-write SCRATCH_DIR` also writes probes there to check the spec round-trips.
 
 ## Prerequisites
 
