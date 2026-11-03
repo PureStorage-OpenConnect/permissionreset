@@ -74,8 +74,6 @@ What capture emits:
 - Preserved NFS ACE bytes do not prove identical raw SMB descriptors, inheritance state,
   owner/group or effective access. Check DACL fidelity from SMB.
 - The proof shows that this client, with this identity, keeps audit entries on this export. It does
-  not prove the array's audit policy. It also does not prove that the identity is privileged:
-  an array that does not restrict audit writes by privilege lets any identity that can create the
-  probe pass.
+  not prove the array's audit policy.
 - The refusal path (`ErrAuditPrivilege`, `ErrAuditNotRetained`) has not been tested on hardware.
-  It needs an array that restricts audit writes by privilege.
+  It needs a test identity that has no audit bypass.
