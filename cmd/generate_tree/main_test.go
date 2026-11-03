@@ -77,6 +77,16 @@ func runBinary(t *testing.T, args ...string) cmdResult {
 	return cmdResult{code: code, stdout: out.String(), stderr: errb.String()}
 }
 
+func TestVersionFlag(t *testing.T) {
+	var out, errOut strings.Builder
+	if code := run([]string{"--version"}, &out, &errOut); code != 0 {
+		t.Fatalf("--version exit %d; stderr: %s", code, errOut.String())
+	}
+	if !strings.HasPrefix(out.String(), "generate-tree "+version+" (") {
+		t.Errorf("--version printed %q", out.String())
+	}
+}
+
 func TestHelpFlag(t *testing.T) {
 	r := runBinary(t, "-help")
 	if r.code != 0 {

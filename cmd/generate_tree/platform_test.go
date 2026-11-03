@@ -176,7 +176,7 @@ func TestEveryGenerateTreeFlagIsClassified(t *testing.T) {
 		"seed": true, "acls-only": true, "no-acls": true, "dry-run": true,
 		"safety-principal": true, "files-per-subtree": true, "copies": true,
 		"seed-files": true, "max-depth": true, "server": true, "export": true,
-		"connections": true, "manifest": true,
+		"connections": true, "manifest": true, "version": true,
 		// The AUTH_SYS flags are ungated on purpose: they are how you present a
 		// different identity on any platform, without sudo -u.
 		"auth-uid": true, "auth-gid": true, "auth-gids": true, "auth-hostname": true,

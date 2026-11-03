@@ -8,7 +8,7 @@ LDFLAGS = -s -w \
 	-X main.commit=$(COMMIT) \
 	-X main.date=$(DATE)
 
-.PHONY: all clean test vet build release release-archive build-spec build-spec-cross build-spec-depguard gui-doctor gui-buildspec gui-buildspec-windows dist-buildspec dist-buildspec-windows
+.PHONY: all clean test vet build release release-archive release-smoke build-spec build-spec-cross build-spec-depguard gui-doctor gui-buildspec gui-buildspec-windows dist-buildspec dist-buildspec-windows
 
 all: build
 
@@ -56,12 +56,16 @@ clean:
 # emits single-architecture binaries and the universal Mach-O that would
 # collapse them needs Apple's lipo, which the Linux runners do not have.
 #
-# The Windows follow-up appends windows/amd64 here and a .zip rule below; the
-# archive naming already leaves room for it.
+# Windows is not listed: it ships capture only, as a separate .zip built at the
+# end of `release` (permissionreset, sweep and generate-tree have no Windows port).
 RELEASE_PLATFORMS = linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
 
-# Files shipped alongside the binaries in every archive.
-RELEASE_DOCS = README.md LICENSE INSTALL.md
+# Documents and examples shipped in every archive, at their repository paths so the relative links
+# in README and INSTALL resolve inside the unpacked archive. Taken from `git ls-files`, so an ignored
+# or untracked local file never ships; CLAUDE.md files are contributor instructions and stay out.
+RELEASE_DOC_PATHS = README.md LICENSE THIRD-PARTY-NOTICES INSTALL.md COMPATIBILITY.md RISKS.md \
+	RFC-Deviations.md DESIGN.md CONTRIBUTING.md SECURITY.md CHANGELOG.md docs examples benchmarks
+RELEASE_DOCS = $(shell git ls-files -- $(RELEASE_DOC_PATHS) ':!:**/CLAUDE.md' ':!:CLAUDE.md')
 # Set-SaclOnly (Windows, SMB side) ships in every archive with a build-spec.exe for -Spec.
 SACLONLY_FILES = $(addprefix tools/set-saclonly/,Set-SaclOnly.ps1 SaclPlan.ps1 SaclOnly.cs README.md)
 
@@ -80,11 +84,18 @@ release: clean
 	  GOOS=$${goos} GOARCH=$${goarch} CGO_ENABLED=0 $(GO) build -ldflags '$(LDFLAGS)' -o $${stage}/generate-tree ./cmd/generate_tree/ || exit 1; \
 	  GOOS=$${goos} GOARCH=$${goarch} CGO_ENABLED=0 $(GO) build -ldflags '$(LDFLAGS)' -o $${stage}/sweep ./cmd/sweep/ || exit 1; \
 	  GOOS=$${goos} GOARCH=$${goarch} CGO_ENABLED=0 $(GO) build -ldflags '$(LDFLAGS)' -o $${stage}/build-spec ./cmd/build_spec/ || exit 1; \
-	  cp $(RELEASE_DOCS) $${stage}/ || exit 1; \
+	  for f in $(RELEASE_DOCS); do mkdir -p $${stage}/$$(dirname $$f) && cp $$f $${stage}/$$f || exit 1; done; \
 	  mkdir -p $${stage}/tools/set-saclonly && \
 	  cp $(SACLONLY_FILES) $${stage}/tools/set-saclonly/ || exit 1; \
 	  GOOS=windows GOARCH=amd64 CGO_ENABLED=0 $(GO) build -ldflags '$(LDFLAGS)' -o $${stage}/tools/set-saclonly/build-spec.exe ./cmd/build_spec/ || exit 1; \
 	done
+	@# Windows gets capture only: build-spec.exe, Set-SaclOnly and the same documents, as a .zip.
+	@name=permissionreset_$(VERSION)_windows_amd64; stage=dist/$${name}; \
+	  echo "building $${name}"; \
+	  mkdir -p $${stage}/tools/set-saclonly && \
+	  GOOS=windows GOARCH=amd64 CGO_ENABLED=0 $(GO) build -ldflags '$(LDFLAGS)' -o $${stage}/build-spec.exe ./cmd/build_spec/ || exit 1; \
+	  for f in $(RELEASE_DOCS); do mkdir -p $${stage}/$$(dirname $$f) && cp $$f $${stage}/$$f || exit 1; done; \
+	  cp $(SACLONLY_FILES) $${stage}/tools/set-saclonly/ && cp $${stage}/build-spec.exe $${stage}/tools/set-saclonly/ || exit 1
 	@echo ""
 	@echo "Built $(VERSION) ($(COMMIT)):"
 	@ls -lh dist/*/
@@ -97,11 +108,18 @@ release: clean
 release-archive:
 	@cd dist && for d in */; do \
 	  name=$${d%/}; \
-	  echo "packing $${name}.tar.gz"; \
-	  tar -czf $${name}.tar.gz $${name} || exit 1; \
+	  case $${name} in \
+	    *_windows_*) echo "packing $${name}.zip"; if command -v zip >/dev/null 2>&1; then zip -qr $${name}.zip $${name}; \
+	                 else python3 -m zipfile -c $${name}.zip $${name}; fi || exit 1 ;; \
+	    *)           echo "packing $${name}.tar.gz"; tar -czf $${name}.tar.gz $${name} || exit 1 ;; \
+	  esac; \
 	  rm -rf $${name}; \
 	done
 	@ls -lh dist/
+
+# release-smoke checks the packed archives as an operator receives them (tools/release/smoke.sh).
+release-smoke:
+	tools/release/smoke.sh dist $(VERSION)
 
 # build-spec: host build (native GOOS/GOARCH).
 build-spec:

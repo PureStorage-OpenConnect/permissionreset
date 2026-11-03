@@ -15,6 +15,13 @@ import (
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/tuning"
 )
 
+// version, commit and date are set with -ldflags -X, as they are for the other binaries.
+var (
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
+)
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
@@ -38,6 +45,7 @@ type genTreeFlags struct {
 	transport       *string
 	server          *string
 	export          *string
+	showVersion     *bool
 	connections     *int
 	manifestPath    *string
 
@@ -72,6 +80,7 @@ func registerGenTreeFlags(fs *flag.FlagSet, errOut io.Writer) (*flag.FlagSet, *g
 
 	f.server = fs.String("server", "", "NFS server hostname (userspace transport)")
 	f.export = fs.String("export", "", "NFS export path (userspace transport)")
+	f.showVersion = fs.Bool("version", false, "print version and exit")
 	f.connections = fs.Int("connections", 8, "TCP connections to server (userspace transport)")
 	f.manifestPath = fs.String("manifest", "", "Local path for acl_manifest.json (default: beside TARGET, or ./acl_manifest.json when TARGET is not local)")
 
@@ -113,6 +122,11 @@ func run(args []string, out, errOut io.Writer) int {
 			return 0
 		}
 		return 2
+	}
+
+	if *f.showVersion {
+		fmt.Fprintf(out, "generate-tree %s (%s) built %s\n", version, commit, date)
+		return 0
 	}
 
 	explicit := tuning.Explicit(fs)
