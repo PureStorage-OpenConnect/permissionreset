@@ -1,6 +1,7 @@
 # Build and publish a GitHub release when a version tag is pushed.
 # Release creation calls the GitHub API with curl rather than a third-party action, so the job
 # depends on nothing outside the actions/* namespace.
+# Runs only in the public repository; a private mirror runs its own workflow instead.
 name: Release
 
 on:
@@ -12,6 +13,7 @@ permissions:
 
 jobs:
   release:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
