@@ -446,3 +446,46 @@ func TestSafetyPrincipalErrorNamesTheOverrideFlag(t *testing.T) {
 		t.Fatalf("error = %q, want it to name --safety-principal", err)
 	}
 }
+
+func TestBuildRoleMapShippedRosters(t *testing.T) {
+	paths, err := filepath.Glob("../../examples/principals_*.json")
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("no shipped rosters found: %v", err)
+	}
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var roster Roster
+		if err := json.Unmarshal(data, &roster); err != nil {
+			t.Fatalf("%s: %v", p, err)
+		}
+		if roster.Domain == "" {
+			continue // not a generate-tree roster (e.g. the Windows one)
+		}
+		for role, got := range buildRoleMap(roster) {
+			name := roster.Roles[role]
+			want := name + "@" + roster.Domain
+			if strings.HasSuffix(name, "@") {
+				want = name
+			}
+			if got != want || strings.Contains(got, "@@") {
+				t.Errorf("%s: role %s = %q, want %q", filepath.Base(p), role, got, want)
+			}
+		}
+	}
+}
+
+func TestPrincipalSpecialPassesThrough(t *testing.T) {
+	for _, tc := range []struct{ name, want string }{
+		{"OWNER@", "OWNER@"},
+		{"GROUP@", "GROUP@"},
+		{"EVERYONE@", "EVERYONE@"},
+		{"alice", "alice@example.net"},
+	} {
+		if got := principal(tc.name, "example.net"); got != tc.want {
+			t.Errorf("principal(%q) = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}

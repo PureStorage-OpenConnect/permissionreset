@@ -106,7 +106,12 @@ var projectNames = []string{"alpha", "beta", "gamma", "delta", "epsilon", "zeta"
 var subdirNames = []string{"src", "docs", "config", "logs", "tmp", "archive", "reports", "scripts",
 	"input", "output", "staging", "backup", "shared", "private", "templates"}
 
+// principal qualifies a roster name with the domain. NFSv4 special principals
+// (OWNER@, GROUP@, EVERYONE@) already end in "@" and pass through unchanged.
 func principal(name, domain string) string {
+	if strings.HasSuffix(name, "@") {
+		return name
+	}
 	return name + "@" + domain
 }
 
