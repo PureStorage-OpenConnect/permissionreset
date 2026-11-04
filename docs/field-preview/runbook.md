@@ -58,7 +58,15 @@ Validate the canary independently:
 permissionreset -spec spec.yaml -validate /mnt/fb/target/dept_a
 ```
 
-Zero mismatches confirms the spec produces the intended result. If mismatches appear, review the spec and the identity-checklist before proceeding.
+Zero mismatches means the stored ACLs match the spec: the tool wrote what the spec says. It does not
+show that the spec grants the access you meant. Before the full run, check access as ordinary users,
+not as root or an administrator: a user who should have access can read (and write, if intended), a
+user who should not is refused, and a new file or directory created in the canary inherits the ACL
+you expect. If mismatches appear, review the spec and the identity-checklist before proceeding.
+
+The reset writes each ACL explicitly. Over SMB the DACLs show as protected, with no "Inherited from"
+entries (`benchmarks/dacl-reset-fidelity-20261020/`). Plan for that if anyone relies on inheritance
+from a parent above the target.
 
 If multiprotocol access is in use, verify from a Windows SMB client that the ACLs render correctly.
 
@@ -124,7 +132,9 @@ Run an independent validation pass:
 permissionreset -spec spec.yaml -validate /mnt/fb/target
 ```
 
-This reads every object's permissions and compares against the spec. It is read-only and does not modify anything.
+This reads every object's permissions and compares against the spec. It changes no object in the
+tree; on an NFSv4 export it first writes and removes one disposable probe to prove the audit bypass
+([live-read contract](../live-read-contract.md)). It checks stored ACLs, not effective access.
 
 Expected output: zero mismatches, `Checked` equals the full tree count.
 
@@ -149,7 +159,7 @@ The JSON summary (`-json-summary`) contains all counts in machine-readable form 
 Escalate to engineering if any of these occur:
 
 - **Exit 0 but counts don't add up** — `Applied + Skipped + Errors != Enumerated`
-- **Validation mismatches after a successful apply** — the tool wrote something different from what was intended
+- **Validation mismatches after a successful apply** — the stored ACL differs from the spec
 - **Walk errors with exit 1** — enumeration was incomplete; objects were missed
 - **Repeated EINVAL errors** — identity mapping is broken (see identity-checklist.md)
 - **OOM or crash** — collect a support bundle first:

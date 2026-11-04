@@ -123,8 +123,8 @@ sudo permissionreset --sacl --accept-dacl-flattening --spec sacl.yaml --apply --
   parent's SACL does not reach stamped children. Change the spec and rerun.
 - **Replaced files.** A file copied and renamed over the original, or re-created, carries only the
   parent's inherited SACL. On 6.10.6/6.11.x that is exposed as in step 5.
-- **Plain DACL specs on FlashArray.** An `acl:` spec run without `--sacl` deletes every audit ACE
-  it writes over. On a FlashArray that uses auditing, always pass `--sacl`: it refuses an `acl:`
-  rule that has no `sacl:` key. This holds after this job too: once the array carries audit ACEs,
-  every later `permissionreset` DACL repair against it must pass `--sacl`. Tell the customer's other
-  operators.
+- **Plain DACL specs on FlashArray.** An `acl:` spec run without `--sacl` keeps each object's
+  existing audit ACEs as the NFS view shows them (PS-04), and refuses an object whose audit ACEs it
+  cannot keep exactly. With `--sacl`, an `acl:` rule needs a `sacl:` key. Versions before v0.9.4-sacl
+  deleted audit ACEs on a plain DACL reset (#51): once the array carries audit ACEs, tell the
+  customer's other operators to use a current version for any DACL repair.

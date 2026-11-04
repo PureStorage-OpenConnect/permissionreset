@@ -1,6 +1,24 @@
 # Compatibility Matrix
 
-Tested configurations for `permissionreset`. Entries are added after a successful apply + validate cycle on real hardware. Untested configurations may work but carry no guarantee.
+Configurations on which `permissionreset` has been run on real hardware. Each entry is historical
+evidence for the version and configuration it names. It does not qualify a later release by itself:
+a release is verified only by checks run against that release's artifacts. Untested configurations
+may work but carry no guarantee.
+
+## Support at a glance
+
+| Operation | Array | Client OS | Transport | Evidence |
+|---|---|---|---|---|
+| DACL reset (`acl:`) | FlashBlade | Linux | kernel, userspace | Historical hardware runs (table below); `permissionreset` version not recorded |
+| DACL reset (`acl:`) | FlashArray | Linux | kernel | Historical hardware run, v0.9.5-sacl, Purity//FA 6.10.6, with an SMB raw-descriptor check (`benchmarks/dacl-reset-fidelity-20261020/RESULTS-fa.md`) |
+| DACL-keeping SACL (`sacl:` only, `--sacl`) | FlashArray | Linux | kernel | Historical hardware runs, Purity//FA 6.10.6 and 6.12.1 (section below) |
+| Any repair | FlashArray | any | userspace | Refused by design |
+| Any repair | either | macOS | userspace | Builds and passes offline tests in CI; no hardware run recorded |
+| Any repair | either | Windows | — | Does not build |
+| Template capture (`build-spec`) | either | Linux, macOS, Windows | kernel (Linux), userspace | Offline tests in CI; capture on hardware recorded in `benchmarks/` only for Linux |
+
+Offline CI tests, compiling for a platform, a historical hardware run and verification of the current
+release are different evidence. This table says which one each row has.
 
 **macOS**: builds, ships, and runs `--transport=userspace`. No verified-in-the-field column yet —
 one will be added once someone runs a real repair from a Mac. Everything below that mentions idmapd
@@ -55,8 +73,8 @@ principal string verbatim and the array resolves it.
 
 ## FlashArray (audit ACEs, `--sacl`)
 
-DACL-keeping SACL specs only (`examples/nfsv4_sacl_keep_dacl.yaml`). No spec-DACL run has been
-tested on FlashArray.
+DACL-keeping SACL specs (`examples/nfsv4_sacl_keep_dacl.yaml`). A plain DACL reset was run separately
+on lab array A with v0.9.5-sacl; see `benchmarks/dacl-reset-fidelity-20261020/RESULTS-fa.md`.
 
 | Field | client-c → lab array A | client-c → lab array B |
 |---|---|---|
@@ -91,8 +109,8 @@ Then run apply + validate on a known tree and record the throughput.
 ## Known Limitations
 
 - **arm64**: cross-compiles but untested on hardware
-- **macOS**: builds and ships; `--transport=userspace` is the only transport and the default there, and `--transport=kernel` is refused by value. `--pfind`/`--no-pfind` are hidden and refused. `sweep` refuses at startup on macOS — every scratch backend it can build reads its trial tree through a mounted path. `generate-tree` is not ported. The offline test suite runs on Linux; macOS is compile-and-vet verified in CI.
-- **Windows**: does not build yet. `internal/walk`, `internal/apply`, `internal/nfs4acl`, `internal/transport` and `internal/treegen` use Linux syscalls with no Windows equivalent, and `internal/platform` has no Windows capability file yet; the port is a follow-up.
+- **macOS**: builds and ships; `--transport=userspace` is the only transport and the default there, and `--transport=kernel` is refused by value. `--pfind`/`--no-pfind` are hidden and refused. `sweep` refuses at startup on macOS — every scratch backend it can build reads its trial tree through a mounted path. `generate-tree` is not ported. The offline test suite runs on Linux and macOS in CI; no repair from a Mac has been run on hardware.
+- **Windows**: only `build-spec` (capture) builds and ships. `permissionreset`, `sweep` and `generate-tree` do not build yet. `internal/walk`, `internal/apply`, `internal/nfs4acl`, `internal/transport` and `internal/treegen` use Linux syscalls with no Windows equivalent, and `internal/platform` has no Windows capability file yet; the port is a follow-up.
 - **POSIX-only mode**: tested on local filesystems only, not on NFS mounts
 - **SMB backend**: none by design — NFSv4 ACLs are authoritative for SMB clients on FlashBlade; `protocol: smb` rejected at spec load. NFSv4-to-SMB rendering verification pending
 - **FlashArray**: userspace transport refuses FlashArray by design; kernel transport tested for DACL-keeping SACL specs only (table above)
