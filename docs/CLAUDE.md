@@ -15,6 +15,7 @@ Operator-facing documentation, design documents, and field deployment materials.
 | `CHECKPOINT_SCALE.md` | Developers | Checkpoint file growth analysis and scaling characteristics |
 | `evidence.md` | Operators | `--evidence-dir`: record and manifest format, profiles, measured bytes per object and overhead, failure behavior, crash-loss window |
 | `partitions.md` | Operators | `--partitions` manifests: validation, the residual partition, boundary ownership, state directory, restart semantics, what path disjointness does not prove |
+| `release-acceptance.md` | Maintainers | Per-candidate release gate: offline checks (`tools/release/acceptance-offline.sh`), lab matrix, external-reader trial, evidence record |
 | `live-read-contract.md` | Operators, developers | When each tool reads a live ACL and the audit-bypass proof it runs first (PS-02) |
 | `NAMESPACE_SEMANTICS.md` | Developers | How path resolution and identity mapping interact across transports |
 | `rfc8881-one-session-violation.md` | Developers | Analysis of the one-session-per-client-ID constraint |
