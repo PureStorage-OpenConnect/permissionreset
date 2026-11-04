@@ -30,6 +30,7 @@ Operator-facing runbooks for field deployment. Written for SEs and support engin
 
 | File | Content |
 |---|---|
+| `getting-started.md` | Beginner journey: route, prerequisites, snapshot, template capture, canary, verification, full run, recovery |
 | `runbook.md` | Step-by-step procedure: pre-flight, apply, validate, troubleshoot |
 | `snapshot-runbook.md` | FlashBlade snapshot workflow for safe rollback |
 | `identity-checklist.md` | Pre-run identity verification, split by transport: idmapd/sssd/nsswitch for `--transport=kernel`, array-side resolution and the AUTH_SYS credential for `--transport=userspace` |

@@ -34,7 +34,7 @@ esac
 
 unix_bins=(permissionreset generate-tree sweep build-spec)
 docs=(README.md LICENSE THIRD-PARTY-NOTICES INSTALL.md COMPATIBILITY.md RISKS.md SECURITY.md
-      docs/spec-guide.md docs/field-preview/runbook.md docs/field-preview/snapshot-runbook.md
+      docs/spec-guide.md docs/field-preview/getting-started.md docs/field-preview/runbook.md docs/field-preview/snapshot-runbook.md
       examples/nfsv4_basic.yaml examples/nfsv4_sacl_keep_dacl.yaml
       tools/set-saclonly/Set-SaclOnly.ps1 tools/set-saclonly/build-spec.exe)
 
@@ -84,6 +84,7 @@ for plat in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64 windows_amd64; do
 
   check_links "$pkg" README.md
   check_links "$pkg" INSTALL.md
+  check_links "$pkg" docs/field-preview/getting-started.md
 
   if [[ $plat == "$native" ]]; then
     for b in "${unix_bins[@]}"; do
