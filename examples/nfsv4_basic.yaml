@@ -1,3 +1,8 @@
+# DEMONSTRATION ONLY -- not a policy to apply to real data.
+# It grants EVERYONE@ read access to every file and directory, and GROUP@ full control of every
+# directory, and it replaces whatever ACL each object had. Capture your own spec with build-spec
+# from approved templates, or write one with docs/spec-guide.md.
+#
 # NFSv4 ACL using only special principals (works on any FlashBlade)
 # Directories get inheritable ACEs, files get non-inheritable
 protocol: nfsv4

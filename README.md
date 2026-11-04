@@ -14,15 +14,28 @@ We will address these as soon as we can, but there are no specific SLAs.
 
 ## Quick start
 
+`--apply` replaces the ACL of every object under the target, and the tool has no undo. Before a real
+run, follow the [field runbook](docs/field-preview/runbook.md): take a restorable snapshot
+([snapshot runbook](docs/field-preview/snapshot-runbook.md)), check identities, and try the spec on
+a small canary tree first. The outline:
+
 ```bash
-make build                                                              # or download a release archive
-./permissionreset --spec examples/nfsv4_basic.yaml /mnt/fb/data         # dry run: reports what would change
-./permissionreset --spec examples/nfsv4_basic.yaml --apply /mnt/fb/data # make the changes
-./permissionreset --spec examples/nfsv4_basic.yaml --validate /mnt/fb/data
+# 1. Capture a spec from an approved template directory and file (outside the target)
+build-spec --output spec.yaml --probe-dir /mnt/fb/scratch \
+  /mnt/fb/templates/folder /mnt/fb/templates/file.txt
+# 2. Dry run on a small disposable canary tree: reads no ACL and writes nothing
+permissionreset --spec spec.yaml /mnt/fb/canary
+# 3. Apply to the canary, then compare what is stored with the spec
+permissionreset --spec spec.yaml --apply /mnt/fb/canary
+permissionreset --spec spec.yaml --validate /mnt/fb/canary
 ```
 
-Without `--apply`, a run changes nothing. Write your own spec with [docs/spec-guide.md](docs/spec-guide.md),
-or capture one from an existing directory with [`build-spec`](#build-spec).
+`--validate` reporting zero mismatches means the stored ACLs match the spec. It does not show that
+the spec grants the access you intended: check that as ordinary users before the full run.
+`--apply` and `--validate` write and remove a small disposable probe first
+([docs/live-read-contract.md](docs/live-read-contract.md)). Write a spec by hand with
+[docs/spec-guide.md](docs/spec-guide.md); `examples/` holds demonstration specs, not policies to apply
+as they stand.
 
 ## Why it is fast
 
@@ -201,10 +214,11 @@ writes. `--sacl` turns on SACL mode, and `sacl:` writes `U` (audit) ACEs with th
 migrated tree with per-object DACLs needs; a rule with both writes the spec's DACL and SACL. A run
 needs the array's audit bypass (root over AUTH_SYS with root squash off, or an AD identity the
 array grants it — Domain Admins is not enough), and a preflight refuses to start without it.
-Without `--sacl`, a spec with `sacl:` is refused, and an `acl:` spec is refused when the target root
-already carries audit ACEs, on FlashArray and FlashBlade alike (only the root is read, plus each
-object under `--compare`). On any tree that uses auditing, always pass `--sacl`: it also refuses an
-`acl:` rule with no `sacl:` key, whose write would delete the object's audit ACEs.
+Without `--sacl`, a spec with `sacl:` is refused, and an `acl:` spec replaces each object's DACL and
+keeps that object's existing audit ACEs as the NFS view shows them, on FlashArray and FlashBlade
+alike (PS-04). An object whose audit ACEs cannot be kept exactly is refused, not written. With
+`--sacl`, an `acl:` rule with no `sacl:` key is refused, since that write would delete the object's
+audit ACEs.
 Logging also needs an audit policy on the managed directory, which permissionreset cannot check. A
 dry run does not read objects under a `sacl:`-only rule (a read without the bypass emptied
 inheriting SACLs on lab array A, Purity//FA 6.10.6, 3/3 on 2026-10-15; the same repro did not reproduce
@@ -250,8 +264,10 @@ Full syntax reference, replace-vs-merge worked examples, POSIX specs, exclude pa
 ## build-spec
 
 `build-spec` captures the NFSv4 ACLs from exactly one directory and one file and writes a
-`permissionreset`-compatible YAML spec. It is read-only by default; the only mutating mode is
-`--verify-write`, which writes and reads back the captured ACLs to confirm round-trip fidelity.
+`permissionreset`-compatible YAML spec. It never writes the templates, but it does write to the
+array: before reading, it writes and removes a disposable probe under `--probe-dir` to prove the
+audit bypass, and `--verify-write` also writes and reads back the captured ACLs on scratch objects
+to confirm round-trip fidelity.
 It refuses to overwrite an existing output file.
 
 A desktop front end is documented in [docs/build-spec-gui.md](docs/build-spec-gui.md).

@@ -648,16 +648,15 @@ Add sacl: [] to that rule to say an empty audit ACL is intended, or run without 
 
 `--sacl` also turns on [the preflight](#the-preflight) and the audit-policy NOTE.
 
-**Without `--sacl`, only the root is checked.** An `acl:` spec without `--sacl` is refused when the
-target root carries audit ACEs, and under `--compare` so is each object that carries them:
+**Without `--sacl`, a DACL reset keeps each object's audit ACEs.** Every object's ACL is read, and
+the spec's DACL is written with that object's existing audit and alarm entries appended byte for
+byte (PS-04, RISKS.md #10). This holds for an audited subtree under an unaudited root too. An
+object whose ACL cannot be read or parsed is not written, and neither is one whose audit ACEs name
+`nobody` or an id at or above 1000000000 (`ErrUnpreservableAudit`); each is counted as an error.
 
-```
-ERROR: /mnt/fb/data: object has audit (SACL) ACEs, and this acl: rule has no sacl: key; writing it would delete them -- rerun with --sacl and give the rule a sacl: key (sacl: [] if deleting them is intended)
-```
-
-A subtree with audit ACEs under a root without them is not caught unless `--compare` is on, and that
-run deletes them, on FlashArray and FlashBlade alike (RISKS.md #10). On any tree that uses auditing,
-always pass `--sacl`.
+What is kept is the audit entries the NFS view shows. That is not proof that the SMB descriptor is
+unchanged: an inherited audit ACE written back over NFS may be stored as an explicit one. Check
+SMB fidelity from SMB. A dry run reads no ACL, so it cannot report which objects carry auditing.
 
 ### Required privilege: the audit bypass
 

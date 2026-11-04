@@ -22,7 +22,11 @@ a security problem, not just a correctness one. Report these privately:
 - An apply that grants access the spec does not grant, or removes access the spec keeps.
 - An apply that deletes or alters audit ACEs (SACL entries) it was supposed to preserve.
 - A run that follows a symlink, or writes outside the target tree or past an exclude.
-- A dry run, `--validate` or `--compare` run that changes anything on the array.
+- A dry run that reads or writes any ACL, or any write outside what
+  [docs/live-read-contract.md](docs/live-read-contract.md) documents. `--validate` and `build-spec`
+  write and remove one disposable probe; `--apply` writes probes and then the spec, and with
+  `--compare` writes only the objects that do not match. Anything beyond that is a security problem.
+- A live ACL read before the audit-bypass proof described in that contract.
 - Credentials, tokens or principal names leaking into logs, evidence files or support bundles.
 
 A refusal you think is wrong, a crash or a slow run is an ordinary bug: open a normal issue.

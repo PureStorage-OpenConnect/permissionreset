@@ -10,7 +10,7 @@ Current as of v0.1.0 (2026-08-27).
 
 - **Checkpoint is bound to tool version.** Upgrading permissionreset invalidates any in-progress checkpoint. This is intentional — it prevents resuming a run that may have different behavior. Finish the current run before upgrading, or delete the checkpoint and restart.
 
-- **Audit ACEs (SACL) are opt-in with `--sacl`.** Without it, a spec with `sacl:` is refused, and an `acl:` spec is refused only when the target root carries audit ACEs (or, under `--compare`, an object does). Audit ACEs deeper in the tree are deleted by that run, on FlashArray and FlashBlade alike. On any tree that uses auditing, always pass `--sacl`. See sacl-runbook.md.
+- **Audit ACEs (SACL) are opt-in with `--sacl`.** Without it, a spec with `sacl:` is refused, and an `acl:` spec keeps each object's existing audit ACEs as the NFS view shows them, on FlashArray and FlashBlade alike (PS-04); an object whose audit ACEs cannot be kept exactly is refused. Kept NFS bytes are not proof of an unchanged SMB descriptor. See sacl-runbook.md.
 
 ## FlashArray audit ACEs (SACL)
 

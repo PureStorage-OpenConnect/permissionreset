@@ -1197,7 +1197,8 @@ Add sacl: [] to that rule to say an empty audit ACL is intended, or run without 
 
 <div class="callout callout-warn">
   <div class="callout-label">Important</div>
-  <p><strong>Without <code>--sacl</code>, only the root is checked.</strong> An <code>acl:</code> spec without <code>--sacl</code> is refused when the target root carries audit ACEs, and under <code>--compare</code> so is each object that carries them. A subtree with audit ACEs under a root without them is not caught unless <code>--compare</code> is on, and that run deletes them, on FlashArray and FlashBlade alike (RISKS.md #10). On any tree that uses auditing, always pass <code>--sacl</code>.</p>
+  <p><strong>Without <code>--sacl</code>, a DACL reset keeps each object's audit ACEs.</strong> Every object's ACL is read, and the spec's DACL is written with that object's existing audit and alarm entries appended byte for byte (PS-04, RISKS.md #10). This holds for an audited subtree under an unaudited root too. An object whose ACL cannot be read or parsed is not written, and neither is one whose audit ACEs name <code>nobody</code> or an id at or above 1000000000 (<code>ErrUnpreservableAudit</code>); each is counted as an error.</p>
+  <p>What is kept is the audit entries the NFS view shows. That is not proof that the SMB descriptor is unchanged: an inherited audit ACE written back over NFS may be stored as an explicit one. Check SMB fidelity from SMB. A dry run reads no ACL, so it cannot report which objects carry auditing.</p>
 </div>
 
 <h3>Required privilege: the audit bypass</h3>

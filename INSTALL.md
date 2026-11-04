@@ -56,12 +56,11 @@ audit bypass, and refuses without one unless `--accept-unproven-read` is given.
   [docs/spec-guide.md](docs/spec-guide.md#audit-aces-sacl-on-flasharray).
 
 Building from source works on Linux and macOS; both are shipped as release archives and both are
-compiled and vetted in CI. **Windows does not build yet** — `internal/walk`, `internal/apply`,
+tested in CI (`go test -race` on Linux and on a GitHub-hosted macOS runner). Only `build-spec` builds
+for Windows (capture, shipped as a `.zip`); **`permissionreset`, `sweep` and `generate-tree` do not** — `internal/walk`, `internal/apply`,
 `internal/nfs4acl`, `internal/transport` and `internal/treegen` use Linux syscalls that have no
 Windows equivalent, and `internal/platform` carries no Windows capability file; porting them is
-tracked as a follow-up. The offline test suite runs on
-Linux; macOS ships compile-and-vet verified, because the org's IP allow list blocks GitHub-hosted
-runners and the self-hosted pool is Linux.
+tracked as a follow-up. CI tests are offline: they do not show behavior on an array.
 
 The kernel transport (`--transport=kernel`, the Linux default) reaches ACLs through
 `setxattr("system.nfs4_acl", ...)` on a mounted export — a Linux NFS client feature that exists on
