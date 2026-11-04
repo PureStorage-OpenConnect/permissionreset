@@ -489,3 +489,54 @@ func TestPrincipalSpecialPassesThrough(t *testing.T) {
 		}
 	}
 }
+
+func TestDropSpecialDenies(t *testing.T) {
+	got := dropSpecialDenies([]string{
+		"D:fd:EVERYONE@:rwa",
+		"A:fd:EVERYONE@:rxtncy",
+		"D:fdg:GROUP@:rwa",
+		"D:fd:alice@example.net:rwa",
+		"A::OWNER@:rwaDxtTcCoy",
+	})
+	want := []string{"A:fd:EVERYONE@:rxtncy", "D:fd:alice@example.net:rwa", "A::OWNER@:rwaDxtTcCoy"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestNoSpecialDenyInAnyScenario(t *testing.T) {
+	for _, p := range []string{"principals_wellknown.json", "principals_example_nfs.json"} {
+		data, err := os.ReadFile(filepath.Join("../../examples", p))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var roster Roster
+		if err := json.Unmarshal(data, &roster); err != nil {
+			t.Fatal(err)
+		}
+		roleMap := buildRoleMap(roster)
+		for _, s := range append(DirScenarios(), FileScenarios()...) {
+			enc, err := preEncodeScenario(s, roleMap, "builder@example.net")
+			if err != nil {
+				t.Fatalf("%s/%s: %v", p, s.Name, err)
+			}
+			for _, a := range append(enc.dirACEs, enc.fileACEs...) {
+				parts := strings.SplitN(a, ":", 4)
+				if parts[0] == "D" && strings.HasSuffix(parts[2], "@") {
+					t.Errorf("%s/%s: special-principal deny %q would lock out the builder", p, s.Name, a)
+				}
+			}
+		}
+	}
+}
+
+func TestScenariosLosingDenies(t *testing.T) {
+	named := buildRoleMap(Roster{Domain: "example.net", Roles: map[string]string{"user_denied": "bob"}})
+	if got := scenariosLosingDenies(named); len(got) != 0 {
+		t.Errorf("named roster: got %v, want none", got)
+	}
+	special := buildRoleMap(Roster{Domain: "example.net", Roles: map[string]string{"user_denied": "EVERYONE@"}})
+	if got := scenariosLosingDenies(special); len(got) == 0 {
+		t.Error("special deny roster: got none, want the deny scenarios")
+	}
+}
