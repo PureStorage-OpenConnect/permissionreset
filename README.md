@@ -15,7 +15,8 @@ We will address these as soon as we can, but there are no specific SLAs.
 ## Quick start
 
 `--apply` replaces the ACL of every object under the target, and the tool has no undo. Before a real
-run, follow the [field runbook](docs/field-preview/runbook.md): take a restorable snapshot
+run, follow the [getting-started guide](docs/field-preview/getting-started.md) and the
+[field runbook](docs/field-preview/runbook.md): take a restorable snapshot
 ([snapshot runbook](docs/field-preview/snapshot-runbook.md)), check identities, and try the spec on
 a small canary tree first. The outline:
 
@@ -63,6 +64,7 @@ It is not magic or secret information. It is three clever ideas working together
 | [docs/evidence.md](docs/evidence.md) | `--evidence-dir`: record and manifest format, profiles, measured size and overhead, failure behavior |
 | [docs/partitions.md](docs/partitions.md) | `--partitions`: splitting a very large tree into disjoint subtrees, each with its own checkpoint and evidence, restart and coverage rules |
 | [docs/NAMESPACE_SEMANTICS.md](docs/NAMESPACE_SEMANTICS.md) | Nested mounts, special files, hard links, symlinks, renames, exclude patterns |
+| [docs/field-preview/getting-started.md](docs/field-preview/getting-started.md) | **Start here:** template capture to verified repair, step by step |
 | [docs/field-preview/](docs/field-preview/) | Operator runbooks: apply/validate procedure, snapshots, identity checklist, troubleshooting |
 | [INSTALL.md](INSTALL.md) | Install, upgrade, downgrade, checkpoint compatibility |
 | [COMPATIBILITY.md](COMPATIBILITY.md) | Tested array/client combinations |
