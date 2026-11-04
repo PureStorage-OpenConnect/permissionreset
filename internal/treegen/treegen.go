@@ -106,7 +106,12 @@ var projectNames = []string{"alpha", "beta", "gamma", "delta", "epsilon", "zeta"
 var subdirNames = []string{"src", "docs", "config", "logs", "tmp", "archive", "reports", "scripts",
 	"input", "output", "staging", "backup", "shared", "private", "templates"}
 
+// principal qualifies a roster name with the domain. NFSv4 special principals
+// (OWNER@, GROUP@, EVERYONE@) already end in "@" and pass through unchanged.
 func principal(name, domain string) string {
+	if strings.HasSuffix(name, "@") {
+		return name
+	}
 	return name + "@" + domain
 }
 
@@ -823,12 +828,12 @@ type preEncodedScenario struct {
 }
 
 func preEncodeScenario(s Scenario, roleMap map[string]string, safetyPrincipal string) (preEncodedScenario, error) {
-	dirACEs := s.ACEs(roleMap)
+	dirACEs := dropSpecialDenies(s.ACEs(roleMap))
 	if safetyPrincipal != "" {
 		dirACEs = append(dirACEs, ace("A", "fd", safetyPrincipal, MaskFull))
 	}
 
-	fileACEs := s.ACEs(roleMap)
+	fileACEs := dropSpecialDenies(s.ACEs(roleMap))
 	for i, a := range fileACEs {
 		fileACEs[i] = stripInheritFlags(a)
 	}
@@ -1142,6 +1147,36 @@ func dryRunEntries(subtreeRoots []string, dirScenarios, fileScenarios []preEncod
 	fmt.Fprintf(os.Stderr, "  %d subtrees, %d scenarios\n", len(subtreeRoots), len(scenarioSeen))
 }
 
+// dropSpecialDenies removes deny ACEs whose principal is an NFSv4 special
+// principal (OWNER@, GROUP@, EVERYONE@). Every special principal includes the
+// account building the tree, and the safety ACE comes after the scenario's
+// ACEs, so such a deny would lock the builder out of its own tree. Only a
+// roster that maps a deny role to a special principal (the well-known roster)
+// loses entries; named principals are never dropped.
+func dropSpecialDenies(aces []string) []string {
+	kept := aces[:0]
+	for _, a := range aces {
+		parts := strings.SplitN(a, ":", 4)
+		if len(parts) == 4 && parts[0] == "D" && strings.HasSuffix(parts[2], "@") {
+			continue
+		}
+		kept = append(kept, a)
+	}
+	return kept
+}
+
+// scenariosLosingDenies names the scenarios dropSpecialDenies changes under roleMap.
+func scenariosLosingDenies(roleMap map[string]string) []string {
+	var names []string
+	for _, s := range append(DirScenarios(), FileScenarios()...) {
+		aces := s.ACEs(roleMap)
+		if len(dropSpecialDenies(append([]string(nil), aces...))) != len(aces) {
+			names = append(names, s.Name)
+		}
+	}
+	return names
+}
+
 func stripInheritFlags(aceStr string) string {
 	parts := strings.SplitN(aceStr, ":", 4)
 	if len(parts) != 4 {
@@ -1186,6 +1221,10 @@ func RunContext(ctx context.Context, cfg Config) error {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "Safety principal: %s\n", safetyPrincipal)
+	if names := scenariosLosingDenies(roleMap); len(names) > 0 {
+		fmt.Fprintf(os.Stderr, "NOTE: deny ACEs on special principals are left out, so these scenarios "+
+			"have no deny: %s\n", strings.Join(names, ", "))
+	}
 
 	// Validate principals — only when re-stamping an existing tree (ACLsOnly),
 	// because the full generation path validates after creating the target.
