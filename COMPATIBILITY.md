@@ -14,6 +14,7 @@ may work but carry no guarantee.
 | DACL-keeping SACL (`sacl:` only, `--sacl`) | FlashArray | Linux | kernel | Historical hardware runs, Purity//FA 6.10.6 and 6.12.1 (section below) |
 | Any repair | FlashArray | any | userspace | Refused by design |
 | DACL reset (`acl:`) | FlashBlade | macOS | userspace | One hardware run on 0ed7524, darwin/arm64, Purity//FB version not recorded (section below) |
+| DACL-keeping SACL (`sacl:` only, `--sacl`) | FlashBlade | macOS | userspace | No hardware run recorded; offline tests in CI only |
 | Any repair | FlashArray | macOS | userspace | Refused by design (userspace refuses FlashArray) |
 | Any repair | either | Windows | — | Does not build |
 | Template capture (`build-spec`) | either | Linux, macOS, Windows | kernel (Linux), userspace | Offline tests in CI; capture on hardware recorded in `benchmarks/` only for Linux |
@@ -132,4 +133,5 @@ repository.
 - Not run: the kernel transport (not on macOS), the no-bypass refusal path (this FlashBlade over
   `sec=sys` keeps a non-admin identity's audit entries), and resume from a partial checkpoint.
 - Found: numeric principals in a spec never compare equal on macOS userspace, because the array
-  returns names and the client has no id mapper. Name principals in the spec.
+  returns names and the client has no id mapper. Name principals in the spec
+  ([#30](https://github.com/PureStorage-OpenConnect/permissionreset/issues/30)).
