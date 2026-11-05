@@ -47,7 +47,9 @@ Never use production or user data. Cases that share a file system, export, ident
 snapshot must run one at a time.
 
 Use the binaries from the release archive whose checksum the offline record lists. Do not use a build
-from a checkout. Record the client OS, array model and firmware, transport, mount options, and the
+from a checkout. `make release` runs `make clean` first, which deletes the host binaries that
+`make build` left in the checkout, so a lab script that calls them after packing fails. Run the
+unpacked archive's binaries instead. Record the client OS, array model and firmware, transport, mount options, and the
 credential category (for example "root, AUTH_SYS, no root squash" or "domain user without audit
 bypass"). Never record the credential itself.
 
@@ -68,9 +70,9 @@ These are separate kinds of evidence, and a case passes only on the kinds it nam
 | L2 | Audited descendant under an unaudited root | Root with no `U` ACEs; one descendant with explicit and inherited audit ACEs | Plain reset without `--sacl` | The descendant's audit ACEs are byte-identical before and after (NFS view); its DACL is the spec's |
 | L3 | No read-safety privilege | An identity without the audit bypass | `build-spec`, `--validate` and `--apply`, each in turn | Each stops before reading any existing ACL with `ErrAuditPrivilege` or `ErrAuditNotRetained`; the message names the fix; the fixture is unchanged |
 | L4 | Templates carrying audit ACEs | Templates with `U` ACEs | Capture with default options, then with `--with-dacl` | Default output has `sacl:` rules and no `acl:`, and its NOTE says the spec keeps each object's own DACL and replaces only its SACL; an operator reading it per the guide does not mistake it for a DACL repair |
-| L5 | Unmapped and synthetic-range identities | Objects whose ACL names `nobody`/65534, or an id >= 1e9 | `--sacl` DACL-keeping apply; a spec naming a high id | Refused with `ErrUnmappedPrincipal`, `ErrSyntheticRangePrincipal` or `ErrHighIDPrincipal`; no object is written with a substituted identity |
+| L5 | Unmapped and synthetic-range identities | Objects whose ACL names `nobody`/65534, or an id >= 1e9 | `--sacl` DACL-keeping apply (with `--accept-dacl-flattening`: the flattening gate is checked first, on FlashBlade too); a spec naming a high id | Refused with the unmapped-principal, synthetic-range or high-id message (the messages are prose and do not print the Go error names); the object is left unchanged; no object is written with a substituted identity |
 | L6 | SMB-written data (FlashArray) | A tree created from a Windows client | Plain reset, then the DACL-reset fidelity check | The SMB descriptor matches the spec within the limits in [RISKS.md](../RISKS.md) #11; an ordinary user's access from SMB matches the intent |
-| L7 | New child after repair | The repaired L1 tree | Create a file and a directory as an ordinary user, over NFS and over SMB where used | The new objects inherit what the guide says they will; DACLs show as protected, with no inherited entries |
+| L7 | New child after repair | The repaired L1 tree | Create a file and a directory as an ordinary user, over NFS and over SMB where used | The new objects inherit what [getting started](field-preview/getting-started.md) step 9 says: inherited ACEs (on SMB, an auto-inherited DACL with every ACE inherited); new files carry the directory rule's file-inheritable entries, so a `--validate` mismatch on them is expected when those differ from the file rule. Objects the repair wrote stay protected and explicit |
 | L8 | Interrupted apply and resume | A tree large enough to stop mid-run | Kill the apply (SIGINT, then SIGKILL in a second run), then rerun with `--resume` | No summary claims completion before the resume finishes; after it, a fresh `--validate` reconciles `Checked` = `Enumerated` with 0 mismatches |
 | L9 | Snapshot recovery | A disposable file system | Snapshot, verify the restore, repair, then restore | Pre-repair ACLs come back exactly; the record states that data written after the snapshot was lost too |
 | L10 | Each advertised route | Every row of the guide's route table that claims support | Download, verify the checksum, run `-version` | Each route works from the archive alone, or the docs label it unsupported or unverified |
