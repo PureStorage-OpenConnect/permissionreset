@@ -17,7 +17,16 @@ var (
 	buildOnce sync.Once
 	binPath   string
 	buildErr  error
+	binDir    string // removed by TestMain; os.MkdirTemp has no t.Cleanup across tests
 )
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if binDir != "" {
+		os.RemoveAll(binDir)
+	}
+	os.Exit(code)
+}
 
 func generateTreeBinary(t *testing.T) string {
 	t.Helper()
@@ -32,6 +41,7 @@ func generateTreeBinary(t *testing.T) string {
 			buildErr = err
 			return
 		}
+		binDir = dir
 		out := filepath.Join(dir, "generate-tree")
 		cmd := exec.Command(goTool, "build", "-o", out, ".")
 		if b, err := cmd.CombinedOutput(); err != nil {

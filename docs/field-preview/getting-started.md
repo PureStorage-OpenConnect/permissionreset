@@ -153,8 +153,15 @@ permissionreset --spec spec.yaml --validate /mnt/fb/canary
 Zero mismatches means the stored ACLs match the spec. It does **not** mean the access is right.
 Repeat the ordinary-user checks from step 5 on the canary: allowed users get in, refused users do not,
 and a new file and directory inherit what you expect. If SMB clients use the data, check from a
-Windows client too. Expect each DACL to show as protected, with no "Inherited from" entries: the
-repair writes each ACL explicitly.
+Windows client too. Objects the repair wrote show a protected DACL with no "Inherited from"
+entries, because the repair writes each ACL explicitly. Objects created afterwards are different, and
+both of these are expected:
+
+- A new object gets its ACEs by inheritance from its directory, so on SMB they show as inherited.
+- A new **file** inherits the directory rule's file-inheritable entries, not the file rule. If those
+  entries grant execute, new files get it (for example mode 750) although the file rule does not,
+  and a later `--validate` reports those files as mismatches. If that is not what you want, remove
+  execute from the file-inheritable entries in the directory template and capture again.
 
 If anything is wrong, stop, fix the templates or the spec, and repeat from step 6.
 

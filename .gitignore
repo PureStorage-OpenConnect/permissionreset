@@ -26,3 +26,6 @@ CLAUDE.local.md
 
 # Environment-specific maintenance installation handoff; never publish.
 /MAINTENANCE-HANDOFF.local.md
+
+# Offline release-acceptance output (tools/release/acceptance-offline.sh)
+/acceptance-*/
