@@ -32,7 +32,7 @@ recompute an object's mode bits from its new ACL.
 |---|---|---|
 | Linux client, FlashBlade | `permissionreset` and `build-spec`, kernel or userspace transport | Main route of this guide |
 | Linux client, FlashArray | Kernel transport only (userspace refuses FlashArray) | See [the FlashArray branch](#flasharray) |
-| macOS client, FlashBlade | Userspace transport (the only one on macOS) | No hardware repair from a Mac is recorded yet; see [COMPATIBILITY.md](../../COMPATIBILITY.md) |
+| macOS client, FlashBlade | Userspace transport (the only one on macOS) | One hardware run recorded on 0ed7524 (darwin/arm64); name principals in the spec, not numeric ids. See [COMPATIBILITY.md](../../COMPATIBILITY.md) |
 | Windows | `build-spec.exe` for capture only | No Windows repair; run the repair from Linux |
 
 [COMPATIBILITY.md](../../COMPATIBILITY.md) says which array and client combinations have hardware
