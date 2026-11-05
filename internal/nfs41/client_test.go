@@ -1012,75 +1012,42 @@ func TestResolvingWithinTheExportTakesOneRoundTrip(t *testing.T) {
 
 const faImplName = "PureStorage FlashArray 6.10.6 202604291817+1e21401674a1-610jackfruit"
 
-// TestGateRefusesAFlashArrayReportingAFlashBladeSize is the whole reason the
-// impl_id check exists, so it is written as the exact hazard rather than as a
-// generic refusal test.
-//
-// FA File raised its max file size at 6.6.10. An FA on an earlier release reports
-// the same value a FlashBlade reports, so a size-only gate ADMITS it -- and then
-// labels it PlatformFlashBlade, which is what feeds a FlashBlade-measured worker
-// default to an array that saturates two orders lower. The size here is
-// deliberately the accepted one: a refusal driven by the size would prove nothing.
-func TestGateRefusesAFlashArrayReportingAFlashBladeSize(t *testing.T) {
+// TestGateAcceptsAFlashArrayReportingAFlashBladeSize covers an FA File release
+// before 6.6.10, which reports the same max file size a FlashBlade reports. The
+// impl_id check must still label it a FlashArray, so it never draws the
+// FlashBlade worker default.
+func TestGateAcceptsAFlashArrayReportingAFlashBladeSize(t *testing.T) {
 	srv := startFakeServer(t,
 		withMaxFileSize(1<<46),
 		withImplID("purestorage.com", faImplName))
 	defer srv.Close()
 
 	cl, err := newTestClientErr(t, srv, Config{Connections: 1})
-	if err == nil {
-		cl.Close()
-		t.Fatal("a FlashArray must be refused even when its max file size is one this gate accepts")
-	}
-	if !errors.Is(err, ErrFlashArrayNotSupported) {
-		t.Fatalf("err = %v, want ErrFlashArrayNotSupported", err)
-	}
-	// A FlashArray IS a Pure array. Reporting "requires a FlashBlade" against one
-	// sends the reader looking for a cabling or DNS mistake.
-	if errors.Is(err, ErrNotPureServer) {
-		t.Error("the FlashArray refusal must not also satisfy ErrNotPureServer")
-	}
-}
-
-// TestFlashArrayRefusalDisclosesNothing holds the same security property as
-// TestRefusalDisclosesNothing on the new path: neither the observed nor the
-// expected max file size may appear.
-func TestFlashArrayRefusalDisclosesNothing(t *testing.T) {
-	srv := startFakeServer(t,
-		withMaxFileSize(1<<46),
-		withImplID("purestorage.com", faImplName))
-	defer srv.Close()
-
-	_, err := newTestClientErr(t, srv, Config{Connections: 1})
-	if err == nil {
-		t.Fatal("want a refusal")
-	}
-	msg := strings.ToLower(err.Error())
-	for _, leak := range []string{"70368744177664", "1099511627776", "max file size", "maxfilesize"} {
-		if strings.Contains(msg, strings.ToLower(leak)) {
-			t.Errorf("refusal leaks %q: %q", leak, err.Error())
-		}
-	}
-}
-
-// TestFlashArrayUnderTheOverrideIsLabelledFlashArray covers the path the
-// FlashArray protocol probes run on. The override lets the client through, but the
-// platform it reports must be the truth: workerDefaults keys on exactly this
-// value, so a FlashArray labelled flashblade would silently draw 1024 workers.
-func TestFlashArrayUnderTheOverrideIsLabelledFlashArray(t *testing.T) {
-	srv := startFakeServer(t,
-		withMaxFileSize(1<<46),
-		withImplID("purestorage.com", faImplName))
-	defer srv.Close()
-
-	cl, err := newTestClientErr(t, srv, Config{Connections: 1, AllowNonPureServer: true})
 	if err != nil {
-		t.Fatalf("the override must still admit a FlashArray: %v", err)
+		t.Fatalf("a FlashArray must be accepted without the override: %v", err)
 	}
 	defer cl.Close()
-
 	if got := cl.Platform(); got != PlatformFlashArray {
-		t.Errorf("Platform() = %q, want %q: the accepted max file size must not relabel an array impl_id already identified", got, PlatformFlashArray)
+		t.Errorf("Platform() = %q, want %q", got, PlatformFlashArray)
+	}
+}
+
+// TestGateAcceptsAFlashArrayWithAnUnlistedSize covers FA File 6.6.10+, whose
+// max file size is undocumented and absent from pureMaxFileSizes. The name
+// identifies the array, so the size table must not refuse it.
+func TestGateAcceptsAFlashArrayWithAnUnlistedSize(t *testing.T) {
+	srv := startFakeServer(t,
+		withMaxFileSize(1<<52),
+		withImplID("purestorage.com", faImplName))
+	defer srv.Close()
+
+	cl, err := newTestClientErr(t, srv, Config{Connections: 1})
+	if err != nil {
+		t.Fatalf("a FlashArray with an unlisted max file size must be accepted: %v", err)
+	}
+	defer cl.Close()
+	if got := cl.Platform(); got != PlatformFlashArray {
+		t.Errorf("Platform() = %q, want %q", got, PlatformFlashArray)
 	}
 }
 

@@ -418,7 +418,7 @@ func runUserspace(dirArg, fileArg, outputPath, server, export, verifyWrite strin
 		Log:            func(msg string) { fmt.Fprintln(stderr, msg) },
 	})
 	if err != nil {
-		if errors.Is(err, nfs41.ErrNotPureServer) || errors.Is(err, nfs41.ErrFlashArrayNotSupported) {
+		if errors.Is(err, nfs41.ErrNotPureServer) {
 			fmt.Fprintln(stderr, "error: "+err.Error())
 		} else {
 			fmt.Fprintf(stderr, "error: connect to %s%s: %v\n", server, export, err)

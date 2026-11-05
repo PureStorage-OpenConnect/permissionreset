@@ -82,7 +82,7 @@ FlashArray normalizes ACLs differently from FlashBlade:
 - Resolves named principals to numeric uids in the stored ACL
 - Invalidates the filehandle after a SETATTR that sets the ACL
 
-The userspace transport refuses FlashArray by design; kernel transport is untested.
+The userspace transport accepts FlashArray, but it has no hardware run yet; kernel transport is untested.
 
 # Userspace transport (`--transport=userspace`, and everything on macOS)
 

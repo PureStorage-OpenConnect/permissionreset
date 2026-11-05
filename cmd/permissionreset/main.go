@@ -630,7 +630,7 @@ func runWithFlagSet(args []string, out, errOut io.Writer) (exitCode int) {
 	close(runDone)
 	<-sigMessageDone
 	if err != nil {
-		if errors.Is(err, nfs41.ErrNotPureServer) || errors.Is(err, nfs41.ErrFlashArrayNotSupported) {
+		if errors.Is(err, nfs41.ErrNotPureServer) {
 			fmt.Fprintln(errOut, transportError(err))
 		}
 		reportCheckpointUnflushed(os.Stderr, err, *ckptPath)
@@ -1332,12 +1332,6 @@ const defaultWorkersFallback = 128
 func transportError(err error) string {
 	if errors.Is(err, nfs41.ErrNotPureServer) {
 		return "error: " + nfs41.ErrNotPureServer.Error()
-	}
-	// The FlashArray refusal is rendered from its own sentinel for the same two
-	// reasons: the lowercase prefix, and keeping a wrapper from adding a value to
-	// what reaches the terminal.
-	if errors.Is(err, nfs41.ErrFlashArrayNotSupported) {
-		return "error: " + nfs41.ErrFlashArrayNotSupported.Error()
 	}
 	return fmt.Sprintf("ERROR: %v", err)
 }

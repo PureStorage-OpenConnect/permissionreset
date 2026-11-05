@@ -1376,41 +1376,6 @@ func TestExplicitZeroWorkersIsRejected(t *testing.T) {
 	}
 }
 
-const wantFARefusal = "error: --transport=userspace does not support FlashArray File; use the default kernel transport"
-
-func TestFlashArrayRefusalRendersWithTheLowercasePrefix(t *testing.T) {
-	got := transportError(nfs41.ErrFlashArrayNotSupported)
-	if got != wantFARefusal {
-		t.Errorf("transportError = %q, want exactly %q", got, wantFARefusal)
-	}
-	if strings.HasPrefix(got, "ERROR:") {
-		t.Error("the FlashArray refusal must not render through the generic uppercase ERROR handler")
-	}
-}
-
-// TestRenderedFlashArrayRefusalDisclosesNothing holds the disclosure property on
-// the second sentinel. The FlashArray path logs the implementation name, which is
-// correct in a log and wrong in a terminal refusal, so the rendered text must come
-// from the sentinel rather than from whatever a wrapper attached.
-func TestRenderedFlashArrayRefusalDisclosesNothing(t *testing.T) {
-	wrapped := fmt.Errorf("nfs41: server gate (observed 70368744177664, impl %q): %w",
-		"PureStorage FlashArray 6.10.6 202604291817+1e21401674a1-610jackfruit",
-		nfs41.ErrFlashArrayNotSupported)
-	got := transportError(wrapped)
-	if got != wantFARefusal {
-		t.Fatalf("transportError = %q, want exactly %q", got, wantFARefusal)
-	}
-	for _, leak := range []string{"70368744177664", "6.10.6", "jackfruit", "observed"} {
-		if strings.Contains(strings.ToLower(got), strings.ToLower(leak)) {
-			t.Errorf("rendered FlashArray refusal leaks %q: %q", leak, got)
-		}
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Exit codes
-// ---------------------------------------------------------------------------
-
 // TestExitCodeForDistinguishesAnUnflushedCheckpoint holds the one thing that
 // makes the sentinel worth exporting: automation deciding whether to retry with
 // --resume must be able to tell "the repair failed, the checkpoint is fine" from
@@ -1425,7 +1390,7 @@ func TestExitCodeForDistinguishesAnUnflushedCheckpoint(t *testing.T) {
 		{"success", nil, 0},
 		{"repair failed", errors.New("permission repair run failed"), 1},
 		{"interrupted", fmt.Errorf("run interrupted: %w", context.Canceled), 1},
-		{"transport refusal", nfs41.ErrFlashArrayNotSupported, 1},
+		{"transport refusal", nfs41.ErrNotPureServer, 1},
 		{"unflushed checkpoint", runpkg.ErrCheckpointUnflushed, 3},
 		{"unflushed checkpoint, wrapped", fmt.Errorf("%w: fsync: no space left on device",
 			runpkg.ErrCheckpointUnflushed), 3},
@@ -1484,7 +1449,7 @@ func TestUnflushedCheckpointAdviceReachesTheOperator(t *testing.T) {
 	}{
 		{"ordinary repair failure", errors.New("permission repair run failed")},
 		{"interrupted run", fmt.Errorf("run interrupted: %w", context.Canceled)},
-		{"transport refusal", nfs41.ErrFlashArrayNotSupported},
+		{"transport refusal", nfs41.ErrNotPureServer},
 	} {
 		t.Run("absent after "+tc.name, func(t *testing.T) {
 			var errOut strings.Builder
@@ -1521,7 +1486,7 @@ func TestTraverseAdviceReachesTheOperator(t *testing.T) {
 	}{
 		{"ordinary repair failure", errors.New("permission repair run failed")},
 		{"unflushed checkpoint", runpkg.ErrCheckpointUnflushed},
-		{"transport refusal", nfs41.ErrFlashArrayNotSupported},
+		{"transport refusal", nfs41.ErrNotPureServer},
 	} {
 		t.Run("absent after "+tc.name, func(t *testing.T) {
 			var errOut strings.Builder

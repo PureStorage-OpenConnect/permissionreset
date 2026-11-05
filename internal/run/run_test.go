@@ -80,6 +80,8 @@ func TestDefaultWorkersTable(t *testing.T) {
 		want      int
 	}{
 		{"userspace on FlashBlade", "userspace", nfs41.PlatformFlashBlade, 1024},
+		{"userspace on FlashArray", "userspace", nfs41.PlatformFlashArray, 64},
+		{"kernel never inherits the FlashArray userspace default", "kernel", nfs41.PlatformFlashArray, 128},
 		{"kernel", "kernel", nfs41.PlatformUnknown, 128},
 		{"kernel never inherits the userspace tuning", "kernel", nfs41.PlatformFlashBlade, 128},
 		{"userspace on an unidentified server", "userspace", nfs41.PlatformUnknown, 128},

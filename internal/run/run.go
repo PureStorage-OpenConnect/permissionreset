@@ -671,9 +671,9 @@ func Run(ctx context.Context, cfg Config, out io.Writer) (result Result, runErr 
 		return result, fmt.Errorf("unknown transport %q (want kernel or userspace)", cfg.Transport)
 	}
 	if err != nil {
-		// The command renders the two product-gate sentinels itself so their
+		// The command renders the product-gate sentinel itself so their
 		// deliberately opaque wording cannot be changed by an error wrapper.
-		if !errors.Is(err, nfs41.ErrNotPureServer) && !errors.Is(err, nfs41.ErrFlashArrayNotSupported) {
+		if !errors.Is(err, nfs41.ErrNotPureServer) {
 			fmt.Fprintf(errOut, "ERROR: %v\n", err)
 		}
 		rootSquashHint(errOut, cfg)
@@ -1341,16 +1341,14 @@ type workerDefault struct {
 // 2048 -> 59,092; 4096 -> 54,019. The curve peaks at 1024 and falls off on
 // either side, which is worth roughly 17-25% over the historical 128.
 //
-// FlashArray has no row because FlashArray is not a supported target for the
-// userspace transport: an FA runs the kernel path. The client can reach one --
-// CREATE_SESSION completes, and the FlashArray rows in RFC-Deviations.md came
-// through it -- but only behind the non-Pure server override, and a worker
-// default measured on a FlashBlade would not transfer anyway. FA file services
-// are active/passive and the array saturates near 2,240 objects/s, two orders
-// off the numbers above, so the curve that peaks at 1024 here is a FlashBlade
-// curve. When FA is supported, its row is one line and its own measurement.
+// FlashArray: NOT MEASURED for this transport. 64 is a starting value from
+// operator experience that FA metadata operations plateau between 64 and 128
+// workers. FA file services are active/passive and the array saturates near
+// 2,240 objects/s, two orders off the numbers above, so the FlashBlade curve
+// does not transfer. Replace this with a lab measurement.
 var workerDefaults = map[workerDefault]int{
 	{transport: "userspace", platform: nfs41.PlatformFlashBlade}: 1024,
+	{transport: "userspace", platform: nfs41.PlatformFlashArray}: 64,
 }
 
 func defaultWorkers(transportName string, platform nfs41.Platform) int {

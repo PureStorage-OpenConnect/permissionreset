@@ -50,7 +50,7 @@ audit bypass, and refuses without one unless `--accept-unproven-read` is given.
 - NFSv4.1 mount of a FlashBlade export (for NFSv4 ACL repair over `--transport=kernel`)
 - No runtime dependencies — the binary is statically linked
 - FlashArray audit ACEs (`--sacl`): a kernel NFSv4.1 mount of the FlashArray export (the userspace
-  transport refuses FlashArray), and an identity with the array's audit bypass — root over AUTH_SYS
+  transport on FlashArray has no hardware run yet), and an identity with the array's audit bypass — root over AUTH_SYS
   with root squash off on the export, or an AD identity the array grants the bypass. Domain Admins
   membership is not enough. The preflight refuses to start without it. See
   [docs/spec-guide.md](docs/spec-guide.md#audit-aces-sacl-on-flasharray).

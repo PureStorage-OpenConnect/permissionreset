@@ -7,7 +7,7 @@ keeping every object's existing DACL. Spec syntax and the full list of limits ar
 ## Prerequisites
 
 - [ ] Linux client with a **kernel** NFSv4.1 mount of the FlashArray export (`vers=4.1`). The
-      userspace transport refuses FlashArray.
+      SACL runs on record used the kernel transport; userspace on FlashArray is implemented but has no hardware run.
 - [ ] An identity with the array's **audit bypass**: root over AUTH_SYS with root squash off on
       the export, or an AD identity the array grants the bypass. Domain Admins membership is not
       enough.

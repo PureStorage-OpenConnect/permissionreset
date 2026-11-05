@@ -6,7 +6,7 @@ Current as of v0.1.0 (2026-08-27).
 
 - **SMB backend is not supported.** FlashBlade translates NFSv4 ACLs to NTFS security descriptors at evaluation time, so NFSv4-written ACLs are authoritative for SMB clients. There is no need for an SMB-side repair path, and SMB on FlashBlade has no multichannel, so an SMB repair could never perform. The `protocol: smb` spec field is rejected at load time.
 
-- **FlashArray is not supported on the userspace transport.** The `--transport=userspace` gate refuses FlashArray by design. FlashArray's one-mutating-operation-per-COMPOUND rule does not apply (it accepts batched mutations), but the gate is a product-identity check, not a capability check. Use `--transport=kernel` (the default) for FlashArray.
+- **FlashArray on the userspace transport has no hardware run yet.** The gate identifies FlashArray by `eir_server_impl_id` and accepts it. The default of 64 workers is a starting value, not a measurement. The kernel transport has the recorded FlashArray runs.
 
 - **Checkpoint is bound to tool version.** Upgrading permissionreset invalidates any in-progress checkpoint. This is intentional — it prevents resuming a run that may have different behavior. Finish the current run before upgrading, or delete the checkpoint and restart.
 
@@ -15,7 +15,7 @@ Current as of v0.1.0 (2026-08-27).
 ## FlashArray audit ACEs (SACL)
 
 - **Needs the audit bypass:** root over AUTH_SYS with root squash off, or an AD identity the array grants it. Domain Admins is not enough. The preflight refuses to start without it.
-- **Kernel transport only**, because the userspace transport refuses FlashArray.
+- **Kernel transport recommended.** The SACL runs on record used the kernel transport; userspace on FlashArray is implemented but has no hardware run.
 - **New objects are not protected on Purity//FA 6.10.6 and 6.11.x.** One NFSv4.1 ACL read by a user without the bypass empties an inheriting object's SACL. 6.12.1 fixed it. Rerun on a schedule until then.
 - **Parent SACL edits do not reach stamped children.** Change the spec and rerun.
 - **Logging needs an audit policy** on the managed directory. permissionreset cannot check this over NFS.

@@ -31,7 +31,7 @@ recompute an object's mode bits from its new ACL.
 | You have | Use | Notes |
 |---|---|---|
 | Linux client, FlashBlade | `permissionreset` and `build-spec`, kernel or userspace transport | Main route of this guide |
-| Linux client, FlashArray | Kernel transport only (userspace refuses FlashArray) | See [the FlashArray branch](#flasharray) |
+| Linux client, FlashArray | Kernel transport (recorded runs); userspace implemented, no hardware run yet | See [the FlashArray branch](#flasharray) |
 | macOS client, FlashBlade | Userspace transport (the only one on macOS) | No hardware repair from a Mac is recorded yet; see [COMPATIBILITY.md](../../COMPATIBILITY.md) |
 | Windows | `build-spec.exe` for capture only | No Windows repair; run the repair from Linux |
 
@@ -192,7 +192,7 @@ incomplete. For very large trees, see [partitions](../partitions.md). Tuning is 
 
 ## FlashArray
 
-- Kernel transport only; the userspace transport refuses FlashArray.
+- Kernel transport has the recorded runs. The userspace transport accepts FlashArray but has no hardware run yet.
 - A plain DACL repair (step 6 without `sacl:` lines) keeps each object's audit entries. An object whose
   audit entries cannot be kept exactly is refused, not written.
 - Data written over SMB carries details an NFS write cannot reproduce. Read RISKS.md #11 in

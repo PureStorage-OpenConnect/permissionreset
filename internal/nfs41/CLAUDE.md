@@ -136,9 +136,9 @@ behavior, not spec.
 
 ## Server gate
 
-Two checks at construction: `isFlashArrayIdentity` (refuses FA by impl_id name)
-then `pureMaxFileSizes` table (FATTR4_MAXFILESIZE gate). `AllowNonPureServer`
-overrides both. Platform recorded as `PlatformFlashBlade` or `PlatformFlashArray`.
+Two checks at construction: `isFlashArrayIdentity` (accepts FA by impl_id name)
+then `pureMaxFileSizes` table (FATTR4_MAXFILESIZE gate, skipped for an identified
+FA). `AllowNonPureServer` overrides the size gate. Platform recorded as `PlatformFlashBlade` or `PlatformFlashArray`.
 
 ## Test patterns
 

@@ -12,7 +12,7 @@ may work but carry no guarantee.
 | DACL reset (`acl:`) | FlashBlade | Linux | kernel, userspace | Historical hardware runs (table below); `permissionreset` version not recorded |
 | DACL reset (`acl:`) | FlashArray | Linux | kernel | Historical hardware run, v0.9.5-sacl, Purity//FA 6.10.6, with an SMB raw-descriptor check (`benchmarks/dacl-reset-fidelity-20261020/RESULTS-fa.md`) |
 | DACL-keeping SACL (`sacl:` only, `--sacl`) | FlashArray | Linux | kernel | Historical hardware runs, Purity//FA 6.10.6 and 6.12.1 (section below) |
-| Any repair | FlashArray | any | userspace | Refused by design |
+| DACL reset (`acl:`) | FlashArray | Linux, macOS | userspace | Implemented; no hardware run recorded (qualification pending). Worker default 64, not measured |
 | Any repair | either | macOS | userspace | Builds and passes offline tests in CI; no hardware run recorded |
 | Any repair | either | Windows | — | Does not build |
 | Template capture (`build-spec`) | either | Linux, macOS, Windows | kernel (Linux), userspace | Offline tests in CI; capture on hardware recorded in `benchmarks/` only for Linux |
@@ -82,7 +82,7 @@ on lab array A with v0.9.5-sacl; see `benchmarks/dacl-reset-fidelity-20261020/RE
 | **Client OS / kernel** | Ubuntu 24.04.4 LTS, 6.8.0-142-generic | same |
 | **Client CPU** | 12 | same |
 | **NFS version / security** | 4.1, `sec=sys`, root mount | same |
-| **Transport tested** | kernel (userspace refuses FlashArray) | kernel |
+| **Transport tested** | kernel (userspace not run) | kernel |
 | **Tree scale tested** | 6,006 objects | 6,006 and 1,135,009 objects |
 | **Throughput** | — (medium tree only) | ~20,500 objects/s, 64 workers |
 | **DACLs changed / SACL mismatches** | 0 / 0 | 0 / 0 |
@@ -113,5 +113,5 @@ Then run apply + validate on a known tree and record the throughput.
 - **Windows**: only `build-spec` (capture) builds and ships. `permissionreset`, `sweep` and `generate-tree` do not build yet. `internal/walk`, `internal/apply`, `internal/nfs4acl`, `internal/transport` and `internal/treegen` use Linux syscalls with no Windows equivalent, and `internal/platform` has no Windows capability file yet; the port is a follow-up.
 - **POSIX-only mode**: tested on local filesystems only, not on NFS mounts
 - **SMB backend**: none by design — NFSv4 ACLs are authoritative for SMB clients on FlashBlade; `protocol: smb` rejected at spec load. NFSv4-to-SMB rendering verification pending
-- **FlashArray**: userspace transport refuses FlashArray by design; kernel transport tested for DACL-keeping SACL specs only (table above)
+- **FlashArray**: the userspace transport accepts FlashArray (identified by `eir_server_impl_id`) with a default of 64 workers, which is not measured; userspace on FlashArray is implemented but has no hardware run. Kernel transport tested for DACL reset and DACL-keeping SACL specs (table above)
 - **sec=krb5**: untested (identity mapping behavior may differ)

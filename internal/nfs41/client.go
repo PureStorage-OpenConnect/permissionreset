@@ -79,9 +79,8 @@ const (
 // ServerIdentity in session.go for the measured strings. Whenever this gate is
 // revisited, the shape to reach for is impl_id where the server supplies it and
 // this table only as the fallback, which is strictly better than either alone.
-// It is not done here because FlashArray is deliberately not a supported target
-// for this transport yet: an FA runs the kernel path until there is a reason it
-// should not.
+// FlashArray is a supported target: impl_id identifies it, and the size table
+// below does not gate it.
 //
 // The client does reach an FA. What stopped it was a zeroed
 // csa_back_chan_attrs, which FA refuses with NFS4ERR_TOOSMALL and FlashBlade
@@ -91,10 +90,8 @@ const (
 // against fa-lab-01 (Purity//FA 6.10.6); the FlashArray rows in
 // RFC-Deviations.md were all collected through this client.
 //
-// Reaching an FA still needs the non-Pure server override, because the table
-// below does not carry FA File 6.6.10+'s max file size. That is the whole of
-// what stands between here and FA support, and it is a measurement, not a
-// design: the value is undocumented, so it has to be read off an array.
+// The table below does not carry FA File 6.6.10+'s max file size, so a server
+// identified as a FlashArray skips the size check.
 var pureMaxFileSizes = map[uint64]string{
 	1 << 46: "FlashBlade (all models, Purity//FB 4.3.x-4.8.x+); FA File pre-6.6.10", // 64 TiB
 	// FA File 6.6.10+ raised this to "4 PB" (PURE-316110, PURE-322426). The exact
@@ -107,7 +104,7 @@ var pureMaxFileSizes = map[uint64]string{
 	// as "not a Pure array" rather than "a Pure array I lack a row for".
 	//
 	// The gate no longer relies on it for that. isFlashArrayIdentity reads
-	// eir_server_impl_id first and refuses a FlashArray by name, so this table is
+	// eir_server_impl_id first and accepts a FlashArray by name, so this table is
 	// consulted only for servers that identify themselves as nothing -- which is
 	// the FlashBlade case, and the reason it still exists. See RFC-Deviations.md,
 	// "Identifying the platform".
@@ -127,8 +124,6 @@ const (
 	// PlatformFlashBlade is reported when the gate accepted the server.
 	PlatformFlashBlade Platform = "flashblade"
 	// PlatformFlashArray is reported when EXCHANGE_ID identified a FlashArray.
-	// Reaching a client with this platform set requires the unsafe server
-	// override, because the gate refuses FlashArray outright without it.
 	PlatformFlashArray Platform = "flasharray"
 )
 
@@ -140,23 +135,6 @@ const (
 // log instead, so a support engineer with log access can still diagnose a
 // firmware bump that moves the constant.
 var ErrNotPureServer = errors.New("--transport=userspace requires a FlashBlade; refusing to continue")
-
-// ErrFlashArrayNotSupported is returned when EXCHANGE_ID identifies the target as
-// a FlashArray. FlashArray runs the kernel transport; see RFC-Deviations.md.
-//
-// This check exists because the max-file-size table cannot distinguish the two
-// products. FA File raised its max file size at 6.6.10, so an FA on an earlier
-// release reports the same value FlashBlade reports, passes the size gate, and is
-// then labelled PlatformFlashBlade -- which is how it would draw a worker default
-// measured on a FlashBlade against an array that saturates two orders lower.
-// eir_server_impl_id names the product, so asking it first closes that hole.
-//
-// Deliberately a distinct sentinel rather than a variant of ErrNotPureServer: a
-// FlashArray IS a Pure array, and "requires a FlashBlade" read against one is
-// misleading enough to send someone checking their cabling. It also marks the
-// exact place a future FlashArray path attaches -- this refusal becomes that
-// branch, and nothing else about the gate has to move.
-var ErrFlashArrayNotSupported = errors.New("--transport=userspace does not support FlashArray File; use the default kernel transport")
 
 // isFlashArrayIdentity reports whether EXCHANGE_ID identified a FlashArray.
 //
@@ -429,16 +407,12 @@ func newClientWithDialer(ctx context.Context, cfg Config, d Dialer) (*Client, er
 	// happened, so the answer is in hand and a refusal here costs no further round
 	// trip. Ordering it ahead of the size probe is the whole point -- the size
 	// table cannot tell an older FlashArray from a FlashBlade, so a size-first gate
-	// admits one and mislabels it. See ErrFlashArrayNotSupported.
+	// admits one and mislabels it as a FlashBlade.
 	if isFlashArrayIdentity(c.identity) {
+		// FlashArray is a supported target. Record the platform truthfully so
+		// nothing downstream tunes itself as if this were a FlashBlade --
+		// workerDefaults keys on exactly this value.
 		cfg.Log(fmt.Sprintf("nfs41: server %s identified itself as %q", serverName, c.identity.ImplName))
-		if !cfg.AllowNonPureServer {
-			return fail(ErrFlashArrayNotSupported)
-		}
-		// The override is what the FlashArray protocol probes run under. Record the
-		// platform truthfully so nothing downstream tunes itself as if this were a
-		// FlashBlade -- workerDefaults keys on exactly this value.
-		cfg.Log(fmt.Sprintf("WARNING: server %s is a FlashArray, which this transport does not support; continuing under the unsafe server override", serverName))
 		c.platform = PlatformFlashArray
 	}
 
@@ -460,7 +434,9 @@ func newClientWithDialer(ctx context.Context, cfg Config, d Dialer) (*Client, er
 	}
 
 	cfg.Log(fmt.Sprintf("nfs41: server %s reported FATTR4_MAXFILESIZE %d", serverName, maxFileSize))
-	if _, known := pureMaxFileSizes[maxFileSize]; !known {
+	// A FlashArray is already identified by name, so the size table does not
+	// gate it: FA File 6.6.10+ reports an undocumented size the table lacks.
+	if _, known := pureMaxFileSizes[maxFileSize]; !known && c.platform != PlatformFlashArray {
 		if !cfg.AllowNonPureServer {
 			return fail(ErrNotPureServer)
 		}

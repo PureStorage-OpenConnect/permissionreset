@@ -54,7 +54,7 @@ defaults, and delegates to `internal/run.Run`.
 
 - `internal/run` — the actual repair/validate engine
 - `internal/spec` — spec loading, plan printing, exclude validation
-- `internal/nfs41` — transport error sentinels (`ErrNotPureServer`, `ErrFlashArrayNotSupported`)
+- `internal/nfs41` — transport error sentinels (`ErrNotPureServer`)
 - `internal/tuning` — tuning file load/save, key construction, param validation
 - `internal/summary` — JSON summary schema and file digest
 - `internal/signals` — signal watch loop, escalation
