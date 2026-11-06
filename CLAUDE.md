@@ -104,7 +104,9 @@ preflight probe are checked first. An `--apply` with any `sacl:`-only rule needs
 over NFS as explicit ones. A DACL-keeping object naming an id >= 1e9 (numeric or a name that resolves
 to one) is refused with `ErrSyntheticRangePrincipal` (FB #52), and an apply whose spec names one is
 refused with `ErrHighIDPrincipal` unless `--allow-high-ids` (FB #50; dry run and `--validate` warn). Without `--sacl`, a DACL reset keeps auditing per object rather than
-refusing an audited root (#51, PS-04). An object whose ACL can't be read or parsed is not written,
+refusing an audited root (#51, PS-04), but each object that carries audit ACEs is refused with
+`ErrAuditedObject` unless `--allow-audited-dacl-reset`: FA marks the SACL and DACL protected
+(`S:AI`→`S:P`, `D:AI`→`D:P`) on any NFS ACL write. The disposable preflight probe is exempt. An object whose ACL can't be read or parsed is not written,
 and neither is one whose audit ACEs name nobody or an id >= 1e9 (`ErrUnpreservableAudit`). Check DACL fidelity from SMB, never from the NFS view
 (`benchmarks/sacl-unmapped-sid-20261020/`).
 

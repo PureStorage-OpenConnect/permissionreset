@@ -143,6 +143,7 @@ type flags struct {
 	sacl               *bool
 	acceptFlatten      *bool
 	allowHighIDs       *bool
+	allowAudited       *bool
 	partitions         *string
 	partitionOnly      *stringList
 }
@@ -245,6 +246,7 @@ func registerFlags(fs *flag.FlagSet, errOut io.Writer) (*flag.FlagSet, *flags) {
 	sacl := cmdflags.RegisterSacl(fs)
 	acceptFlatten := cmdflags.RegisterAcceptDACLFlattening(fs)
 	allowHighIDs := cmdflags.RegisterAllowHighIDs(fs)
+	allowAudited := cmdflags.RegisterAllowAuditedDACLReset(fs)
 	unsafeAllowNonPure := fs.Bool("unsafe-allow-non-pure-server", false, "")
 	supportBundle := fs.String("support-bundle", "", "collect a support bundle to PATH.tar.gz instead of running a repair; composes with --spec, --json-summary, --checkpoint and --log naming a previous run's artifacts")
 	noRedact := fs.Bool("no-redact", false, "do not hash principal and owner/group names in the collected support bundle")
@@ -329,6 +331,7 @@ func registerFlags(fs *flag.FlagSet, errOut io.Writer) (*flag.FlagSet, *flags) {
 	f.sacl = sacl
 	f.acceptFlatten = acceptFlatten
 	f.allowHighIDs = allowHighIDs
+	f.allowAudited = allowAudited
 	f.partitions = partitions
 	return fs, f
 }
@@ -976,6 +979,7 @@ func buildConfig(target string, s *spec.Spec, excludes []string, explicit map[st
 		Sacl:                       *f.sacl,
 		AcceptDACLFlattening:       *f.acceptFlatten,
 		AllowHighIDs:               *f.allowHighIDs,
+		AllowAuditedDACLReset:      *f.allowAudited,
 		CheckpointPath:             *f.ckptPath,
 		Resume:                     *f.resume,
 		Exclude:                    excludes,

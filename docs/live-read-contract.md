@@ -26,7 +26,7 @@ probes in the target for the preflight, which writes the spec's DACL. The run re
 
 | Spec / invocation | What happens |
 |---|---|
-| `acl:` without `sacl:`, without `--sacl` | Proves the bypass. Then replaces the DACL and keeps each object's audit entries (PS-04). |
+| `acl:` without `sacl:`, without `--sacl` | Proves the bypass. Then replaces the DACL of each object with no audit entries; an object with audit entries is refused unless `--allow-audited-dacl-reset`, which keeps them (PS-04). |
 | `acl:` without `sacl:`, with `--sacl` | Refused: the write would delete the object's audit entries. |
 | `acl:` plus `sacl:`, with `--sacl` | Replaces both components. The full preflight runs first. |
 | `sacl:` without `acl:`, with `--sacl` | Proves the bypass. Keeps each object's DACL, subject to the identity guards. Replaces the SACL. `--apply` needs `--accept-dacl-flattening`. |
