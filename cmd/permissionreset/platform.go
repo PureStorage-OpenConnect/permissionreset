@@ -35,9 +35,9 @@ func defaultTransport() string {
 // reader scanning --help, from offering a choice.
 func userspaceDefaultNote() string {
 	if caps.KernelTransport {
-		return " (--transport=userspace against a FlashBlade defaults to 1024)"
+		return " (--transport=userspace defaults to 1024 against a FlashBlade and 64 against a FlashArray)"
 	}
-	return " (against a FlashBlade this defaults to 1024)"
+	return " (defaults to 1024 against a FlashBlade and 64 against a FlashArray)"
 }
 
 // userspaceOnly appends the qualifier that only means something where a second

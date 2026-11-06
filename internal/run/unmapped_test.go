@@ -309,8 +309,17 @@ func TestRunHighIDApplyNeedsAllowHighIDs(t *testing.T) {
 		if errors.Is(err, ErrHighIDPrincipal) {
 			t.Errorf("%s: refused with ErrHighIDPrincipal, want only a WARNING", name)
 		}
-		if !strings.Contains(stderr, "WARNING: the spec names principals with ids at or above 1000000000") {
-			t.Errorf("%s: stderr missing the WARNING:\n%s", name, stderr)
+		want := "WARNING: the spec names principals with ids at or above 1000000000"
+		if cfg.AllowHighIDs {
+			// The operator has said the target is not a FlashBlade, so only a
+			// one-line NOTE is printed, not the FlashBlade warning.
+			want = "NOTE: --allow-high-ids: 1 spec principal(s)"
+			if strings.Contains(stderr, "WARNING:") {
+				t.Errorf("%s: stderr still carries the FlashBlade WARNING:\n%s", name, stderr)
+			}
+		}
+		if !strings.Contains(stderr, want) {
+			t.Errorf("%s: stderr missing %q:\n%s", name, want, stderr)
 		}
 	}
 }
@@ -400,5 +409,18 @@ func TestProveAuditBypassAloneLeavesTheRootUntouched(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "ERROR:") {
 		t.Errorf("stderr = %q, want the failure rendered", errOut.String())
+	}
+}
+
+// TestDryRunCompareNotesNoEffect: an nfsv4 dry run reads no ACL, so --compare
+// cannot skip matching objects; the run says so instead of implying a diff.
+func TestDryRunCompareNotesNoEffect(t *testing.T) {
+	root := t.TempDir()
+	specPath, s := writeSpec(t, "protocol: nfsv4\ndefault:\n  acl:\n    - \"A::OWNER@:rwaDxtTnNcCoy\"\n")
+	var out, errOut strings.Builder
+	_, _ = Run(context.Background(), Config{DryRun: true, Compare: true, Root: root, SpecPath: specPath, Spec: s,
+		Transport: "kernel", Workers: 1, BatchSize: 1, Quiet: true, ErrOut: &errOut}, &out)
+	if !strings.Contains(errOut.String(), "NOTE: --compare has no effect on an nfsv4 dry run") {
+		t.Fatalf("stderr missing the dry-run --compare NOTE:\n%s", errOut.String())
 	}
 }

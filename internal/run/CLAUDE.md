@@ -22,7 +22,7 @@ the orchestration.
   a deliberate write-gather linger would help. Uses Little's law on the run's own
   counters. Reports to stdout under `--rpc-stats`.
 - `defaultWorkers(transport, platform) int` — measured defaults (1024 for userspace
-  on FlashBlade, 64 unmeasured for userspace on FlashArray, 128 fallback).
+  on FlashBlade, 64 measured for userspace on FlashArray, 128 fallback).
 
 ## Data flow
 

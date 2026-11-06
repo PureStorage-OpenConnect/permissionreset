@@ -561,18 +561,26 @@ func Run(ctx context.Context, cfg Config, out io.Writer) (result Result, runErr 
 	// warn, and --allow-high-ids is the operator saying the target is not FB.
 	if high := cfg.Spec.SyntheticRangePrincipals(highIDLookup); len(high) > 0 {
 		refuse := cfg.Apply && !cfg.DryRun && !cfg.Validate && !cfg.AllowHighIDs
-		if refuse {
-			fmt.Fprintln(errOut, "ERROR: the spec names principals with ids at or above 1000000000:")
-		} else {
-			fmt.Fprintln(errOut, "WARNING: the spec names principals with ids at or above 1000000000:")
+		switch {
+		case cfg.AllowHighIDs:
+			// The operator has already said the target is a FlashArray (or a
+			// FlashBlade using the array's own 1000000000 + RID form), so the
+			// FlashBlade warning would only be noise on the run it was meant for.
+			fmt.Fprintf(errOut, "NOTE: --allow-high-ids: %d spec principal(s) at or above 1000000000 are written as given.\n", len(high))
+		default:
+			if refuse {
+				fmt.Fprintln(errOut, "ERROR: the spec names principals with ids at or above 1000000000:")
+			} else {
+				fmt.Fprintln(errOut, "WARNING: the spec names principals with ids at or above 1000000000:")
+			}
+			for _, h := range high {
+				fmt.Fprintf(errOut, "  %s\n", h)
+			}
+			fmt.Fprintln(errOut, "FlashBlade reads every id that high as 1000000000 + RID on an NFS write, so these entries")
+			fmt.Fprintln(errOut, "would name a different, usually nonexistent, SID as seen from SMB, with nothing reported")
+			fmt.Fprintln(errOut, "(RISKS.md #12). This applies to FlashBlade only. For a FlashBlade target, use RFC 2307 ids")
+			fmt.Fprintln(errOut, "below 1000000000; for a FlashArray target, pass --allow-high-ids.")
 		}
-		for _, h := range high {
-			fmt.Fprintf(errOut, "  %s\n", h)
-		}
-		fmt.Fprintln(errOut, "FlashBlade reads every id that high as 1000000000 + RID on an NFS write, so these entries")
-		fmt.Fprintln(errOut, "would name a different, usually nonexistent, SID as seen from SMB, with nothing reported")
-		fmt.Fprintln(errOut, "(RISKS.md #12). FlashArray is not affected. For a FlashBlade target, use RFC 2307 ids")
-		fmt.Fprintln(errOut, "below 1000000000.")
 		if refuse {
 			fmt.Fprintln(errOut, "Nothing was written. Pass --allow-high-ids only if the target is a FlashArray, or a")
 			fmt.Fprintln(errOut, "FlashBlade where each listed id is the array's own 1000000000 + RID form of a domain SID.")
@@ -829,6 +837,14 @@ func Run(ctx context.Context, cfg Config, out io.Writer) (result Result, runErr 
 	// Review item 7: a dry run of a DACL-keeping rule reads nothing, because
 	// before Purity//FA 6.12.1 a read without the audit bypass empties an
 	// inheriting SACL and a dry run has no preflight to prove the bypass.
+	// A dry run reads no NFSv4 ACL at all (PS-02), so --compare cannot skip an
+	// object that already matches: every object is counted as applied, and the
+	// count is an upper bound, not a prediction.
+	if cfg.DryRun && cfg.Compare && cfg.Spec.Protocol == "nfsv4" {
+		fmt.Fprintln(errOut, "NOTE: --compare has no effect on an nfsv4 dry run: a dry run reads no ACL, because a")
+		fmt.Fprintln(errOut, "      read without the proven audit bypass can empty inherited auditing. Objects that")
+		fmt.Fprintln(errOut, "      already match are counted as applied; use --validate to see what would change.")
+	}
 	if cfg.DryRun && len(cfg.Spec.KeepDACLRules()) > 0 {
 		fmt.Fprintln(errOut, "NOTE: dry run does not read objects under a DACL-keeping (sacl:-only) rule: before")
 		fmt.Fprintln(errOut, "      Purity//FA 6.12.1 a read without the audit bypass empties inheriting SACLs.")
@@ -1345,11 +1361,11 @@ type workerDefault struct {
 // 2048 -> 59,092; 4096 -> 54,019. The curve peaks at 1024 and falls off on
 // either side, which is worth roughly 17-25% over the historical 128.
 //
-// FlashArray: NOT MEASURED for this transport. 64 is a starting value from
-// operator experience that FA metadata operations plateau between 64 and 128
-// workers. FA file services are active/passive and the array saturates near
-// 2,240 objects/s, two orders off the numbers above, so the FlashBlade curve
-// does not transfer. Replace this with a lab measurement.
+// FlashArray: MEASURED on one array (Purity//FA 6.10, userspace, 16
+// connections, batch 50, ~45K-object tree with no audit ACEs, warm cache),
+// median objects/s over 5 rotated rounds: 32 -> 14,539; 64 -> 20,673;
+// 128 -> 18,344; 256 -> 18,999. 64 was fastest in every round. Cold cache,
+// larger trees, other --connections values and Purity 6.12 are unmeasured.
 var workerDefaults = map[workerDefault]int{
 	{transport: "userspace", platform: nfs41.PlatformFlashBlade}: 1024,
 	{transport: "userspace", platform: nfs41.PlatformFlashArray}: 64,

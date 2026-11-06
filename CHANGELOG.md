@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`ErrAuditedObject`) unless `--allow-audited-dacl-reset` is passed. FlashArray marks the SACL and
   DACL protected (`S:AI` → `S:P`, `D:AI` → `D:P`) on any NFS ACL write, so the audit entries were
   kept but their Windows inheritance was not.
+- An nfsv4 dry run with `--compare` now prints a NOTE that `--compare` has no effect there: a dry
+  run reads no ACL, so objects that already match are counted as applied.
+- With `--allow-high-ids`, the FlashBlade high-id WARNING is replaced by a one-line NOTE.
+- `--workers` help now gives both userspace defaults: 1024 against FlashBlade, 64 against FlashArray.
+  The FlashArray default is now measured (best of 32/64/128/256 on one Purity 6.10 array).
 
 - Renamed the project and its main command from `resetperms` to `permissionreset`. The binary is
   now `permissionreset` (was `resetperms-go`), the command lives in `cmd/permissionreset/`, the
