@@ -71,7 +71,7 @@ func openMountTable() (io.ReadCloser, error) {
 // TARGET under an NFS mount of a DIFFERENT export. There the operator named a
 // path this invocation cannot mean, and both readings of it are wrong.
 func resolveExportRelTarget(localTarget, export string, mounts io.Reader) (relTarget, note string, err error) {
-	asServerSide := serverSideRel(localTarget)
+	asServerSide := stripExportPrefix(serverSideRel(localTarget), export)
 
 	if mounts == nil {
 		return asServerSide, mountFreeNote(localTarget, asServerSide, export,
@@ -124,6 +124,27 @@ func resolveExportRelTarget(localTarget, export string, mounts io.Reader) (relTa
 // whatever the client's OS, so path, not filepath, does the cleaning.
 func serverSideRel(localTarget string) string {
 	return strings.Trim(path.Clean("/"+filepath.ToSlash(localTarget)), "/")
+}
+
+// stripExportPrefix drops a leading copy of the export from a mount-free
+// TARGET. An operator naming a server path writes it export-qualified, the way
+// the server and ServerPath both spell it (/fs01/x for export /fs01), and the
+// fan-out joins the result under the export -- so without this, /fs01/x landed
+// at /fs01/fs01/x. A TARGET that does not start with the export is taken as
+// export-relative, as before. Components are compared, not string prefixes, so
+// /fs01x is not stripped for export /fs01, and export "/" strips nothing.
+func stripExportPrefix(rel, export string) string {
+	exp := strings.Trim(path.Clean("/"+filepath.ToSlash(export)), "/")
+	if exp == "" {
+		return rel
+	}
+	if rel == exp {
+		return ""
+	}
+	if strings.HasPrefix(rel, exp+"/") {
+		return strings.TrimPrefix(rel, exp+"/")
+	}
+	return rel
 }
 
 // mountFreeNote states the inference and, more usefully, where the tree will
