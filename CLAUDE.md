@@ -43,28 +43,7 @@ needs root. The exception is `cmd/sweep/scratch_live_test.go`, an environment-ga
 that stays skipped unless `PERMISSIONRESET_LIVE_SCRATCH` and `PERMISSIONRESET_LIVE_PRINCIPALS` are set. Full live sweeper verification remains a manual
 lab exercise; `benchmarks/` holds the published summaries.
 
-## Architecture
-
-```
-cmd/permissionreset/main.go        — CLI, orchestration, progress reporting
-cmd/build_spec/               — spec capture: read one dir + one file ACL, emit permissionreset YAML
-cmd/generate_tree/main.go     — Go tree generator CLI
-cmd/sweep/                    — tuning sweeper: flag surface, scratch sizing, knob ladders, trials
-internal/run/                  — one repair invocation, shared by permissionreset and every sweep trial
-internal/tuning/               — tuning file schema, key construction, mount resolution, precedence
-internal/spec/spec.go          — YAML spec loader, rule matching, validation
-internal/apply/apply.go        — permission application (posix/nfsv4/smb backends)
-internal/nfs4acl/nfs4acl.go    — RFC 7530 ACE parser + binary encoder + setxattr/getxattr
-internal/walk/walk.go          — parallel readdir, pfind integration, pre-pass, symlink detection
-internal/stats/stats.go        — atomic counters, progress reporter
-internal/checkpoint/           — directory-level checkpoint for resume
-internal/partition/            — partition manifests: validation, residual handoff, serial driver, state, aggregate report
-internal/evidence/             — per-object evidence: bounded queue, checked sharded writes, manifest
-internal/treegen/              — test tree generation: scenarios, fan-out, ACL stamping, manifest
-internal/platform/             — build-tagged capability constants; the Linux()/Darwin() matrices
-internal/cmdflags/             — shared flag gating (hide-and-refuse, refuse-by-value) and --auth-*
-internal/speccapture/          — ACL read, identity classification, YAML spec generation for build-spec
-```
+## Platform decisions
 
 Platform decisions have one canonical home: `internal/platform` owns the capability constants and
 `internal/cmdflags` owns how a command refuses what this build cannot do. Do not reintroduce
@@ -110,51 +89,9 @@ refusing an audited root (#51, PS-04), but each object that carries audit ACEs i
 and neither is one whose audit ACEs name nobody or an id >= 1e9 (`ErrUnpreservableAudit`). Check DACL fidelity from SMB, never from the NFS view
 (`benchmarks/sacl-unmapped-sid-20261020/`).
 
-### Build
-
-```bash
-PATH="/usr/local/go/bin:$PATH" go build -o build-spec ./cmd/build_spec/
-```
-
 ## Go test tree generator
 
-`generate-tree` (binary) / `cmd/generate_tree/` generates million-file test trees on FlashBlade over NFS with named-principal NFSv4 ACLs. Replaces `generate_tree_windows.py` for large scale.
-
-### Build
-
-```bash
-PATH="/usr/local/go/bin:$PATH" go build -o generate-tree ./cmd/generate_tree/
-```
-
-### Usage
-
-```bash
-./generate-tree /mnt/fb/bigdata_named --principals examples/principals_example_nfs.json --scale medium
-./generate-tree /mnt/fb/bigdata_named --principals examples/principals_example_nfs.json --acls-only   # re-stamp existing tree
-./generate-tree /mnt/fb/bigdata_named --principals examples/principals_example_nfs.json --no-acls     # tree only, no setxattr
-./generate-tree /mnt/fb/bigdata_named --principals examples/principals_example_nfs.json --dry-run     # print plan
-```
-
-Scales: `small` (~500), `medium` (~5K), `large` (~40K), `xlarge` (~1M), `huge` (~100M, est. ~7 hrs), `colossal` (~1B+). Override with `--copies`, `--seed-files`, `--max-depth`.
-
-### Key behaviors
-
-- Reuses `internal/nfs4acl` for ACE encoding and setxattr — no new dependencies
-- Group principals carry the NFSv4 `g` flag (required for kernel group lookup)
-- All files stamped explicitly — NFSv4 inheritance does not apply retroactively to existing files
-- Safety ACE auto-detected from running user (`--safety-principal` to override)
-- Principal validation at startup via probe setxattr (catches idmapd misconfiguration early)
-- 15 scenarios (11 dir, 4 file): deny, non-canonical order, inherit-only, no-propagate, append-only, delegated admin, owner-with-no-ACE, protected DACLs, six-way principal split, mixed named+wellknown
-- Writes `acl_manifest.json` recording intended ACL per path (`--manifest` for custom local path on userspace)
-- Userspace transport (`--transport userspace`): `planSeedEntries()` generates seed in memory — no writable mount needed. Path resolved via `/proc/mounts` + `tuning.ServerPath`
-
-### NFS principal roster
-
-`examples/principals_example_nfs.json` — maps roles to `name@domain` NFSv4 principals (fictional
-`corp.example.com` accounts; replace them with real ones in your domain). Requires idmapd
-configured for that domain **on the kernel transport only** — the
-userspace transport sends the principal string verbatim and the array resolves it, so no client-side
-ID mapping is involved, and a name this host cannot resolve is a warning rather than a refusal.
+`generate-tree` / `cmd/generate_tree/`: usage, scenarios and the principal roster live in `cmd/generate_tree/CLAUDE.md`.
 
 ## Tuning sweeper
 
@@ -162,21 +99,7 @@ ID mapping is involved, and a name this host cannot resolve is a warning rather 
 pair and writes the winner to `permissionreset-tuning.yaml`, which `permissionreset` then loads as defaults.
 Operator-facing detail lives in `docs/tuning-sweep.md`; the essentials for working here:
 
-### Build and run
-
-```bash
-PATH="/usr/local/go/bin:$PATH" go build -o sweep ./cmd/sweep/
-./sweep --scratch /mnt/fb/sweep --server 192.0.2.50 --export /fb --transport userspace --spec examples/nfsv4_complex.yaml --principals examples/principals_example_nfs.json --scale large --regenerate-scratch
-```
-
-`--regenerate-scratch` is needed on a first run: `--reuse-scratch` defaults to true, so without it
-the sweeper looks for an existing `acl_manifest.json` under `--scratch` and refuses when there is
-none. Drop it on later runs to re-measure the same tree.
-
-A kernel NFS mount is required even for a userspace sweep — tree generation goes through the POSIX
-provisioner, so `--scratch` must be a directory under a mount (not the mount point, not the export
-root). A kernel sweep additionally wants root, so each trial can `drop_caches` and remount; without
-root it warns once and continues with warm caches.
+Build, run and scratch-mount requirements live in `cmd/sweep/CLAUDE.md`.
 
 ### Tuning file location
 
