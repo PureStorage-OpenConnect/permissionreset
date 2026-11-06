@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Without `--sacl`, a DACL reset now refuses each object that already carries audit ACEs
+  (`ErrAuditedObject`) unless `--allow-audited-dacl-reset` is passed. FlashArray marks the SACL and
+  DACL protected (`S:AI` → `S:P`, `D:AI` → `D:P`) on any NFS ACL write, so the audit entries were
+  kept but their Windows inheritance was not.
+
 - Renamed the project and its main command from `resetperms` to `permissionreset`. The binary is
   now `permissionreset` (was `resetperms-go`), the command lives in `cmd/permissionreset/`, the
   tuning file is `permissionreset-tuning.yaml`, and environment variables use the `PERMISSIONRESET_`

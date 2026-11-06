@@ -221,6 +221,10 @@ type Config struct {
 	// AllowHighIDs is --allow-high-ids. An apply whose spec names an id at or
 	// above 1000000000 is refused without it (ErrHighIDPrincipal).
 	AllowHighIDs bool
+	// AllowAuditedDACLReset is --allow-audited-dacl-reset. A DACL reset
+	// refuses each object that carries audit ACEs without it
+	// (apply.ErrAuditedObject).
+	AllowAuditedDACLReset bool
 	// RPCStats adds the write-path report to the summary: achieved gather
 	// depth, arrival rate, client CPU saturation, and the linger verdict. The
 	// counters it reads increment unconditionally, so the flag costs nothing at
@@ -865,7 +869,7 @@ func Run(ctx context.Context, cfg Config, out io.Writer) (result Result, runErr 
 	// One resolver for the whole run: it memoizes, and the apply workers all
 	// share it rather than each rediscovering the same handful of principals.
 	resolver := idmap.NewNSS()
-	opts := apply.Options{DryRun: cfg.DryRun, Compare: cfg.Compare, SetOwner: cfg.SetOwner, Idmap: resolver}
+	opts := apply.Options{DryRun: cfg.DryRun, Compare: cfg.Compare, SetOwner: cfg.SetOwner, Idmap: resolver, AllowAuditedDACLReset: cfg.AllowAuditedDACLReset}
 	fmt.Fprintln(out)
 
 	if !cfg.DryRun {

@@ -648,8 +648,15 @@ Add sacl: [] to that rule to say an empty audit ACL is intended, or run without 
 
 `--sacl` also turns on [the preflight](#the-preflight) and the audit-policy NOTE.
 
-**Without `--sacl`, a DACL reset keeps each object's audit ACEs.** Every object's ACL is read, and
-the spec's DACL is written with that object's existing audit and alarm entries appended byte for
+**Without `--sacl`, a DACL reset refuses objects that carry audit ACEs.** Every object's ACL is
+read. An object with audit or alarm entries is not written, and is counted as an error
+(`ErrAuditedObject`), unless you pass `--allow-audited-dacl-reset`. The refusal exists because
+FlashArray rewrites the descriptor's control flags on any NFS ACL write, even one that writes back
+identical bytes: the SACL goes from auto-inherited to protected (`S:AI` → `S:P`) and the DACL is
+flattened (`D:AI` → `D:P`, RISKS.md #11). The kernel transport cannot tell FlashArray from
+FlashBlade, so the refusal applies on both. Reset audited objects over SMB instead.
+
+With `--allow-audited-dacl-reset`, the spec's DACL is written with that object's existing audit and alarm entries appended byte for
 byte (PS-04, RISKS.md #10). This holds for an audited subtree under an unaudited root too. An
 object whose ACL cannot be read or parsed is not written, and neither is one whose audit ACEs name
 `nobody` or an id at or above 1000000000 (`ErrUnpreservableAudit`); each is counted as an error.
