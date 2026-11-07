@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Date | 2026-11-07 |
+| Date | 2026-11-07 (section 8 question 1 partly answered the same day) |
 | Status | **Accepted:** FlashArray work leaves the NFSv4 tool. **Proposed:** tool name, layout, version tags, CI (sections 4–7), pending maintainer confirmation. |
 | Scope | Where FlashArray DACL and SACL work lives, what it is built on, and how it shares this repository with the NFSv4 tool. Not a design for the new tool. |
 
@@ -140,6 +140,22 @@ maintainer-run exercise against a pinned revision or artifact, as it is for the 
    and walk the tree. The test is a raw `NtSetSecurityObject` on a root, then a raw-descriptor read
    (`GetFileSecurityW`) of the unchanged children over SMB. If dynamic inheritance holds, the tool's
    write count, and its design, change.
+
+   **Partly answered (2026-11-07, one lab FlashArray, Purity//FA 6.10.7, a 10-object tree):**
+   - A single DACL write over SMB to one directory (one `SetFileSecurityW` call, under 10 ms)
+     changed the inherited ACEs of every unprotected descendant, with no write to them. The change
+     was visible immediately and did not change afterwards. A protected subtree did not change. The
+     NFSv4 view agreed.
+   - The array stores exactly the DACL written to an object. A directory written with no ACEs and no
+     protection stayed empty; the array did not add its parent's inheritable ACEs. That directory's
+     unwritten children then re-derived from it and lost their inherited ACEs.
+   - Over SMB the array enforces traverse checks under a deny-all directory, and honors backup
+     intent (`FILE_FLAG_BACKUP_SEMANTICS` with `SeBackupPrivilege`).
+
+   So inherited-only objects need no write, and an object that should inherit must be written with
+   its parent's inheritable ACEs in inherited form. Still open: whether inherited-form ACEs written
+   by a client stay dynamic on later ancestor changes or are a frozen copy, and how a root write
+   behaves on a large tree (call time, synchronous or not, array load).
 2. **Where is the SMB ceiling?** A parallel read-compare-write loop over SMB, on the same tree as the
    NFSv4 measurements, from one Windows host. The expectation that the array limits first must be
    measured, not assumed.
