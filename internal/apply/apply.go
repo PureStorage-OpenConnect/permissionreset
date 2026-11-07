@@ -314,7 +314,9 @@ var ErrUnpreservableAudit = errors.New("existing audit ACEs name a principal an 
 // from auto-inherited to protected (S:AI -> S:P) and the DACL is flattened
 // (D:AI -> D:P, RISKS.md #11), even when the bytes written are identical. The
 // audit entries themselves survive, but their inheritance does not, so the
-// object is left untouched.
+// object is not written. Not writing it does not freeze its access: FlashArray
+// recomputes an unprotected object's inherited ACEs whenever an ancestor's ACL
+// changes, so a refused child still follows its parent's reset.
 var ErrAuditedObject = errors.New("object carries audit ACEs, and an NFS ACL write makes FlashArray mark its SACL and DACL protected (S:AI -> S:P, D:AI -> D:P), so the DACL reset was not written -- reset it over SMB, or pass --allow-audited-dacl-reset to accept the header change")
 
 // checkMappedDACL fails with ErrUnmappedPrincipal or ErrSyntheticRangePrincipal,
@@ -505,7 +507,7 @@ func applyPreserveSACL(t transport.Transport, ref transport.Ref, perms *spec.Rul
 	want := perms.EncodedACL()
 	if saclCount > 0 {
 		if !opts.AllowAuditedDACLReset {
-			return Result{Error: fmt.Errorf("%w (%d audit ACEs)", ErrAuditedObject, saclCount)}
+			return Result{Error: fmt.Errorf("%s: %w (%d audit ACEs)", path, ErrAuditedObject, saclCount)}
 		}
 		if err := checkMappedDACL(saclRaw); err != nil {
 			return Result{Error: fmt.Errorf("%s: %w: %v", path, ErrUnpreservableAudit, err)}

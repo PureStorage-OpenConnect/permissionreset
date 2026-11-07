@@ -221,7 +221,9 @@ keeps that object's existing audit ACEs as the NFS view shows them, on FlashArra
 alike (PS-04). An object that already carries audit ACEs is refused unless you pass
 `--allow-audited-dacl-reset`: FlashArray marks the SACL and DACL protected (`S:AI` → `S:P`,
 `D:AI` → `D:P`) on any NFS ACL write, so the audit entries survive but their Windows inheritance
-does not. An object whose audit ACEs cannot be kept exactly is refused, not written. With
+does not. A refused object is not written, but on FlashArray an object that only inherits still
+takes its parent's new inheritable ACEs when the parent is reset, because the array recomputes
+inherited ACEs from the ancestor. An object whose audit ACEs cannot be kept exactly is refused, not written. With
 `--sacl`, an `acl:` rule with no `sacl:` key is refused, since that write would delete the object's
 audit ACEs.
 Logging also needs an audit policy on the managed directory, which permissionreset cannot check. A

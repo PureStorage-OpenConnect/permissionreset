@@ -3,6 +3,7 @@ package apply
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -216,6 +217,9 @@ func TestPreserveSACLRefusesAuditedObject(t *testing.T) {
 	r := ProcessPath(rec, transport.Ref{Path: "/f"}, false, s, Options{}, 0)
 	if !errors.Is(r.Error, ErrAuditedObject) || len(rec.setACLCalls) != 0 {
 		t.Fatalf("audited: error = %v, writes = %d; want ErrAuditedObject and no write", r.Error, len(rec.setACLCalls))
+	}
+	if !strings.HasPrefix(r.Error.Error(), "/f: ") {
+		t.Errorf("audited: error = %q, want it to name the object so the log and evidence can attribute it", r.Error)
 	}
 
 	rec = &recordingTransport{getACL: nfs4acl.Encode([]nfs4acl.ACE{allowEveryone})}
