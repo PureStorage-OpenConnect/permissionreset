@@ -18,7 +18,8 @@ NFSv4 has produced a growing list of guards rather than a clean path:
   back over NFS stores every inherited ACE as explicit and marks the DACL protected (`D:P`), and a
   SID with no RFC 2307 id comes back as the array's local nobody account (RISKS.md #11).
 - **Any NFS ACL write on an audited object marks the SACL and DACL protected** (`S:AI` → `S:P`,
-  `D:AI` → `D:P`), even when the bytes are identical (`ErrAuditedObject`, `--allow-audited-dacl-reset`).
+  `D:AI` → `D:P`), even when the bytes are identical. This was seen in lab qualification of the
+  proposed FlashArray userspace support (PR #32), which adds a refusal for audited objects.
 - **This behavior is in line with the protocol definitions, not a defect.** The NFSv4 ACL model
   (RFC 7530, RFC 8881) and the SMB security descriptor model (MS-DTYP) define different flags and
   attributes. FlashArray applies each protocol's definition strictly. Inheritance on FlashArray is
@@ -32,7 +33,8 @@ parallelism. One controller does the metadata writes, and it is the limit:
 
 - Kernel transport, one FlashArray: 18,000–20,500 objects/s with 64 workers. More workers or
   `nconnect` did not help (README, `benchmarks/`).
-- Userspace transport, one FlashArray: 64 workers was the best of 32/64/128/256 (COMPATIBILITY.md).
+- Userspace transport, one FlashArray, in a lab run of the proposed support (PR #32; the released
+  userspace transport refuses FlashArray): 64 workers was the best of 32/64/128/256.
 
 So on FlashArray, NFSv4 adds no throughput and loses fidelity. An SMB client talks the array's native
 model: SIDs without id mapping, inherited flags as stored, SACLs through `SeSecurityPrivilege`, and
@@ -49,9 +51,8 @@ so it never parses YAML.
 1. **New FlashArray work goes to an SMB-native Windows tool**, for DACLs and SACLs. Nothing new is
    added to the NFSv4 tool for FlashArray.
 2. **The NFSv4 tool keeps its current FlashArray behavior and guards.** The qualified scope in
-   COMPATIBILITY.md stays as recorded, and the refusals (unmapped principals, flattening, audited
-   objects) stay. Operator docs will point FlashArray users to the new tool once it exists. Whether
-   to later refuse FlashArray outright, as the userspace transport refuses it without its flag, is a
+   COMPATIBILITY.md stays as recorded, and the refusals (unmapped principals, flattening) stay. Operator docs will point FlashArray users to the new tool once it exists. Whether
+   to later refuse FlashArray outright, as the userspace transport already does, is a
    separate decision, taken once the new tool has a qualified release.
 3. **FlashBlade stays on the NFSv4 tool.** FlashBlade evaluates NFSv4-written ACLs for SMB clients,
    and it has no SMB multichannel, so an SMB repair path there could not perform
