@@ -161,7 +161,7 @@ jobs:
           else
             range="$BASE..$HEAD"
           fi
-          hits=$(git log --format='%h %s%n%B' "$range" | awk '/^[0-9a-f]+ /{c=$0} /^Committed-From:/{print c}')
+          hits=$(git log --format='%h %s%n%B' "$range" | awk '/^[0-9a-f]+ /{c=$0} /^Committed-From[:]/{print c}')
           if [ -n "$hits" ]; then
             echo "::error::Committed-From trailers found; strip them and set core.hooksPath for the clone that made them"
             echo "$hits"
