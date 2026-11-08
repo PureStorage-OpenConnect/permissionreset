@@ -37,6 +37,12 @@ earlier commits are safe. Use the applicable private identifier scan and secret 
 publication; keep private scan inputs and sensitive matches out of public logs. Public CI runs
 after upload and is an additional check, not the publication boundary.
 
+Commit messages must carry no `Committed-From` trailer or any other host-identifying trailer. A
+global commit hook that appends one must be turned off for every clone that pushes here
+(`git config core.hooksPath /dev/null`, or a hook that adds nothing). GitHub's squash-merge copies
+branch trailers into the squash body. `tools/public-scan/scan.sh --commits RANGE` and the
+`commit-trailers` CI job reject them.
+
 Do not assume `.gitignore` removes already tracked data or erases history. If required checks are
 unavailable, finish unaffected local work and report the publication blocker; do not claim a clean
 scan. Handle suspected exposures through the security process.
