@@ -6,7 +6,8 @@
 # The denylist defaults to $PUBLIC_SCAN_DENYLIST, then tools/public-scan/denylist.txt.
 # Prints hits per file and per top-level directory; exits 1 when anything matches.
 # --detail prints each matching line instead of the per-file counts.
-# --commits RANGE also checks author/committer emails and messages in RANGE (e.g. origin/main..HEAD).
+# --commits RANGE also checks author/committer emails and messages in RANGE (e.g. origin/main..HEAD),
+# and always rejects Committed-From trailers there, denylist or not.
 set -euo pipefail
 
 root=$(git rev-parse --show-toplevel)
@@ -18,7 +19,7 @@ while [[ $# -gt 0 ]]; do
     --denylist) denylist=$2; shift 2 ;;
     --commits)  range=$2; shift 2 ;;
     --detail)   detail=1; shift ;;
-    -h|--help)  sed -n '2,10p' "$0"; exit 0 ;;
+    -h|--help)  sed -n '2,11p' "$0"; exit 0 ;;
     --)         shift; break ;;
     *)          break ;;
   esac
@@ -54,6 +55,16 @@ else
 fi
 
 if [[ -n $range ]]; then
+  # A Committed-From trailer (hostname, OS/arch, local IP) is appended by a
+  # local commit hook. It is checked here unconditionally, not through the
+  # denylist, so the check needs no secret and cannot be dropped by editing one.
+  trailers=$(git log --format='%h %s%n%B' "$range" | awk '/^[0-9a-f]+ /{c=$0} /^Committed-From:/{print c; print "  " $0}' || true)
+  if [[ -n $trailers ]]; then
+    status=1
+    echo
+    echo "== Committed-From trailers in $range (strip them; set core.hooksPath for this clone)"
+    echo "$trailers"
+  fi
   meta=$(git log --format='%h %ae %ce%n%B' "$range" | grep -iE -f "$patterns" || true)
   if [[ -n $meta ]]; then
     status=1

@@ -138,6 +138,37 @@ jobs:
           printf '%s\n' "$DENYLIST" > "$RUNNER_TEMP/denylist.txt"
           tools/public-scan/scan.sh --denylist "$RUNNER_TEMP/denylist.txt"
 
+  # Fails when a commit carries a Committed-From trailer (hostname, OS/arch and local IP, appended by
+  # a local commit hook). Needs no secret, so it also runs on pull requests from forks. On a pull
+  # request it checks the branch's commits; on a push to main, the pushed range. GitHub's
+  # squash-merge copies branch trailers into the squash body, so the pull request check is the one
+  # that keeps them off main.
+  commit-trailers:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: reject Committed-From trailers
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ]; then
+            range="$HEAD"
+          else
+            range="$BASE..$HEAD"
+          fi
+          hits=$(git log --format='%h %s%n%B' "$range" | awk '/^[0-9a-f]+ /{c=$0} /^Committed-From:/{print c}')
+          if [ -n "$hits" ]; then
+            echo "::error::Committed-From trailers found; strip them and set core.hooksPath for the clone that made them"
+            echo "$hits"
+            exit 1
+          fi
+          echo "no Committed-From trailers in $range"
+
   vulncheck:
     if: github.repository == 'PureStorage-OpenConnect/permissionreset'
     runs-on: ubuntu-24.04
