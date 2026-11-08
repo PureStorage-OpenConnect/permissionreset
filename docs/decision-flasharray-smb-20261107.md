@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Date | 2026-11-07 |
+| Date | 2026-11-07 (section 8 question 1 partly answered the same day) |
 | Status | **Accepted:** FlashArray work leaves the NFSv4 tool. **Proposed:** tool name, layout, version tags, CI (sections 4–7), pending maintainer confirmation. |
 | Scope | Where FlashArray DACL and SACL work lives, what it is built on, and how it shares this repository with the NFSv4 tool. Not a design for the new tool. |
 
@@ -18,7 +18,10 @@ NFSv4 has produced a growing list of guards rather than a clean path:
   back over NFS stores every inherited ACE as explicit and marks the DACL protected (`D:P`), and a
   SID with no RFC 2307 id comes back as the array's local nobody account (RISKS.md #11).
 - **Any NFS ACL write on an audited object marks the SACL and DACL protected** (`S:AI` → `S:P`,
-  `D:AI` → `D:P`), even when the bytes are identical (`ErrAuditedObject`, `--allow-audited-dacl-reset`).
+  `D:AI` → `D:P`), even when the bytes are identical. This was seen in lab runs of the proposed
+  FlashArray userspace support; PR #35 adds a refusal for audited objects. Refusing an object does
+  not freeze its access: an unwritten descendant re-derives its inherited ACEs when an ancestor is
+  written (section 8, question 1).
 - **This behavior is in line with the protocol definitions, not a defect.** The NFSv4 ACL model
   (RFC 7530, RFC 8881) and the SMB security descriptor model (MS-DTYP) define different flags and
   attributes. FlashArray applies each protocol's definition strictly. Inheritance on FlashArray is
@@ -32,7 +35,8 @@ parallelism. One controller does the metadata writes, and it is the limit:
 
 - Kernel transport, one FlashArray: 18,000–20,500 objects/s with 64 workers. More workers or
   `nconnect` did not help (README, `benchmarks/`).
-- Userspace transport, one FlashArray: 64 workers was the best of 32/64/128/256 (COMPATIBILITY.md).
+- Userspace transport, one FlashArray, in a lab run of proposed support that was not merged (the
+  released userspace transport refuses FlashArray): 64 workers was the best of 32/64/128/256.
 
 So on FlashArray, NFSv4 adds no throughput and loses fidelity. An SMB client talks the array's native
 model: SIDs without id mapping, inherited flags as stored, SACLs through `SeSecurityPrivilege`, and
@@ -49,10 +53,10 @@ so it never parses YAML.
 1. **New FlashArray work goes to an SMB-native Windows tool**, for DACLs and SACLs. Nothing new is
    added to the NFSv4 tool for FlashArray.
 2. **The NFSv4 tool keeps its current FlashArray behavior and guards.** The qualified scope in
-   COMPATIBILITY.md stays as recorded, and the refusals (unmapped principals, flattening, audited
-   objects) stay. Operator docs will point FlashArray users to the new tool once it exists. Whether
-   to later refuse FlashArray outright, as the userspace transport refuses it without its flag, is a
-   separate decision, taken once the new tool has a qualified release.
+   COMPATIBILITY.md stays as recorded, and the refusals (unmapped principals, flattening, and
+   audited objects once PR #35 merges) stay. Operator docs will point FlashArray users to the new
+   tool once it exists. Whether to later refuse FlashArray outright, as the userspace transport
+   already does, is a separate decision, taken once the new tool has a qualified release.
 3. **FlashBlade stays on the NFSv4 tool.** FlashBlade evaluates NFSv4-written ACLs for SMB clients,
    and it has no SMB multichannel, so an SMB repair path there could not perform
    (field-preview/known-limitations.md).
@@ -140,6 +144,22 @@ maintainer-run exercise against a pinned revision or artifact, as it is for the 
    and walk the tree. The test is a raw `NtSetSecurityObject` on a root, then a raw-descriptor read
    (`GetFileSecurityW`) of the unchanged children over SMB. If dynamic inheritance holds, the tool's
    write count, and its design, change.
+
+   **Partly answered (2026-11-07, one lab FlashArray, Purity//FA 6.10.7, a 10-object tree):**
+   - A single DACL write over SMB to one directory (one `SetFileSecurityW` call, under 10 ms)
+     changed the inherited ACEs of every unprotected descendant, with no write to them. The change
+     was visible immediately and did not change afterwards. A protected subtree did not change. The
+     NFSv4 view agreed.
+   - The array stores exactly the DACL written to an object. A directory written with no ACEs and no
+     protection stayed empty; the array did not add its parent's inheritable ACEs. That directory's
+     unwritten children then re-derived from it and lost their inherited ACEs.
+   - Over SMB the array enforces traverse checks under a deny-all directory, and honors backup
+     intent (`FILE_FLAG_BACKUP_SEMANTICS` with `SeBackupPrivilege`).
+
+   So inherited-only objects need no write, and an object that should inherit must be written with
+   its parent's inheritable ACEs in inherited form. Still open: whether inherited-form ACEs written
+   by a client stay dynamic on later ancestor changes or are a frozen copy, and how a root write
+   behaves on a large tree (call time, synchronous or not, array load).
 2. **Where is the SMB ceiling?** A parallel read-compare-write loop over SMB, on the same tree as the
    NFSv4 measurements, from one Windows host. The expectation that the array limits first must be
    measured, not assumed.
