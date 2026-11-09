@@ -13,15 +13,17 @@ may work but carry no guarantee.
 | DACL reset (`acl:`) | FlashArray | Linux | kernel | Historical hardware run, v0.9.5-sacl, Purity//FA 6.10.6, with an SMB raw-descriptor check (`benchmarks/dacl-reset-fidelity-20261020/RESULTS-fa.md`) |
 | DACL-keeping SACL (`sacl:` only, `--sacl`) | FlashArray | Linux | kernel | Historical hardware runs, Purity//FA 6.10.6 and 6.12.1 (section below) |
 | Any repair | FlashArray | any | userspace | Refused by design |
-| Any repair | either | macOS | userspace | Builds and passes offline tests in CI; no hardware run recorded |
+| DACL reset (`acl:`) | FlashBlade | macOS | userspace | One hardware run on 0ed7524, darwin/arm64, Purity//FB version not recorded (section below) |
+| DACL-keeping SACL (`sacl:` only, `--sacl`) | FlashBlade | macOS | userspace | No hardware run recorded; offline tests in CI only |
+| Any repair | FlashArray | macOS | userspace | Refused by design (userspace refuses FlashArray) |
 | Any repair | either | Windows | — | Does not build |
 | Template capture (`build-spec`) | either | Linux, macOS, Windows | kernel (Linux), userspace | Offline tests in CI; capture on hardware recorded in `benchmarks/` only for Linux |
 
 Offline CI tests, compiling for a platform, a historical hardware run and verification of the current
 release are different evidence. This table says which one each row has.
 
-**macOS**: builds, ships, and runs `--transport=userspace`. No verified-in-the-field column yet —
-one will be added once someone runs a real repair from a Mac. Everything below that mentions idmapd
+**macOS**: builds, ships, and runs `--transport=userspace`. One hardware run is recorded, on a
+FlashBlade (see [macOS hardware run](#macos-hardware-run)). Everything below that mentions idmapd
 applies to `--transport=kernel` and therefore to Linux only: the userspace transport sends the
 principal string verbatim and the array resolves it.
 
@@ -109,9 +111,27 @@ Then run apply + validate on a known tree and record the throughput.
 ## Known Limitations
 
 - **arm64**: cross-compiles but untested on hardware
-- **macOS**: builds and ships; `--transport=userspace` is the only transport and the default there, and `--transport=kernel` is refused by value. `--pfind`/`--no-pfind` are hidden and refused. `sweep` refuses at startup on macOS — every scratch backend it can build reads its trial tree through a mounted path. `generate-tree` is not ported. The offline test suite runs on Linux and macOS in CI; no repair from a Mac has been run on hardware.
+- **macOS**: builds and ships; `--transport=userspace` is the only transport and the default there, and `--transport=kernel` is refused by value. `--pfind`/`--no-pfind` are hidden and refused. `sweep` refuses at startup on macOS — every scratch backend it can build reads its trial tree through a mounted path. `generate-tree` is not ported. The offline test suite runs on Linux and macOS in CI; one repair from a Mac has been run on hardware ([macOS hardware run](#macos-hardware-run)).
 - **Windows**: only `build-spec` (capture) builds and ships. `permissionreset`, `sweep` and `generate-tree` do not build yet. `internal/walk`, `internal/apply`, `internal/nfs4acl`, `internal/transport` and `internal/treegen` use Linux syscalls with no Windows equivalent, and `internal/platform` has no Windows capability file yet; the port is a follow-up.
 - **POSIX-only mode**: tested on local filesystems only, not on NFS mounts
 - **SMB backend**: none by design — NFSv4 ACLs are authoritative for SMB clients on FlashBlade; `protocol: smb` rejected at spec load. NFSv4-to-SMB rendering verification pending
 - **FlashArray**: userspace transport refuses FlashArray by design; kernel transport tested for DACL-keeping SACL specs only (table above)
 - **sec=krb5**: untested (identity mapping behavior may differ)
+
+## macOS hardware run
+
+Candidate `0ed7524`, `make build` for darwin/arm64, userspace transport from a macOS client to a
+FlashBlade over NFSv4.1. The Purity//FB version was not recorded. The evidence is held outside this
+repository.
+
+- Passed: a DACL reset keeps each object's audit entries byte for byte, inherited ones included
+  (PS-04). `--validate`, `--compare` and `--resume` converge with no change to the tree.
+  `sacl:` without `--sacl` and `acl:` with `--sacl` refuse with no change. `--dry-run --compare`
+  changes nothing.
+- Checked by outcome only: the order of the audit-bypass proof, and the absence of ACL reads in a
+  dry run.
+- Not run: the kernel transport (not on macOS), the no-bypass refusal path (this FlashBlade over
+  `sec=sys` keeps a non-admin identity's audit entries), and resume from a partial checkpoint.
+- Found: numeric principals in a spec never compare equal on macOS userspace, because the array
+  returns names and the client has no id mapper. Name principals in the spec
+  ([#30](https://github.com/PureStorage-OpenConnect/permissionreset/issues/30)).
