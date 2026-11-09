@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0-rc1] - 2026-11-09
+
+First public pre-release. It is qualified for one use: a DACL reset (`acl:` rules, no `--sacl`)
+on FlashBlade over NFSv4.1, from Linux, on the kernel and userspace transports. Audit (SACL)
+modes, FlashArray, SMB, macOS, Windows capture and the GUI ship in the archives but are not
+qualified by this pre-release; see COMPATIBILITY.md. The external-reader trial and the
+independent review of the live-read safety work are not done yet, so this is not the self-service
+release described in `docs/release-acceptance.md`.
+
 ### Added
 
 - `permissionreset` and `build-spec` print a NOTE when the audit-bypass proof passes. It names the
