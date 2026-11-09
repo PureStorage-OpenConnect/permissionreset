@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PermissionReset.Smb;
@@ -27,14 +28,16 @@ static class Cli
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
     };
 
-    public static int Run(string[] args, TextWriter stdout, TextWriter stderr)
+    // reader is the descriptor source for inspect; null means the Win32 reader (Windows only).
+    // Tests pass a fake so the CLI's output and exit codes are checked on any OS.
+    public static int Run(string[] args, TextWriter stdout, TextWriter stderr, IDescriptorReader? reader = null)
     {
         if (args.Length == 0) { stderr.WriteLine(Usage); return 2; }
         try
         {
             return args[0] switch
             {
-                "inspect" => Inspect(args[1..], stdout, stderr),
+                "inspect" => Inspect(args[1..], stdout, stderr, reader),
                 "plan" => PlanCmd(args[1..], stdout, stderr),
                 "version" => Version(stdout),
                 "-h" or "--help" or "help" => Help(stdout),
@@ -60,7 +63,9 @@ static class Cli
         return 0;
     }
 
-    static int Inspect(string[] args, TextWriter stdout, TextWriter stderr)
+    // Inspect exits 0 when every path was read, 1 when the privileges could not be enabled (nothing
+    // is read) or when any path failed (each failure still gets its own record), 2 on usage.
+    static int Inspect(string[] args, TextWriter stdout, TextWriter stderr, IDescriptorReader? reader)
     {
         bool withSacl = true;
         var paths = new List<string>();
@@ -71,20 +76,34 @@ static class Cli
             else paths.Add(a);
         }
         if (paths.Count == 0) return Fail(stderr, "inspect: needs at least one PATH");
-        if (!OperatingSystem.IsWindows()) return Fail(stderr, "inspect reads descriptors over SMB and runs only on Windows", 1);
+        if (reader is null)
+        {
+            if (!OperatingSystem.IsWindows()) return Fail(stderr, "inspect reads descriptors over SMB and runs only on Windows", 1);
+            reader = new Win32DescriptorReader();
+        }
 
-        Win32Security.EnablePrivilege("SeBackupPrivilege");
-        if (withSacl) Win32Security.EnablePrivilege("SeSecurityPrivilege");
+        // A missing privilege is a fact about the shell, not about any path: say so once, read
+        // nothing, and exit 1 rather than let the exception escape.
+        try
+        {
+            reader.EnablePrivilege("SeBackupPrivilege");
+            if (withSacl) reader.EnablePrivilege("SeSecurityPrivilege");
+        }
+        catch (Win32Exception e)
+        {
+            return Fail(stderr, $"inspect: {e.Message} (Win32 error {e.NativeErrorCode})", 1);
+        }
 
         int failed = 0;
         foreach (var p in paths)
         {
             InspectLine line;
-            try { line = new InspectLine(p, Descriptor.Decode(Win32Security.ReadDescriptor(p, withSacl)), withSacl, null); }
-            catch (Exception e) when (e is System.ComponentModel.Win32Exception or DescriptorFormatException)
+            try { line = new InspectLine(p, Descriptor.Decode(reader.Read(p, withSacl)), withSacl, null, null); }
+            catch (Exception e) when (e is Win32Exception or DescriptorFormatException)
             {
                 failed++;
-                line = new InspectLine(p, null, withSacl, e.Message);
+                // No descriptor came back, so nothing was read: sacl_read is left out.
+                line = new InspectLine(p, null, null, e.Message, (e as Win32Exception)?.NativeErrorCode);
             }
             stdout.WriteLine(JsonSerializer.Serialize(line, Json));
         }
@@ -106,6 +125,7 @@ static class Cli
     }
 }
 
-// sacl_read records whether the SACL was requested: with --no-sacl an absent SACL means "not read",
-// not "empty".
-sealed record InspectLine(string Path, Descriptor? Descriptor, bool SaclRead, string? Error);
+// On a read, sacl_read records whether the SACL was requested: with --no-sacl an absent SACL means
+// "not read", not "empty". On a failure there is no descriptor and no sacl_read; error says which
+// step failed and why, and win32_error carries the Win32 code when there is one.
+sealed record InspectLine(string Path, Descriptor? Descriptor, bool? SaclRead, string? Error, int? Win32Error);

@@ -30,6 +30,11 @@ is normalized. It opens each object with backup intent and does not follow repar
 an elevated shell with `SeBackupPrivilege`, and `SeSecurityPrivilege` unless `--no-sacl`. On
 FlashArray the identity also needs the array's audit bypass, as for Set-SaclOnly.
 
+A path that cannot be read still gets a line, with `error` naming the step and the system's reason
+(`"open: Access is denied."`) and `win32_error` its code; it has no `descriptor` and no `sacl_read`.
+`inspect` exits 0 when every path was read, 1 when any path failed or a privilege is missing (then
+it reads nothing and says which privilege on stderr), and 2 on a usage error.
+
 `plan` reads the JSON that `build-spec --sacl-plan` writes. The spec has one parser, in Go; this tool
 never reads YAML. A plan with another schema version, another protocol, an unknown field or an
 unknown match type is refused rather than guessed at.

@@ -54,14 +54,14 @@ static partial class Win32Security
     {
         const uint TOKEN_ADJUST_PRIVILEGES = 0x20, TOKEN_QUERY = 0x8, SE_PRIVILEGE_ENABLED = 2;
         if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out var token))
-            throw new Win32Exception(Marshal.GetLastPInvokeError(), $"open process token for {name}");
+            throw LastError($"open process token for {name}");
         try
         {
             if (!LookupPrivilegeValue(null, name, out var luid))
-                throw new Win32Exception(Marshal.GetLastPInvokeError(), $"look up {name}");
+                throw LastError($"look up {name}");
             var tp = new TOKEN_PRIVILEGES { Count = 1, Luid = luid, Attributes = SE_PRIVILEGE_ENABLED };
             if (!AdjustTokenPrivileges(token, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero))
-                throw new Win32Exception(Marshal.GetLastPInvokeError(), $"enable {name}");
+                throw LastError($"enable {name}");
             int err = Marshal.GetLastPInvokeError();
             if (err == 1300) throw new Win32Exception(err, $"this account does not hold {name}; run elevated as an account that does");
         }
@@ -76,19 +76,26 @@ static partial class Win32Security
         uint info = OWNER | GROUP | DACL | (withSacl ? SACL : 0);
         IntPtr h = CreateFile(LongPath(path), access, SHARE_ALL, IntPtr.Zero, OPEN_EXISTING,
             FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, IntPtr.Zero);
-        if (h == new IntPtr(-1)) throw new Win32Exception(Marshal.GetLastPInvokeError(), "open");
+        if (h == new IntPtr(-1)) throw LastError("open");
         try
         {
             GetKernelObjectSecurity(h, info, null, 0, out uint needed);
             int err = Marshal.GetLastPInvokeError();
-            if (err != ERROR_INSUFFICIENT_BUFFER) throw new Win32Exception(err, "size descriptor");
+            if (err != ERROR_INSUFFICIENT_BUFFER) throw Error(err, "size descriptor");
             var sd = new byte[needed];
             if (!GetKernelObjectSecurity(h, info, sd, needed, out _))
-                throw new Win32Exception(Marshal.GetLastPInvokeError(), "read descriptor");
+                throw LastError("read descriptor");
             return sd;
         }
         finally { CloseHandle(h); }
     }
+
+    // Error names the step that failed and keeps the system's text for the code, which
+    // Win32Exception(code, message) would otherwise replace: "open: Access is denied." The code
+    // itself stays in NativeErrorCode.
+    internal static Win32Exception Error(int code, string step) => new(code, $"{step}: {new Win32Exception(code).Message}");
+
+    static Win32Exception LastError(string step) => Error(Marshal.GetLastPInvokeError(), step);
 
     // LongPath adds the \\?\ prefix so paths past MAX_PATH open; UNC paths become \\?\UNC\.
     public static string LongPath(string p)

@@ -7,6 +7,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="PermissionReset.Smb.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\PermissionReset.Smb.Core\PermissionReset.Smb.Core.csproj" />
   </ItemGroup>
 </Project>

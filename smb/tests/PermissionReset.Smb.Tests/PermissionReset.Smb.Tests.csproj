@@ -13,6 +13,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\PermissionReset.Smb.Core\PermissionReset.Smb.Core.csproj" />
+    <!-- The CLI, for its records and exit codes, driven through a fake IDescriptorReader. -->
+    <ProjectReference Include="..\..\src\PermissionReset.Smb\PermissionReset.Smb.csproj" />
   </ItemGroup>
   <!-- Shared vectors: the same files the Go tests and the Set-SaclOnly Pester suite use. -->
   <ItemGroup>

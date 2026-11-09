@@ -9,7 +9,9 @@
 - `src/PermissionReset.Smb/` — the `permissionreset-smb` CLI and `Win32Security` (handle-based
   descriptor reads with backup intent, privilege enabling). Windows-only paths are guarded with
   `OperatingSystem.IsWindows()` and `[SupportedOSPlatform("windows")]`.
-- `tests/PermissionReset.Smb.Tests/` — xUnit; runs on Linux too (`dotnet test`).
+- `tests/PermissionReset.Smb.Tests/` — xUnit; runs on Linux too (`dotnet test`). The CLI's records
+  and exit codes are tested through a fake `IDescriptorReader`; the Win32 reads are checked on
+  hardware only.
 
 Rules:
 - The tool writes nothing yet. Do not add a write path until section 8 questions 1 and 3 are
