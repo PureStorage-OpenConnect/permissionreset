@@ -99,14 +99,18 @@ func TestCaptureRefusesAnUnprovenReadByDefault(t *testing.T) {
 // created, written, read back and removed before either exemplar is read.
 func TestCaptureProvesTheBypassBeforeReadingExemplars(t *testing.T) {
 	p, dir, file := newProber(t)
-	res, err := speccapture.CaptureWithOptions(p, dir, file, speccapture.Options{ProbeDir: "/vol/scratch"})
+	onProof := func(pr auditproof.Proof) { p.calls = append(p.calls, "OnProof:"+pr.Probe) }
+	res, err := speccapture.CaptureWithOptions(p, dir, file, speccapture.Options{ProbeDir: "/vol/scratch", OnProof: onProof})
 	if err != nil {
 		t.Fatalf("err = %v; calls = %v", err, p.calls)
 	}
-	cleanupIdx, firstRead := -1, -1
+	cleanupIdx, proofIdx, firstRead := -1, -1, -1
 	for i, c := range p.calls {
 		if c == "cleanup" && cleanupIdx == -1 {
 			cleanupIdx = i
+		}
+		if c == "OnProof:/vol/scratch/.probe" && proofIdx == -1 {
+			proofIdx = i
 		}
 		if (c == "GetACL:/vol/dir" || c == "GetACL:/vol/file.txt") && firstRead == -1 {
 			firstRead = i
@@ -114,6 +118,11 @@ func TestCaptureProvesTheBypassBeforeReadingExemplars(t *testing.T) {
 	}
 	if p.calls[0] != "ProbeTarget:/vol/scratch" || cleanupIdx == -1 || firstRead < cleanupIdx {
 		t.Fatalf("exemplar read before the proof finished; calls = %v", p.calls)
+	}
+	// #31: the proof is reported after the probe is gone and before either
+	// exemplar is read, so the caller's output shows the order.
+	if proofIdx == -1 || proofIdx < cleanupIdx || proofIdx > firstRead {
+		t.Fatalf("OnProof not called between the probe cleanup and the first exemplar read; calls = %v", p.calls)
 	}
 	for _, n := range res.Notes {
 		if strings.Contains(n, "no audit-bypass proof") {

@@ -392,8 +392,9 @@ func CheckKeepDACLTarget(t transport.Transport, root transport.Ref) error {
 // prove that a privileged *read* never mutates dynamic inheritance on every
 // array and firmware revision. See PS-02's acceptance notes.
 // The proof itself lives in internal/auditproof, so build-spec capture can
-// run it without importing this package.
-func ProveAuditBypass(t transport.Transport, ref transport.Ref) error {
+// run it without importing this package. On success it returns the proof for
+// the caller to report before its first live read (#31).
+func ProveAuditBypass(t transport.Transport, ref transport.Ref) (auditproof.Proof, error) {
 	return auditproof.Prove(t, ref)
 }
 

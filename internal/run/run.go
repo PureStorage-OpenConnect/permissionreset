@@ -74,7 +74,7 @@ func runPreflight(tr transport.Transport, cfg Config, errOut io.Writer) error {
 	// before any live read runs at all. This must stay the first thing
 	// runPreflight does.
 	if needsAuditBypassProof(cfg) {
-		err = apply.ProveAuditBypass(tr, transport.Ref{Path: cfg.Root})
+		err = proveAndReport(tr, cfg, errOut)
 	}
 
 	// A DACL-keeping rule writes the DACL it reads back to the array, so check
@@ -116,9 +116,22 @@ func needsAuditBypassProof(cfg Config) bool {
 // full preflight would also write the spec's ACL to the probe, which proves
 // nothing a read-only run needs.
 func proveAuditBypass(tr transport.Transport, cfg Config, errOut io.Writer) error {
-	if err := apply.ProveAuditBypass(tr, transport.Ref{Path: cfg.Root}); err != nil {
+	if err := proveAndReport(tr, cfg, errOut); err != nil {
 		return renderPreflightErr(err, cfg, errOut)
 	}
+	return nil
+}
+
+// proveAndReport runs the audit-bypass proof and, when it passes, prints one
+// line saying so. Both callers run it before any live ACL read, so the line's
+// place in the output shows the proof came first (#31). A failure is returned
+// unprinted, for the caller to render.
+func proveAndReport(tr transport.Transport, cfg Config, errOut io.Writer) error {
+	proof, err := apply.ProveAuditBypass(tr, transport.Ref{Path: cfg.Root})
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(errOut, "NOTE: %s\n", proof)
 	return nil
 }
 

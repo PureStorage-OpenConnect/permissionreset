@@ -52,7 +52,9 @@ itself destroy it. A failure from
 `ProveAuditBypass` (including `ErrAuditPrivilege`/`ErrAuditNotRetained`) fails the run closed without
 ever touching root. This must stay the first thing `runPreflight` does; see
 `TestPreflightProvesAuditBypassBeforeAnyLiveRootRead` and
-`TestPreflightRefusesWithoutTouchingLiveRootWhenBypassProofFails` in `unmapped_test.go`.
+`TestPreflightRefusesWithoutTouchingLiveRootWhenBypassProofFails` in `unmapped_test.go`. Both `runPreflight`
+and `proveAuditBypass` go through `proveAndReport`, which prints the passed proof as a NOTE before
+any live read, so the output shows the order (#31, `TestPreflightReportsTheProofBeforeTheFirstLiveRead`).
 
 `runPreflight(tr, cfg, errOut)` is the one call site for `apply.ProbePreflight`, used by both the
 apply path (`!cfg.DryRun`) and `runValidate` (gated on any `sacl:` key, `sacl: []` included, via

@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/PureStorage-OpenConnect/permissionreset/internal/auditproof"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/nfs41/xdr"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/nfs4acl"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/spec"
@@ -463,8 +464,12 @@ func TestProveAuditBypassSucceedsOnDisposableTargetOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := &recordingTransport{getACL: orig, echoACLOnGet: true}
-	if err := ProveAuditBypass(rec, transport.Ref{Path: "/tree"}); err != nil {
+	proof, err := ProveAuditBypass(rec, transport.Ref{Path: "/tree"})
+	if err != nil {
 		t.Fatalf("ProveAuditBypass() error = %v", err)
+	}
+	if proof.Probe != "/probe-target" {
+		t.Errorf("proof.Probe = %q, want the disposable probe target it wrote", proof.Probe)
 	}
 	if len(rec.setACLCalls) != 1 {
 		t.Fatalf("SetACL called %d times, want 1 (the probe write only -- no restore is needed before the disposable target is removed)", len(rec.setACLCalls))
@@ -482,7 +487,10 @@ func TestProveAuditBypassSucceedsOnDisposableTargetOnly(t *testing.T) {
 func TestProveAuditBypassNoAllowDenyEntriesRefuses(t *testing.T) {
 	auditOnly := nfs4acl.Encode([]nfs4acl.ACE{{Type: nfs4acl.TypeAudit, Who: "EVERYONE@", Mask: nfs4acl.MaskReadData, Flags: nfs4acl.FlagSuccessAccess}})
 	rec := &recordingTransport{getACL: auditOnly}
-	err := ProveAuditBypass(rec, transport.Ref{Path: "/tree"})
+	proof, err := ProveAuditBypass(rec, transport.Ref{Path: "/tree"})
+	if proof != (auditproof.Proof{}) {
+		t.Errorf("proof = %+v on a refusal, want zero", proof)
+	}
 	if err == nil {
 		t.Fatal("ProveAuditBypass() error = nil, want a refusal")
 	}
@@ -500,7 +508,7 @@ func TestProveAuditBypassAccessDeniedGivesErrAuditPrivilege(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := &recordingTransport{getACL: orig, setACLErr: &fakeStatusError{status: uint32(xdr.NFS4ERR_ACCESS)}}
-	if err := ProveAuditBypass(rec, transport.Ref{Path: "/tree"}); !errors.Is(err, ErrAuditPrivilege) {
+	if _, err := ProveAuditBypass(rec, transport.Ref{Path: "/tree"}); !errors.Is(err, ErrAuditPrivilege) {
 		t.Fatalf("ProveAuditBypass() error = %v, want ErrAuditPrivilege", err)
 	}
 }
@@ -514,7 +522,7 @@ func TestProveAuditBypassReadBackWithoutUGivesErrAuditNotRetained(t *testing.T) 
 		t.Fatal(err)
 	}
 	rec := &recordingTransport{getACL: daclOnly}
-	if err := ProveAuditBypass(rec, transport.Ref{Path: "/tree"}); !errors.Is(err, ErrAuditNotRetained) {
+	if _, err := ProveAuditBypass(rec, transport.Ref{Path: "/tree"}); !errors.Is(err, ErrAuditNotRetained) {
 		t.Fatalf("ProveAuditBypass() error = %v, want ErrAuditNotRetained", err)
 	}
 }
@@ -528,7 +536,10 @@ func TestProveAuditBypassPropagatesCleanupFailure(t *testing.T) {
 	}
 	cleanupErr := errors.New("remove /probe-target: boom")
 	rec := &recordingTransport{getACL: orig, echoACLOnGet: true, cleanupErr: cleanupErr}
-	gotErr := ProveAuditBypass(rec, transport.Ref{Path: "/tree"})
+	proof, gotErr := ProveAuditBypass(rec, transport.Ref{Path: "/tree"})
+	if proof != (auditproof.Proof{}) {
+		t.Errorf("proof = %+v after a failed cleanup, want zero: the probe may still exist", proof)
+	}
 	if gotErr == nil || !strings.Contains(gotErr.Error(), cleanupErr.Error()) {
 		t.Fatalf("ProveAuditBypass() error = %v, want it to mention the cleanup failure %v", gotErr, cleanupErr)
 	}
