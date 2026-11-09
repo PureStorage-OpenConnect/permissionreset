@@ -46,8 +46,12 @@ Run every case on **disposable fixtures** built for the purpose, through the aut
 Never use production or user data. Cases that share a file system, export, identity configuration or
 snapshot must run one at a time.
 
-Use the binaries from the release archive whose checksum the offline record lists. Do not use a build
-from a checkout. `make release` runs `make clean` first, which deletes the host binaries that
+Use the archives attached to the candidate's draft release. Pushing a version tag runs the release
+workflow, which builds, smoke-checks and uploads the archives and their `SHA256SUMS` to a **draft**
+release and publishes nothing; a tag with a suffix (`v0.10.0-rc1`) is marked as a pre-release.
+Verify each download against that `SHA256SUMS` and record it. The offline script's local build
+carries a different build date, so its checksums differ: it qualifies the commit, not the shipped
+archives. Do not use a build from a checkout. `make release` runs `make clean` first, which deletes the host binaries that
 `make build` left in the checkout, so a lab script that calls them after packing fails. Run the
 unpacked archive's binaries instead. Record the client OS, array model and firmware, transport, mount options, and the
 credential category (for example "root, AUTH_SYS, no root squash" or "domain user without audit
@@ -143,6 +147,10 @@ Release only when:
 - every lab case passes, or is not run with an accepted, recorded reason;
 - the trial has been run and every intervention has a fix or an issue;
 - the exclusions are written into COMPATIBILITY.md and the release notes.
+
+Release by publishing the qualified draft as it is. Do not rebuild or re-upload its assets: a
+rebuild is a new artifact whose qualification has to be assessed again. If a fix is needed, tag a
+new candidate.
 
 Publishing and tagging need the release authorization of the session doing them. Having the
 credentials is not that authorization.
