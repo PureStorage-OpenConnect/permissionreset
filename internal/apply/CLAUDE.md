@@ -20,7 +20,9 @@ Permission application and validation for all protocols (posix, nfsv4, smb).
 - `applyPreserveSACL` (PS-04, #73) — an `acl:` rule with no `sacl:` key (`RulePerms.PreserveSACL()`):
   read the object (or use `CachedACL`), `nfs4acl.SplitRaw` it, write `EncodedACL()` ++ the object's
   existing audit/alarm region byte for byte (`nfs4acl.JoinRaw`). Read or parse failure → error,
-  no write. Audit ACEs naming nobody or id >= 1e9 → `ErrUnpreservableAudit`, no write. Dry run neither
+  no write. An object with any audit ACEs → `ErrAuditedObject`, no write, unless
+  `Options.AllowAuditedDACLReset` (`--allow-audited-dacl-reset`; `ProbePreflight` sets it for its
+  disposable target). Audit ACEs naming nobody or id >= 1e9 → `ErrUnpreservableAudit`, no write. Dry run neither
   reads nor writes. `Result.AuditKept` counts the entries carried. `validateNFSv4` checks only the
   DACL region for such a rule.
 - `CheckTraversePreserved(spec)` — rejects specs that would lock the walker out of child directories (no execute). A no-op for a DACL-keeping rule: `perms.ACL` is empty for one by definition, so there is no spec-defined DACL to inspect, and correctly so -- `applyKeepDACL` never changes an object's existing ALLOW/DENY entries, so it can never be the thing that locks the walk out.

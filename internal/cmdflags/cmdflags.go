@@ -353,6 +353,17 @@ func RegisterAcceptDACLFlattening(fs *flag.FlagSet) *bool {
 		"with --sacl, allow a sacl:-only (DACL-keeping) apply although FlashArray stores every inherited ACE it writes back as explicit and marks the DACL protected (D:P); effective access is kept, Windows inheritance is not. For SMB-written data, add the SACL over SMB instead")
 }
 
+// RegisterAllowAuditedDACLReset registers --allow-audited-dacl-reset. Without
+// it a DACL reset refuses each object that already carries audit ACEs
+// (apply.ErrAuditedObject): FlashArray marks the SACL and DACL protected on
+// any NFS ACL write (S:AI -> S:P, D:AI -> D:P), so the audit entries survive
+// but their Windows inheritance does not. The kernel transport cannot tell
+// FlashArray from FlashBlade, so the refusal applies on both.
+func RegisterAllowAuditedDACLReset(fs *flag.FlagSet) *bool {
+	return fs.Bool("allow-audited-dacl-reset", false,
+		"without --sacl, let a DACL reset write objects that carry audit ACEs. The audit entries are kept, but FlashArray marks the SACL and DACL protected (S:AI -> S:P, D:AI -> D:P), so their Windows inheritance is lost. For SMB-written data, reset those objects over SMB instead")
+}
+
 // RegisterAllowHighIDs registers --allow-high-ids. internal/run refuses to apply
 // a spec that names an id at or above 1000000000 without it: FlashBlade decodes
 // every such id as 1000000000+RID on an NFS write, so the ACE lands on a

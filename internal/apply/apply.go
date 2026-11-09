@@ -45,6 +45,11 @@ type Options struct {
 	// leaves this nil, and applyKeepDACL falls back to its own per-object
 	// GetACL -- there is no path from a missing or failed read to a write.
 	CachedACL []byte
+
+	// AllowAuditedDACLReset is --allow-audited-dacl-reset. Without it a DACL
+	// reset (an acl: rule with no sacl: key) refuses any object that already
+	// carries audit ACEs (ErrAuditedObject) instead of writing it.
+	AllowAuditedDACLReset bool
 }
 
 // uidGidCache caches name-to-id lookups so we don't hit nsswitch per file.
@@ -303,6 +308,17 @@ var ErrSyntheticRangePrincipal = errors.New("DACL names a principal whose id is 
 // would write a different SID into the SACL. The object is left untouched.
 var ErrUnpreservableAudit = errors.New("existing audit ACEs name a principal an NFS write-back would change, so the DACL reset that keeps them was not written -- give the principal an RFC 2307 id below 1000000000, or reset this object's SACL explicitly with --sacl")
 
+// ErrAuditedObject reports that a DACL reset met an object that already carries
+// audit ACEs and --allow-audited-dacl-reset was not given. FlashArray rewrites
+// the security descriptor control flags on any NFS ACL write: the SACL goes
+// from auto-inherited to protected (S:AI -> S:P) and the DACL is flattened
+// (D:AI -> D:P, RISKS.md #11), even when the bytes written are identical. The
+// audit entries themselves survive, but their inheritance does not, so the
+// object is not written. Not writing it does not freeze its access: FlashArray
+// recomputes an unprotected object's inherited ACEs whenever an ancestor's ACL
+// changes, so a refused child still follows its parent's reset.
+var ErrAuditedObject = errors.New("object carries audit ACEs, and an NFS ACL write makes FlashArray mark its SACL and DACL protected (S:AI -> S:P, D:AI -> D:P), so the DACL reset was not written -- reset it over SMB, or pass --allow-audited-dacl-reset to accept the header change")
+
 // checkMappedDACL fails with ErrUnmappedPrincipal or ErrSyntheticRangePrincipal,
 // naming the who values, when daclRaw carries a principal an NFS write-back
 // would not preserve.
@@ -490,6 +506,9 @@ func applyPreserveSACL(t transport.Transport, ref transport.Ref, perms *spec.Rul
 
 	want := perms.EncodedACL()
 	if saclCount > 0 {
+		if !opts.AllowAuditedDACLReset {
+			return Result{Error: fmt.Errorf("%s: %w (%d audit ACEs)", path, ErrAuditedObject, saclCount)}
+		}
 		if err := checkMappedDACL(saclRaw); err != nil {
 			return Result{Error: fmt.Errorf("%s: %w: %v", path, ErrUnpreservableAudit, err)}
 		}
@@ -996,7 +1015,10 @@ func ProbePreflight(t transport.Transport, ref transport.Ref, s *spec.Spec) (res
 	if attemptsWrite {
 		wrote = true
 	}
-	if err := ProcessPath(t, target, isDir, s, Options{DryRun: false}, 0).Error; err != nil {
+	// The probe target is disposable, so the audited-object refusal
+	// (ErrAuditedObject) does not apply to it: what it carries is restored and
+	// then removed.
+	if err := ProcessPath(t, target, isDir, s, Options{AllowAuditedDACLReset: true}, 0).Error; err != nil {
 		if len(matchedSacl) > 0 && isAuditAccessDenied(err) {
 			return fmt.Errorf("%w: %v", ErrAuditPrivilege, err)
 		}

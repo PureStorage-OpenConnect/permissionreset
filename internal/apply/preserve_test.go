@@ -3,6 +3,7 @@ package apply
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -75,7 +76,7 @@ func TestPreserveSACLCleanRootAuditedDescendants(t *testing.T) {
 	isDir := map[string]bool{"/t": true, "/t/d": true, "/t/g": true}
 	kept := 0
 	for p := range before {
-		r := ProcessPath(tr, transport.Ref{Path: p}, isDir[p], s, Options{}, 0)
+		r := ProcessPath(tr, transport.Ref{Path: p}, isDir[p], s, Options{AllowAuditedDACLReset: true}, 0)
 		if r.Error != nil {
 			t.Fatalf("%s: %v", p, r.Error)
 		}
@@ -101,7 +102,7 @@ func TestPreserveSACLCleanRootAuditedDescendants(t *testing.T) {
 	// --compare on the converged tree reads and writes nothing new.
 	sets := tr.sets
 	for p := range before {
-		if r := ProcessPath(tr, transport.Ref{Path: p}, isDir[p], s, Options{Compare: true}, 0); !r.Skipped || r.Error != nil {
+		if r := ProcessPath(tr, transport.Ref{Path: p}, isDir[p], s, Options{Compare: true, AllowAuditedDACLReset: true}, 0); !r.Skipped || r.Error != nil {
 			t.Errorf("%s: second pass = %+v, want skipped", p, r)
 		}
 	}
@@ -122,7 +123,7 @@ func TestSaclKeyForms(t *testing.T) {
 		{"nonempty", preserveSpec + "  sacl:\n    - \"U:SF:EVERYONE@:rwaD\"\n", []nfs4acl.ACE{{Type: nfs4acl.TypeAudit, Flags: nfs4acl.FlagSuccessAccess | nfs4acl.FlagFailedAccess, Who: "EVERYONE@", Mask: nfs4acl.MaskReadData | nfs4acl.MaskWriteData | nfs4acl.MaskAppendData | nfs4acl.MaskDeleteChild}}},
 	} {
 		tr := &treeTransport{acls: map[string][]byte{"/f": orig}}
-		if r := ProcessPath(tr, transport.Ref{Path: "/f"}, false, loadNFSv4Spec(t, tc.body), Options{}, 0); r.Error != nil {
+		if r := ProcessPath(tr, transport.Ref{Path: "/f"}, false, loadNFSv4Spec(t, tc.body), Options{AllowAuditedDACLReset: true}, 0); r.Error != nil {
 			t.Fatalf("%s: %v", tc.name, r.Error)
 		}
 		_, _, got, err := nfs4acl.SplitACL(tr.acls["/f"])
@@ -141,7 +142,7 @@ func TestPreserveSACLMixedRules(t *testing.T) {
 	orig := nfs4acl.Encode([]nfs4acl.ACE{allowEveryone, auditFile})
 	tr := &treeTransport{acls: map[string][]byte{"/a.txt": orig, "/b.log": orig}}
 	for _, p := range []string{"/a.txt", "/b.log"} {
-		if r := ProcessPath(tr, transport.Ref{Path: p}, false, s, Options{}, 0); r.Error != nil {
+		if r := ProcessPath(tr, transport.Ref{Path: p}, false, s, Options{AllowAuditedDACLReset: true}, 0); r.Error != nil {
 			t.Fatalf("%s: %v", p, r.Error)
 		}
 	}
@@ -164,7 +165,7 @@ func TestPreserveSACLFailsClosed(t *testing.T) {
 		"nobody":     {getACL: nfs4acl.Encode([]nfs4acl.ACE{allowEveryone, {Type: nfs4acl.TypeAudit, Flags: nfs4acl.FlagFailedAccess, Who: "65534", Mask: nfs4acl.MaskReadData}})},
 		"high id":    {getACL: nfs4acl.Encode([]nfs4acl.ACE{allowEveryone, {Type: nfs4acl.TypeAudit, Flags: nfs4acl.FlagFailedAccess, Who: "2000000003", Mask: nfs4acl.MaskReadData}})},
 	} {
-		r := ProcessPath(tr, transport.Ref{Path: "/f"}, false, s, Options{}, 0)
+		r := ProcessPath(tr, transport.Ref{Path: "/f"}, false, s, Options{AllowAuditedDACLReset: true}, 0)
 		if r.Error == nil || len(tr.setACLCalls) != 0 {
 			t.Errorf("%s: error = %v, writes = %d; want an error and no write", name, r.Error, len(tr.setACLCalls))
 		}
@@ -180,7 +181,7 @@ func TestPreserveSACLCachedReadAndDryRun(t *testing.T) {
 	s := loadNFSv4Spec(t, preserveSpec)
 	orig := nfs4acl.Encode([]nfs4acl.ACE{allowEveryone, auditFile})
 	rec := &recordingTransport{}
-	r := ProcessPath(rec, transport.Ref{Path: "/f"}, false, s, Options{CachedACL: orig}, 0)
+	r := ProcessPath(rec, transport.Ref{Path: "/f"}, false, s, Options{CachedACL: orig, AllowAuditedDACLReset: true}, 0)
 	if r.Error != nil || rec.getACLCalls != 0 || len(rec.setACLCalls) != 1 || r.AuditKept != 1 {
 		t.Fatalf("cached: %+v, reads %d, writes %d", r, rec.getACLCalls, len(rec.setACLCalls))
 	}
@@ -204,5 +205,25 @@ func TestValidatePreserveSACLIgnoresAudit(t *testing.T) {
 	wrong := nfs4acl.Encode([]nfs4acl.ACE{allowEveryone, auditFile})
 	if r := ValidatePath(&recordingTransport{}, transport.Ref{Path: "/f"}, false, s, 0, wrong, nil); r.Matches {
 		t.Error("wrong DACL + audit matched")
+	}
+}
+
+// Without --allow-audited-dacl-reset a DACL reset refuses an object that
+// carries audit ACEs and writes nothing (FA marks the SACL and DACL protected
+// on any NFS ACL write). An object with no audit ACEs is still written.
+func TestPreserveSACLRefusesAuditedObject(t *testing.T) {
+	s := loadNFSv4Spec(t, preserveSpec)
+	rec := &recordingTransport{getACL: nfs4acl.Encode([]nfs4acl.ACE{allowEveryone, auditFile})}
+	r := ProcessPath(rec, transport.Ref{Path: "/f"}, false, s, Options{}, 0)
+	if !errors.Is(r.Error, ErrAuditedObject) || len(rec.setACLCalls) != 0 {
+		t.Fatalf("audited: error = %v, writes = %d; want ErrAuditedObject and no write", r.Error, len(rec.setACLCalls))
+	}
+	if !strings.HasPrefix(r.Error.Error(), "/f: ") {
+		t.Errorf("audited: error = %q, want it to name the object so the log and evidence can attribute it", r.Error)
+	}
+
+	rec = &recordingTransport{getACL: nfs4acl.Encode([]nfs4acl.ACE{allowEveryone})}
+	if r := ProcessPath(rec, transport.Ref{Path: "/f"}, false, s, Options{}, 0); r.Error != nil || len(rec.setACLCalls) != 1 {
+		t.Fatalf("unaudited: error = %v, writes = %d; want one write", r.Error, len(rec.setACLCalls))
 	}
 }
