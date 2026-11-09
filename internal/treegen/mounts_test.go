@@ -164,3 +164,26 @@ func TestResolveExportRelTargetCollapsesDotDotLikeTheFanOut(t *testing.T) {
 		t.Fatalf("note = %q, want it to name /fb-perms/foo, where the tree is actually created", note)
 	}
 }
+
+// A mount-free TARGET written export-qualified, the way the server spells it,
+// must not have the export doubled: /fb-perms/x is /fb-perms/x, not
+// /fb-perms/fb-perms/x. Only whole leading components are stripped.
+func TestResolveExportRelTargetStripsALeadingExport(t *testing.T) {
+	for _, c := range []struct{ target, export, want string }{
+		{"/fb-perms/x", "/fb-perms", "x"},
+		{"/fb-perms/x/y", "fb-perms/", "x/y"},
+		{"/fb-perms", "/fb-perms", ""},
+		{"/fb-permsx/y", "/fb-perms", "fb-permsx/y"},
+		{"/bigdata", "/fb-perms", "bigdata"},
+		{"/a/b/x", "/a/b", "x"},
+		{"/x", "/", "x"},
+	} {
+		rel, note, err := resolveExportRelTarget(c.target, c.export, nil)
+		if err != nil {
+			t.Fatalf("%s: %v", c.target, err)
+		}
+		if rel != c.want {
+			t.Errorf("%s under export %s: relTarget = %q, want %q (note %q)", c.target, c.export, rel, c.want, note)
+		}
+	}
+}
