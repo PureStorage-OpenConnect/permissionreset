@@ -2,7 +2,46 @@
 
 Date: 2026-11-01  
 Review baseline: `dea247c`; findings rechecked on `ca9c2e6` (2026-11-02)  
-Status: proposed execution plan; implementation has not started
+Status: implementation merged (PRs A to E); release acceptance in progress, see [Status](#status-2026-11-05)
+
+## Status (2026-11-05)
+
+Implementation of PRs A to E is merged on `main` (`0ed7524`). Qualification is not complete: the
+tool is not yet a self-service release.
+
+| PR | Merged | Remaining |
+|---|---|---|
+| A: capture commands | #16 | None |
+| B: live-read safety | #12, #13, #15 | Independent review; `ErrAuditNotRetained` untested on hardware |
+| C: release packaging | #18 (CI: #17) | Smoke checks run on local builds; no published release yet |
+| D: docs and contract | #19, #20 | None found so far; the external-reader trial may surface more |
+| E: acceptance | #24 | Lab cases below; external-reader trial |
+
+R1 to R7 are addressed in those PRs. R6 is addressed in the docs, and the external-reader trial still has to confirm that.
+
+Lab matrix ([release acceptance](docs/release-acceptance.md)), run on candidate `46ee74a`:
+
+- **Passed:** L1, L4 (the procedure part), L5, L6, L7 and L9.
+- **Already covered by earlier lab records:** L2, L3 and L8.
+- **L10 partly done:** Linux routes from local archives only. macOS and a download from a published release are not run.
+
+The changes since `46ee74a` are:
+
+- documentation and procedure;
+- the GUI-only echo bump (#25);
+- a test-only cleanup.
+
+None touches the command-line code paths those cases ran. The evidence record must still name
+`46ee74a` as the commit tested. The lab's findings on the procedure were folded into #24.
+
+Open before release:
+
+- External-reader trial.
+- L10 on macOS, and a download from a published release.
+- Independent review of PR B.
+- Whether to stop the DACL-flattening gate printing its FlashArray-specific wording on FlashBlade (a product decision).
+- Future-backlog issues.
+- Release notes and the sanitized evidence record.
 
 ## Objective and release decision
 
@@ -327,14 +366,14 @@ For each issue, include the user problem, concrete acceptance criteria, affected
 ## Merge and release checklist for the integration lead
 
 - [ ] Current source and review findings reconciled; superseded findings recorded.
-- [ ] Behavior contract settled before final operator wording.
-- [ ] PR A merged or its exact command fixes integrated into PR D.
+- [x] Behavior contract settled before final operator wording.
+- [x] PR A merged or its exact command fixes integrated into PR D.
 - [ ] PR B reviewed independently; supported live-read cases verified or explicitly withheld.
-- [ ] PR C archives complete and smoke-tested away from the checkout.
-- [ ] PR D beginner journey, semantics, compatibility, and platform instructions agree.
+- [x] PR C archives complete and smoke-tested away from the checkout.
+- [x] PR D beginner journey, semantics, compatibility, and platform instructions agree.
 - [ ] PR E checks run against the exact candidate; limits recorded honestly.
 - [ ] External-reader trial completed without maintainer coaching.
-- [ ] Snapshot recovery and ordinary-user allow/deny tests verified on disposable fixtures.
+- [x] Snapshot recovery and ordinary-user allow/deny tests verified on disposable fixtures (L9, L1 on `46ee74a`).
 - [ ] Public artifact scan and required CI gates passed, or explicit blockers remain open.
 - [ ] Remaining improvements captured as issues with no release blockers mislabeled as follow-ups.
 - [ ] Release notes name observable behavior changes, prerequisites, limitations, and upgrade effects.

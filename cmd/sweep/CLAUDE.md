@@ -84,3 +84,21 @@ pair and writes the winner to `permissionreset-tuning.yaml`.
 - `internal/tuning` — file schema, key construction, param validation, mount resolution
 - `internal/spec` — spec loading for trial configuration
 - `internal/signals` — signal watch, escalation
+
+## Running a sweep (moved from root CLAUDE.md)
+
+#### Build and run
+
+```bash
+PATH="/usr/local/go/bin:$PATH" go build -o sweep ./cmd/sweep/
+./sweep --scratch /mnt/fb/sweep --server 192.0.2.50 --export /fb --transport userspace --spec examples/nfsv4_complex.yaml --principals examples/principals_example_nfs.json --scale large --regenerate-scratch
+```
+
+`--regenerate-scratch` is needed on a first run: `--reuse-scratch` defaults to true, so without it
+the sweeper looks for an existing `acl_manifest.json` under `--scratch` and refuses when there is
+none. Drop it on later runs to re-measure the same tree.
+
+A kernel NFS mount is required even for a userspace sweep — tree generation goes through the POSIX
+provisioner, so `--scratch` must be a directory under a mount (not the mount point, not the export
+root). A kernel sweep additionally wants root, so each trial can `drop_caches` and remount; without
+root it warns once and continues with warm caches.
