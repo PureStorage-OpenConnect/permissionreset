@@ -87,7 +87,10 @@ What capture emits:
 - The proof shows that this client, with this identity, keeps audit entries on this export. It does
   not prove the array's audit policy.
 - A passing proof does not show that the identity is privileged. On an array that does not gate
-  audit writes by privilege, any identity that can create the probe passes.
+  audit writes by privilege, any identity that can create the probe passes. Observed on one lab
+  FlashBlade over `sec=sys`: a domain user with no admin groups passed the proof on both
+  transports, and the array kept the probe's audit entry. This is one observation, not a product
+  claim about FlashBlade.
 - `ErrAuditPrivilege` has been tested on hardware: FlashArray Purity//FA 6.10.x and 6.12.x, kernel
   transport, as a domain user without the audit bypass. `--apply`, `--validate` and a `--sacl`
   DACL-keeping `--apply` each stopped when the probe's audit write was refused. No live ACL was
