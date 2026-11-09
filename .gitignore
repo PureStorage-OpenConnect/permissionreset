@@ -29,3 +29,6 @@ CLAUDE.local.md
 
 # Offline release-acceptance output (tools/release/acceptance-offline.sh)
 /acceptance-*/
+
+# Private public-scan denylist (a symlink to the lab checkout); never publish.
+/tools/public-scan/denylist.txt
