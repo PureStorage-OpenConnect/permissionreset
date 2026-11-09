@@ -122,6 +122,11 @@ type Options struct {
 	// exemplar's ACL (PS-02). The Reader must also be an auditproof.Prober.
 	ProbeDir string
 
+	// OnProof, when set, is called once the audit-bypass proof under ProbeDir
+	// passes and before either exemplar's ACL is read, so a caller can report
+	// the proof in order with the reads (#31).
+	OnProof func(auditproof.Proof)
+
 	// AcceptUnprovenRead reads the exemplars with no proof. On an array where
 	// an unprivileged read empties inherited auditing, that read can change
 	// the exemplars. Ignored when ProbeDir is set.
@@ -143,8 +148,12 @@ func proveReadSafe(r Reader, opts Options) (note string, err error) {
 		if !ok {
 			return "", fmt.Errorf("probe directory %q: this transport cannot create a disposable probe", opts.ProbeDir)
 		}
-		if err := auditproof.Prove(p, transport.Ref{Path: opts.ProbeDir}); err != nil {
+		proof, err := auditproof.Prove(p, transport.Ref{Path: opts.ProbeDir})
+		if err != nil {
 			return "", fmt.Errorf("probe directory %q: %w", opts.ProbeDir, err)
+		}
+		if opts.OnProof != nil {
+			opts.OnProof(proof)
 		}
 		return "", nil
 	}

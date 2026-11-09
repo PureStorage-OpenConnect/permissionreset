@@ -254,6 +254,48 @@ func TestPreflightProvesAuditBypassBeforeAnyLiveRootRead(t *testing.T) {
 	}
 }
 
+// callTraceWriter puts each stderr write into the transport's call trace, so
+// a test can see where in the call order a line was printed.
+type callTraceWriter struct{ calls *[]string }
+
+func (w callTraceWriter) Write(b []byte) (int, error) {
+	*w.calls = append(*w.calls, "stderr:"+strings.TrimRight(string(b), "\n"))
+	return len(b), nil
+}
+
+// TestPreflightReportsTheProofBeforeTheFirstLiveRead pins #31: a passed proof
+// prints one NOTE naming the probe, after the probe is removed and before the
+// live root is first read or written, so the output alone shows the order.
+func TestPreflightReportsTheProofBeforeTheFirstLiveRead(t *testing.T) {
+	_, s := writeSpec(t, "protocol: nfsv4\ndefault:\n  sacl:\n    - \"U:SF:EVERYONE@:rwaD\"\n")
+	tr := &orderingTransport{
+		probeACL: nfs4acl.Encode([]nfs4acl.ACE{{Type: nfs4acl.TypeAllow, Who: "OWNER@", Mask: nfs4acl.MaskReadData}}),
+		rootACL:  nfs4acl.Encode([]nfs4acl.ACE{{Type: nfs4acl.TypeAllow, Who: "1402", Mask: nfs4acl.MaskReadData}}),
+	}
+	if err := runPreflight(tr, Config{Root: "/tree", Spec: s}, callTraceWriter{&tr.calls}); err != nil {
+		t.Fatalf("runPreflight() error = %v; call trace=%v", err, tr.calls)
+	}
+	const want = "stderr:NOTE: audit-bypass proof passed: the array kept an audit ACE written to disposable probe directory /probe-target, and the probe was removed"
+	cleanupIdx, noteIdx, firstRootTouch := -1, -1, -1
+	for i, c := range tr.calls {
+		switch {
+		case c == "cleanup:/probe-target" && cleanupIdx == -1:
+			cleanupIdx = i
+		case c == want && noteIdx == -1:
+			noteIdx = i
+		case strings.HasSuffix(c, ":/tree") && firstRootTouch == -1:
+			firstRootTouch = i
+		}
+	}
+	if noteIdx == -1 {
+		t.Fatalf("no proof NOTE %q; call trace=%v", want, tr.calls)
+	}
+	if noteIdx < cleanupIdx || firstRootTouch == -1 || noteIdx > firstRootTouch {
+		t.Fatalf("proof NOTE at %d, want after cleanup (%d) and before the first live root touch (%d); call trace=%v",
+			noteIdx, cleanupIdx, firstRootTouch, tr.calls)
+	}
+}
+
 // TestPreflightRefusesWithoutTouchingLiveRootWhenBypassProofFails pins the
 // fail-closed half of PS-02: when the disposable-probe privilege proof
 // itself fails, runPreflight must refuse before ever reading or writing the
@@ -271,6 +313,9 @@ func TestPreflightRefusesWithoutTouchingLiveRootWhenBypassProofFails(t *testing.
 		if strings.HasSuffix(c, ":/tree") {
 			t.Fatalf("live root was touched (%q) despite a failed bypass proof; call trace=%v", c, tr.calls)
 		}
+	}
+	if strings.Contains(errOut.String(), "proof passed") {
+		t.Errorf("a failed proof printed the passed line:\n%s", errOut.String())
 	}
 }
 

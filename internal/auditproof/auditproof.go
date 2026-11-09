@@ -35,6 +35,22 @@ type Prober interface {
 	SetACL(transport.Ref, []byte) error
 }
 
+// Proof describes a proof that passed. Its String is the one line callers print
+// before the first live ACL read, so an operator or a qualification run can see
+// from the output alone that the proof ran, and that it ran first (#31).
+type Proof struct {
+	Probe string // the disposable probe object; removed before Prove returned
+	IsDir bool   // the probe was a directory (userspace) rather than a file (kernel)
+}
+
+func (p Proof) String() string {
+	kind := "file"
+	if p.IsDir {
+		kind = "directory"
+	}
+	return fmt.Sprintf("audit-bypass proof passed: the array kept an audit ACE written to disposable probe %s %s, and the probe was removed", kind, p.Probe)
+}
+
 // PlaceholderACE is the probe's audit ACE. The probe object is removed
 // afterwards, so the entry never reaches a live object.
 var PlaceholderACE = nfs4acl.ACE{
@@ -50,15 +66,17 @@ var PlaceholderACE = nfs4acl.ACE{
 // sees the ACL it inherited from dir; that object is new and disposable, so
 // nothing an unprivileged read could empty there is worth keeping.
 //
-// The returned error wraps ErrAuditPrivilege when the write is refused and is
-// ErrAuditNotRetained when the read-back has no audit ACE.
-func Prove(p Prober, dir transport.Ref) (resultErr error) {
-	target, _, cleanup, err := p.ProbeTarget(dir)
+// On success it returns the Proof to report. The returned error wraps
+// ErrAuditPrivilege when the write is refused and is ErrAuditNotRetained when
+// the read-back has no audit ACE; on any error the Proof is zero.
+func Prove(p Prober, dir transport.Ref) (proof Proof, resultErr error) {
+	target, isDir, cleanup, err := p.ProbeTarget(dir)
 	if err != nil {
-		return fmt.Errorf("prove audit bypass: %w", err)
+		return Proof{}, fmt.Errorf("prove audit bypass: %w", err)
 	}
 	defer func() {
 		if err := cleanup(); err != nil {
+			proof = Proof{}
 			if resultErr != nil {
 				resultErr = fmt.Errorf("%w (also failed to clean up probe: %v)", resultErr, err)
 			} else {
@@ -69,35 +87,35 @@ func Prove(p Prober, dir transport.Ref) (resultErr error) {
 
 	orig, err := p.GetACL(target)
 	if err != nil {
-		return fmt.Errorf("prove audit bypass: read probe target's ACL: %w", err)
+		return Proof{}, fmt.Errorf("prove audit bypass: read probe target's ACL: %w", err)
 	}
 	dacl, daclCount, _, err := nfs4acl.SplitACL(orig)
 	if err != nil {
-		return fmt.Errorf("prove audit bypass: split probe target's ACL: %w", err)
+		return Proof{}, fmt.Errorf("prove audit bypass: split probe target's ACL: %w", err)
 	}
 	if daclCount == 0 {
-		return fmt.Errorf("prove audit bypass: disposable probe target %s has no ALLOW/DENY entries to probe against", target.Path)
+		return Proof{}, fmt.Errorf("prove audit bypass: disposable probe target %s has no ALLOW/DENY entries to probe against", target.Path)
 	}
 
 	if err := p.SetACL(target, nfs4acl.JoinACL(dacl, FileShaped([]nfs4acl.ACE{PlaceholderACE}))); err != nil {
 		if IsAccessDenied(err) {
-			return fmt.Errorf("%w: %v", ErrAuditPrivilege, err)
+			return Proof{}, fmt.Errorf("%w: %v", ErrAuditPrivilege, err)
 		}
-		return fmt.Errorf("prove audit bypass: probe write: %w", err)
+		return Proof{}, fmt.Errorf("prove audit bypass: probe write: %w", err)
 	}
 
 	got, err := p.GetACL(target)
 	if err != nil {
-		return fmt.Errorf("prove audit bypass: probe read-back: %w", err)
+		return Proof{}, fmt.Errorf("prove audit bypass: probe read-back: %w", err)
 	}
 	aces, err := nfs4acl.DecodeACL(got)
 	if err != nil {
-		return fmt.Errorf("prove audit bypass: decode probe read-back: %w", err)
+		return Proof{}, fmt.Errorf("prove audit bypass: decode probe read-back: %w", err)
 	}
 	if !HasAuditACE(aces) {
-		return ErrAuditNotRetained
+		return Proof{}, ErrAuditNotRetained
 	}
-	return nil
+	return Proof{Probe: target.Path, IsDir: isDir}, nil
 }
 
 // nfsStatuser is implemented by the userspace client's status errors.

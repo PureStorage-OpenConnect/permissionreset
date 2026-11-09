@@ -991,6 +991,15 @@ func TestRunProbeDirProvesBeforeCapture(t *testing.T) {
 	if strings.Contains(stderr, "no audit-bypass proof") {
 		t.Errorf("proven capture printed the unproven-read note:\n%s", stderr)
 	}
+	// #31: the passed proof is reported, naming the probe, ahead of every other
+	// NOTE (those are printed after the capture has read the exemplars).
+	const passed = "NOTE: audit-bypass proof passed: the array kept an audit ACE written to disposable probe file /mnt/scratch/.probe"
+	if !strings.Contains(stderr, passed) {
+		t.Fatalf("stderr missing the proof line %q:\n%s", passed, stderr)
+	}
+	if i := strings.Index(stderr, "NOTE: "); i != strings.Index(stderr, passed) {
+		t.Errorf("another NOTE precedes the proof line:\n%s", stderr)
+	}
 }
 
 func TestRunAcceptUnprovenReadPrintsTheNote(t *testing.T) {
@@ -1000,6 +1009,9 @@ func TestRunAcceptUnprovenReadPrintsTheNote(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "NOTE: the exemplar ACLs were read with no audit-bypass proof") {
 		t.Errorf("stderr missing the unproven-read NOTE:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "proof passed") {
+		t.Errorf("an unproven read reported a passed proof:\n%s", stderr)
 	}
 }
 

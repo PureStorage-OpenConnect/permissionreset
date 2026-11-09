@@ -185,7 +185,10 @@ func run(args []string, stdout, stderr io.Writer, d deps) int {
 		fmt.Fprintln(stderr, w)
 	}
 
-	opts := speccapture.Options{WithDACL: *f.withDACL, ProbeDir: *f.probeDir, AcceptUnprovenRead: *f.acceptRead}
+	opts := speccapture.Options{WithDACL: *f.withDACL, ProbeDir: *f.probeDir, AcceptUnprovenRead: *f.acceptRead,
+		// Printed as it happens, not with the other notes after the capture, so the
+		// output shows the proof ran before either exemplar was read (#31).
+		OnProof: func(p auditproof.Proof) { fmt.Fprintln(stderr, "NOTE: "+p.String()) }}
 	switch *f.transportFl {
 	case "kernel":
 		return runKernel(fs.Arg(0), fs.Arg(1), *f.output, *f.verifyWrite, opts, d, stdout, stderr)

@@ -19,6 +19,17 @@ A failure at any step stops the run before the first live read. The errors are
 `ErrAuditPrivilege` (the write was refused) and `ErrAuditNotRetained` (the entry was dropped).
 A POSIX spec has no audit entries and no probe.
 
+A passed proof prints one line on stderr, before the first live read (#31):
+
+```
+NOTE: audit-bypass proof passed: the array kept an audit ACE written to disposable probe file <probe>, and the probe was removed
+```
+
+`<probe>` is the probe's path, and `file` becomes `directory` on the userspace transport, whose
+probe is a directory. `permissionreset` and the `build-spec` CLI print it. The GUI does not show it
+yet. A run that prints no such line made no proof: it read no live ACL (a POSIX spec, a dry run),
+or it ran with `--accept-unproven-read`, which prints its own NOTE.
+
 `--validate` and capture write only this 1 probe. An `--apply` run then writes more disposable
 probes in the target for the preflight, which writes the spec's DACL. The run removes all of them.
 

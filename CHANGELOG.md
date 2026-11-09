@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `permissionreset` and `build-spec` print a NOTE when the audit-bypass proof passes. It names the
+  disposable probe and is printed before the first live ACL read. Before this, a passed proof
+  printed nothing, so the run output could not show that the proof ran, or that it ran first
+  (#31).
+
 ### Changed
 
 - Without `--sacl`, a DACL reset now refuses each object that already carries audit ACEs
