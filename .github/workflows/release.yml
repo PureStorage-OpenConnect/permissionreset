@@ -1,4 +1,7 @@
-# Build and publish a GitHub release when a version tag is pushed.
+# Build a DRAFT GitHub release when a version tag is pushed. Nothing is published here: the
+# release-acceptance lab runs qualify these exact assets and their SHA256SUMS, and a maintainer
+# then publishes the draft (docs/release-acceptance.md). A tag with a suffix (v0.10.0-rc1) is
+# marked as a pre-release.
 # Release creation calls the GitHub API with curl rather than a third-party action, so the job
 # depends on nothing outside the actions/* namespace.
 # Runs only in the public repository; a private mirror runs its own workflow instead.
@@ -68,8 +71,13 @@ jobs:
           tag="${GITHUB_REF_NAME}"
           repo="${GITHUB_REPOSITORY}"
           api="https://api.github.com"
+          case "$tag" in
+            *-*) prerelease=true ;;
+            *)   prerelease=false ;;
+          esac
 
-          # Create the release
+          # Create the release as a draft: qualification runs on these assets before anyone
+          # publishes them, and a rebuild would be a new, unqualified artifact.
           release_json=$(curl -sfS \
             -X POST \
             -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -78,6 +86,8 @@ jobs:
             -d "{
               \"tag_name\": \"${tag}\",
               \"name\": \"${tag}\",
+              \"draft\": true,
+              \"prerelease\": ${prerelease},
               \"generate_release_notes\": true
             }")
 
@@ -111,4 +121,4 @@ jobs:
 
           done
 
-          echo "All assets uploaded."
+          echo "All assets uploaded to the draft release. Publish it only after qualification."
