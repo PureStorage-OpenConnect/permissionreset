@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- An interrupted run's summary was headed `Complete:` (`Validation complete:` for `--validate`),
+  although the run exited 1 and printed `INTERRUPTED:` on stderr. It is now headed
+  `Incomplete (interrupted):`, or `Incomplete (stopped making changes after an evidence or log
+  write failed):`. Found by release acceptance case L8 on `v0.10.0-rc1`.
+
 ## [0.10.0-rc1] - 2026-11-09
 
 First public pre-release. It is qualified for one use: a DACL reset (`acl:` rules, no `--sacl`)
