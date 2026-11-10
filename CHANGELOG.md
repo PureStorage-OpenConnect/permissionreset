@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0-rc2] - 2026-11-10
+
+Pre-release, qualified for the same single use as 0.10.0-rc1: a DACL reset on FlashBlade over
+NFSv4.1, from Linux, on the kernel and userspace transports. The release notes hold the
+acceptance record. 0.10.0-rc1 was tagged and qualified but not published.
+
 ### Fixed
 
 - An interrupted run's summary was headed `Complete:` (`Validation complete:` for `--validate`),
