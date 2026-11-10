@@ -87,11 +87,21 @@ ids in AD.
 The spec has `sacl:` (even `sacl: []`) and `--sacl` was not passed. Add `--sacl` if this is a
 audit run (FlashArray, or FlashBlade, which also stores audit ACEs on multiprotocol file systems).
 
+### `object carries audit ACEs, so the DACL reset was not written`
+
+A DACL reset without `--sacl` found audit ACEs on this object and did not write it. On FlashArray,
+any NFS ACL write marks the object's SACL and DACL protected (`S:AI` → `S:P`, `D:AI` → `D:P`), so
+the audit entries would survive but lose their Windows inheritance: reset those objects over SMB.
+On FlashBlade, or when you accept that change on FlashArray, rerun with
+`--allow-audited-dacl-reset`. The reset then writes the spec's DACL and keeps the object's audit
+ACEs byte for byte, and the summary's `Audit kept:` line counts those objects.
+
 ### `existing audit ACEs name a principal an NFS write-back would change`
 
 A DACL reset without `--sacl` keeps each object's audit ACEs by reading them and writing them back.
 This object's audit ACEs name `nobody` or an id at or above 1000000000, which the write-back would
-change, so the object was not written. Give the principal an RFC 2307 id below 1000000000, or reset
+change, so the object was not written. The `who:` list names those principals; they are in the audit
+entries, not the DACL. Give the principal an RFC 2307 id below 1000000000, or reset
 the object's auditing on purpose with `--sacl` and a `sacl:` key.
 
 ### `getxattr ... (needed to keep its audit ACEs)` or `parse ACL of ... (needed to keep its audit ACEs)`

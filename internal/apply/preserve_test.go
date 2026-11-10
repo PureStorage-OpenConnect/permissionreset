@@ -3,6 +3,7 @@ package apply
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -175,6 +176,24 @@ func TestPreserveSACLFailsClosed(t *testing.T) {
 	}
 }
 
+// The unpreservable-audit refusal names the audit entries as the source and
+// lists the principal once. It used to wrap the DACL check's text, which said
+// the DACL named the principal.
+func TestPreserveSACLUnpreservableNamesTheAuditEntries(t *testing.T) {
+	s := loadNFSv4Spec(t, preserveSpec)
+	for who, want := range map[string]string{"65534": "(who: 65534)", "2000000003": "(who: 2000000003)"} {
+		tr := &recordingTransport{getACL: nfs4acl.Encode([]nfs4acl.ACE{allowEveryone, {Type: nfs4acl.TypeAudit, Flags: nfs4acl.FlagFailedAccess, Who: who, Mask: nfs4acl.MaskReadData}})}
+		r := ProcessPath(tr, transport.Ref{Path: "/f"}, false, s, Options{AllowAuditedDACLReset: true}, 0)
+		msg := fmt.Sprint(r.Error)
+		if !strings.HasPrefix(msg, "/f: existing audit ACEs name a principal") || !strings.Contains(msg, want) {
+			t.Errorf("%s: error = %q, want the object, the audit-entry wording and %s", who, msg, want)
+		}
+		if strings.Contains(msg, "DACL names") || errors.Is(r.Error, ErrUnmappedPrincipal) || errors.Is(r.Error, ErrSyntheticRangePrincipal) {
+			t.Errorf("%s: error = %q, describes the DACL as the source", who, msg)
+		}
+	}
+}
+
 // A batch read is used instead of a second per-object read, and a dry run
 // reads nothing at all.
 func TestPreserveSACLCachedReadAndDryRun(t *testing.T) {
@@ -220,6 +239,12 @@ func TestPreserveSACLRefusesAuditedObject(t *testing.T) {
 	}
 	if !strings.HasPrefix(r.Error.Error(), "/f: ") {
 		t.Errorf("audited: error = %q, want it to name the object so the log and evidence can attribute it", r.Error)
+	}
+	// The refusal fires on FlashBlade too, so it must not say the target is a
+	// FlashArray: it names FlashArray as the reason and gives both ways out.
+	if msg := r.Error.Error(); strings.Contains(msg, "makes FlashArray mark its") ||
+		!strings.Contains(msg, "on FlashArray an NFS ACL write") || !strings.Contains(msg, "--allow-audited-dacl-reset") {
+		t.Errorf("audited: error = %q, want platform-neutral wording", msg)
 	}
 
 	rec = &recordingTransport{getACL: nfs4acl.Encode([]nfs4acl.ACE{allowEveryone})}

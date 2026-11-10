@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The audited-object refusal of a DACL reset no longer says the write "makes FlashArray mark"
+  the ACL protected, which read as a claim about the target on FlashBlade too. It names
+  FlashArray as the reason and gives both ways out: reset FlashArray objects over SMB, or pass
+  `--allow-audited-dacl-reset`.
+- The unpreservable-audit refusal (`existing audit ACEs name a principal ...`) lists the
+  principals in its own `(who: ...)` and no longer appends the DACL check's text, which said the
+  DACL named them.
+
 ## [0.10.0-rc2] - 2026-11-10
 
 Pre-release, qualified for the same single use as 0.10.0-rc1: a DACL reset on FlashBlade over
