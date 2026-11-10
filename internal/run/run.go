@@ -122,6 +122,20 @@ func proveAuditBypass(tr transport.Transport, cfg Config, errOut io.Writer) erro
 	return nil
 }
 
+// summaryHeading names the summary block. Only a run that reached the end of the tree says it is
+// complete: an interrupted run, or one that stopped making changes after an evidence or log write
+// failed, is headed incomplete with the reason, so stdout alone never claims a completion the
+// exit code and stderr deny (release acceptance L8).
+func summaryHeading(complete, incomplete string, interrupted, stopped bool) string {
+	switch {
+	case stopped:
+		return incomplete + " (stopped making changes after an evidence or log write failed):"
+	case interrupted:
+		return incomplete + " (interrupted):"
+	}
+	return complete + ":"
+}
+
 // proveAndReport runs the audit-bypass proof and, when it passes, prints one
 // line saying so. Both callers run it before any live ACL read, so the line's
 // place in the output shows the proof came first (#31). A failure is returned
@@ -1253,7 +1267,7 @@ func Run(ctx context.Context, cfg Config, out io.Writer) (result Result, runErr 
 	result.HandedOff = handoff.reached()
 	reachedEnd = true
 
-	fmt.Fprintln(out, "\nComplete:")
+	fmt.Fprintln(out, "\n"+summaryHeading("Complete", "Incomplete", result.Interrupted, result.EvidenceStopped))
 	fmt.Fprintf(out, "  Enumerated: %d\n", result.Stats.Enumerated)
 	fmt.Fprintf(out, "  Applied:    %d\n", result.Stats.Applied)
 	fmt.Fprintf(out, "  Skipped:    %d (already correct)\n", result.Stats.Skipped)
@@ -1666,7 +1680,7 @@ func runValidate(ctx context.Context, tr transport.Transport, cfg Config, base R
 	totalErrs := errCount + result.WalkErrors
 	result.TotalErrors = totalErrs
 
-	fmt.Fprintln(out, "\nValidation complete:")
+	fmt.Fprintln(out, "\n"+summaryHeading("Validation complete", "Validation incomplete", result.Interrupted, result.EvidenceStopped))
 	fmt.Fprintf(out, "  Checked:    %d\n", result.Stats.Enumerated)
 	fmt.Fprintf(out, "  Match:      %d\n", matchCount)
 	fmt.Fprintf(out, "  Mismatch:   %d\n", mismatchCount)

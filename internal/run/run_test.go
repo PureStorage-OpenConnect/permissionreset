@@ -744,7 +744,10 @@ func TestRunReturnsCanceledWhenContextIsAlreadyCanceled(t *testing.T) {
 	}
 }
 
-func TestRunDrainsAndJoinsAfterMidRunCancellation(t *testing.T) {
+// runCancelledMidRun runs a dry-run apply, or a --validate, over 500 files and cancels it while
+// the producers are stalled mid-run, then returns the summary it printed.
+func runCancelledMidRun(t *testing.T, validate bool) string {
+	t.Helper()
 	root := t.TempDir()
 	for i := 0; i < 500; i++ {
 		path := filepath.Join(root, fmt.Sprintf("file-%04d.txt", i))
@@ -775,7 +778,8 @@ func TestRunDrainsAndJoinsAfterMidRunCancellation(t *testing.T) {
 			Transport: "kernel",
 			Workers:   4,
 			BatchSize: 1,
-			DryRun:    true,
+			DryRun:    !validate,
+			Validate:  validate,
 			Quiet:     true,
 			// The trigger has to be the evidence, not Log: since the log split,
 			// Log carries only failures, and a clean dry run writes nothing to it,
@@ -810,6 +814,51 @@ func TestRunDrainsAndJoinsAfterMidRunCancellation(t *testing.T) {
 	}
 	if got.Stats.Enumerated == 0 {
 		t.Fatalf("Run() stats = %+v, want entries in flight before cancellation", got.Stats)
+	}
+	return out.String()
+}
+
+func TestRunDrainsAndJoinsAfterMidRunCancellation(t *testing.T) {
+	runCancelledMidRun(t, false)
+}
+
+// TestInterruptedRunSummaryIsHeadedIncomplete is the release acceptance L8 regression: an
+// interrupted run printed its summary under "Complete:" (and a validate under "Validation
+// complete:") although it exited 1 and said INTERRUPTED on stderr.
+func TestInterruptedRunSummaryIsHeadedIncomplete(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		validate bool
+		want     string
+	}{
+		{"apply", false, "\nIncomplete (interrupted):\n"},
+		{"validate", true, "\nValidation incomplete (interrupted):\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out := runCancelledMidRun(t, tc.validate)
+			if !strings.Contains(out, tc.want) {
+				t.Fatalf("summary missing heading %q:\n%s", tc.want, out)
+			}
+			if strings.Contains(out, "Complete:") || strings.Contains(out, "complete:") {
+				t.Fatalf("an interrupted run's summary claims completion:\n%s", out)
+			}
+		})
+	}
+}
+
+func TestSummaryHeading(t *testing.T) {
+	for _, tc := range []struct {
+		interrupted, stopped bool
+		want                 string
+	}{
+		{false, false, "Complete:"},
+		{true, false, "Incomplete (interrupted):"},
+		{false, true, "Incomplete (stopped making changes after an evidence or log write failed):"},
+		{true, true, "Incomplete (stopped making changes after an evidence or log write failed):"},
+	} {
+		if got := summaryHeading("Complete", "Incomplete", tc.interrupted, tc.stopped); got != tc.want {
+			t.Errorf("summaryHeading(interrupted=%v, stopped=%v) = %q, want %q", tc.interrupted, tc.stopped, got, tc.want)
+		}
 	}
 }
 
