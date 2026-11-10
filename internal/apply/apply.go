@@ -317,27 +317,60 @@ var ErrUnpreservableAudit = errors.New("existing audit ACEs name a principal an 
 // object is not written. Not writing it does not freeze its access: FlashArray
 // recomputes an unprotected object's inherited ACEs whenever an ancestor's ACL
 // changes, so a refused child still follows its parent's reset.
-var ErrAuditedObject = errors.New("object carries audit ACEs, and an NFS ACL write makes FlashArray mark its SACL and DACL protected (S:AI -> S:P, D:AI -> D:P), so the DACL reset was not written -- reset it over SMB, or pass --allow-audited-dacl-reset to accept the header change")
+//
+// The refusal applies on FlashBlade too: on the kernel transport permissionreset
+// cannot tell the arrays apart, so the text names FlashArray as the reason
+// without claiming the target is one.
+var ErrAuditedObject = errors.New("object carries audit ACEs, so the DACL reset was not written -- on FlashArray an NFS ACL write marks the SACL and DACL protected (S:AI -> S:P, D:AI -> D:P), so reset FlashArray objects over SMB; elsewhere, or to accept that header change, pass --allow-audited-dacl-reset, which keeps the audit ACEs")
 
 // checkMappedDACL fails with ErrUnmappedPrincipal or ErrSyntheticRangePrincipal,
 // naming the who values, when daclRaw carries a principal an NFS write-back
 // would not preserve.
 func checkMappedDACL(daclRaw []byte) error {
-	bad, err := nfs4acl.UnmappedPrincipals(daclRaw)
+	unmapped, high, err := unpreservablePrincipals(daclRaw)
 	if err != nil {
 		return fmt.Errorf("decode DACL: %w", err)
 	}
-	if len(bad) > 0 {
-		return fmt.Errorf("%w (who: %s)", ErrUnmappedPrincipal, strings.Join(bad, ", "))
+	if len(unmapped) > 0 {
+		return fmt.Errorf("%w (who: %s)", ErrUnmappedPrincipal, strings.Join(unmapped, ", "))
 	}
-	high, err := nfs4acl.SyntheticRangePrincipals(daclRaw)
+	if len(high) > 0 {
+		return fmt.Errorf("%w (who: %s)", ErrSyntheticRangePrincipal, strings.Join(high, ", "))
+	}
+	return nil
+}
+
+// checkPreservableSACL fails with ErrUnpreservableAudit, naming the who values,
+// when the audit ACEs a DACL reset would write back carry a principal the
+// write-back would not preserve. It reports the audit entries as the source,
+// not the DACL that checkMappedDACL describes.
+func checkPreservableSACL(saclRaw []byte) error {
+	unmapped, high, err := unpreservablePrincipals(saclRaw)
 	if err != nil {
-		return fmt.Errorf("decode DACL: %w", err)
+		return fmt.Errorf("decode audit ACEs: %w", err)
+	}
+	if bad := append(unmapped, high...); len(bad) > 0 {
+		return fmt.Errorf("%w (who: %s)", ErrUnpreservableAudit, strings.Join(bad, ", "))
+	}
+	return nil
+}
+
+// unpreservablePrincipals lists the who values in raw that an NFS write-back
+// would change: those the array shows as nobody, and ids at or above
+// nfs4acl.SyntheticIDFloor, numeric or behind a name.
+func unpreservablePrincipals(raw []byte) (unmapped, high []string, err error) {
+	unmapped, err = nfs4acl.UnmappedPrincipals(raw)
+	if err != nil {
+		return nil, nil, err
+	}
+	high, err = nfs4acl.SyntheticRangePrincipals(raw)
+	if err != nil {
+		return nil, nil, err
 	}
 	// FlashBlade shows a principal it has written once as name@domain, so a
 	// high id can hide behind a name. Resolve named principals through NSS and
 	// apply the same floor to the id they map to.
-	aces, _ := nfs4acl.DecodeACL(daclRaw)
+	aces, _ := nfs4acl.DecodeACL(raw)
 	for _, a := range aces {
 		if !strings.Contains(a.Who, "@") || strings.HasSuffix(a.Who, "@") {
 			continue // numeric (checked above) or a special such as OWNER@
@@ -346,10 +379,7 @@ func checkMappedDACL(daclRaw []byte) error {
 			high = append(high, a.Who+"="+id)
 		}
 	}
-	if len(high) > 0 {
-		return fmt.Errorf("%w (who: %s)", ErrSyntheticRangePrincipal, strings.Join(high, ", "))
-	}
-	return nil
+	return unmapped, high, nil
 }
 
 // highIDLookup resolves a named principal to its POSIX id. It is a variable so
@@ -510,8 +540,8 @@ func applyPreserveSACL(t transport.Transport, ref transport.Ref, perms *spec.Rul
 		if !opts.AllowAuditedDACLReset {
 			return Result{Error: fmt.Errorf("%s: %w (%d audit ACEs)", path, ErrAuditedObject, saclCount)}
 		}
-		if err := checkMappedDACL(saclRaw); err != nil {
-			return Result{Error: fmt.Errorf("%s: %w: %v", path, ErrUnpreservableAudit, err)}
+		if err := checkPreservableSACL(saclRaw); err != nil {
+			return Result{Error: fmt.Errorf("%s: %w", path, err)}
 		}
 		want = nfs4acl.JoinRaw(want, saclRaw)
 	}
