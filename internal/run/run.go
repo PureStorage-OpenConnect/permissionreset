@@ -447,9 +447,14 @@ var ErrTraverseNotPreserved = errors.New("spec's directory permissions would rem
 // there is no portable way to make a real DESTROY_SESSION or a real fsync fail
 // on demand, so the alternative to these seams is no coverage of the two
 // behaviours that the close paths were split apart to express.
+//
+// newUserspaceTransport is the same kind of seam for construction: a test can
+// stand in for nfs41.New and see where Run routes the transport's own messages
+// without an NFS server.
 var (
-	closeTransport  = func(tr transport.Transport) error { return tr.Close() }
-	closeCheckpoint = func(ckpt *checkpoint.Checkpoint) error { return ckpt.Close() }
+	closeTransport        = func(tr transport.Transport) error { return tr.Close() }
+	closeCheckpoint       = func(ckpt *checkpoint.Checkpoint) error { return ckpt.Close() }
+	newUserspaceTransport = func(ctx context.Context, c nfs41.Config) (transport.Transport, error) { return nfs41.New(ctx, c) }
 )
 
 type namedWriter interface {
@@ -688,11 +693,15 @@ func Run(ctx context.Context, cfg Config, out io.Writer) (result Result, runErr 
 	case "kernel":
 		tr, err = transport.NewKernel(cfg.Root)
 	case "userspace":
-		gateLog := func(msg string) {
+		// The transport's own messages -- the server gate, the session slot
+		// grant, a session rebuild, the unsafe-override WARNINGs -- are about
+		// the run, not about any object, so they go to stderr only. --log
+		// holds failures, and the evidence holds per-object records of the
+		// documented kinds; neither may carry them (#47).
+		transportLog := func(msg string) {
 			fmt.Fprintln(errOut, msg)
-			writeLog(msg)
 		}
-		tr, err = nfs41.New(ctx, nfs41.Config{
+		tr, err = newUserspaceTransport(ctx, nfs41.Config{
 			Server:             cfg.Server,
 			Export:             cfg.Export,
 			Target:             cfg.Root,
@@ -704,7 +713,7 @@ func Run(ctx context.Context, cfg Config, out io.Writer) (result Result, runErr 
 			RetryBaseDelay:     cfg.RetryBaseDelay,
 			AllowNonPureServer: cfg.AllowNonPureServer,
 			Auth:               cfg.Auth,
-			Log:                gateLog,
+			Log:                transportLog,
 		})
 	default:
 		return result, fmt.Errorf("unknown transport %q (want kernel or userspace)", cfg.Transport)

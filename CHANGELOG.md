@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   principals in its own `(who: ...)` and no longer appends the DACL check's text, which said the
   DACL named them.
 
+### Fixed
+
+- On the userspace transport, the transport's own messages (the server gate's
+  `FATTR4_MAXFILESIZE` line, the session slot grant, the unsafe-override `WARNING:` lines) go to
+  stderr only. They were also written into `--log` and the evidence record, so a clean userspace
+  run's `--log` was not empty and the evidence held lines that are not records (#47).
+
 ## [0.10.0-rc2] - 2026-11-10
 
 Pre-release, qualified for the same single use as 0.10.0-rc1: a DACL reset on FlashBlade over
