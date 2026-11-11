@@ -179,6 +179,8 @@ is set, so existing checkpoints stay valid.
 ## Test seams
 
 - `closeTransport` / `closeCheckpoint` — package-level vars replaced by tests
+- `newUserspaceTransport` — stands in for `nfs41.New`; the userspace transport's own messages
+  go to stderr only, never `--log` or evidence (#47, `TestUserspaceTransportMessagesGoToStderrOnly`)
 - `processCPU()` — platform-gated (`rusage_unix.go` / `rusage_other.go`)
 - Tests use `writeSpec()` to create a loaded spec for Run calls
 
