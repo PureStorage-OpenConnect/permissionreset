@@ -11,6 +11,8 @@ At 8 connections (`--connections 8`), FlashBlade S500R1, 12-CPU client, cold cac
 | kernel | 118,080 | 1x |
 | userspace | 177,448 | **1.50x** |
 
+Both arms predate the READDIR+SETATTR fold (0.9.1-sacl, 2026-10-15), which saves one round-trip per directory on the userspace transport. The fold's own measurement is in `../CHANGELOG.md`, not in `../benchmarks/`: 200K vs 185K ops/sec (8.3%) on an S500 running Purity//FB 4.8.0, and 5.1% on 4.8.4. That 200K is from a different array than the 118,080 kernel figure above, so dividing one by the other gives no speedup ratio. The S500R1 comparison has not been rerun with the fold.
+
 Earlier same-day runs in `../benchmarks/control-s500r1-20260822/` and the `fastdecode-run*` directories measured lower userspace rates (55K–152K at c8) before the encoder/decoder wiring in this run — do not average across those directories, they are different points in the tool's own development, not repeats of the same measurement.
 
 ## Measured: transport comparison (S200, 4-vCPU client)
@@ -33,6 +35,12 @@ Dataset: 1,104,409 objects (104,409 directories, 1,000,000 files), FlashBlade S5
 ## Measured: 110M objects (S500, 12-core client)
 
 The one benchmark that actually ran at large scale: 109,650,011 objects (~13.5M directories, ~96M files) on FlashBlade S500, 12-core client. Apply (first run): 82,628 main-pass ops/sec, 65,638 overall ops/sec, 27.8 minutes total (pre-pass 343.5s across 13.5M directories). Zero errors. Source: `../benchmarks/PERFORMANCE.md`.
+
+## Measured: FlashArray SACL mode (1.1M objects)
+
+`--sacl` on one FlashArray: 1.1M objects in about a minute (18,000–20,500 objects/s, kernel
+transport, 64 workers). More workers or `nconnect` do not help; the array is the limit. See
+[spec-guide.md](spec-guide.md#audit-aces-sacl-on-flasharray).
 
 ## Extrapolated: 1B and 10B objects — NOT measured
 

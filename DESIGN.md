@@ -115,7 +115,7 @@ A malformed spec is a fatal, immediate error — never a per-object failure disc
 
 ### Rule matching — replace semantics
 
-Rules are evaluated in order; the first matching rule wins. A matching rule **replaces** the default entirely — fields are not merged field-by-field between the default and the matched rule. An omitted field in a matched rule is zero-valued, which means "do not set this property" for that object, not "fall back to the default's value." See README.md for a worked YAML example.
+Rules are evaluated in order; the first matching rule wins. A matching rule **replaces** the default entirely — fields are not merged field-by-field between the default and the matched rule. An omitted field in a matched rule is zero-valued, which means "do not set this property" for that object, not "fall back to the default's value." See [docs/spec-guide.md](docs/spec-guide.md#rules-replace-they-do-not-merge) for a worked YAML example.
 
 ### Progress and stats (`internal/stats`)
 
@@ -161,7 +161,7 @@ permissionreset --spec permspec.yaml --validate /mnt/fb/data
 permissionreset --spec permspec.yaml --transport userspace --server 192.0.2.50 --export /fb-perms /remote/path
 ```
 
-See README.md for the full flag reference.
+See [docs/usage.md](docs/usage.md) and `permissionreset --help` for the full flag reference.
 
 ## Dependencies
 

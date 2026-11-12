@@ -1180,13 +1180,13 @@ storageadmins@corp.example.com</code></pre>
 
 <h3 id="sacl-mode">SACL mode: <code>--sacl</code></h3>
 
-<p>Writing audit ACEs is opt-in. Without <code>--sacl</code>, permissionreset runs <code>acl:</code> specs as it always has, and refuses any spec that names <code>sacl:</code> (<code>sacl: []</code> included, since it deletes audit ACEs):</p>
+<p>Writing audit ACEs is opt-in. Without <code>--sacl</code>, permissionreset refuses any spec that names <code>sacl:</code> (<code>sacl: []</code> included, since it deletes audit ACEs):</p>
 
 <pre><code>ERROR: the following NFSv4 rule(s) set sacl: (audit ACEs):
   rule[0]
 Writing audit ACEs is SACL mode. Pass --sacl to turn it on.</code></pre>
 
-<p>With <code>--sacl</code>, a second check applies. On FlashArray, writing a DACL with no SACL deletes the object's existing audit ACEs, so an NFSv4 rule (or <code>default:</code>) that sets <code>acl:</code> and has no <code>sacl:</code> key at all is refused before anything is touched:</p>
+<p>With <code>--sacl</code>, a second check applies. On FlashArray and FlashBlade, writing a DACL with no SACL deletes the object's existing audit ACEs, so an NFSv4 rule (or <code>default:</code>) that sets <code>acl:</code> and has no <code>sacl:</code> key at all is refused before anything is touched:</p>
 
 <pre><code>ERROR: the following NFSv4 rule(s) set acl: with no sacl: key:
   rule[0]
@@ -1197,9 +1197,17 @@ Add sacl: [] to that rule to say an empty audit ACL is intended, or run without 
 
 <div class="callout callout-warn">
   <div class="callout-label">Important</div>
-  <p><strong>Without <code>--sacl</code>, a DACL reset keeps each object's audit ACEs.</strong> Every object's ACL is read, and the spec's DACL is written with that object's existing audit and alarm entries appended byte for byte (PS-04, RISKS.md #10). This holds for an audited subtree under an unaudited root too. An object whose ACL cannot be read or parsed is not written, and neither is one whose audit ACEs name <code>nobody</code> or an id at or above 1000000000 (<code>ErrUnpreservableAudit</code>); each is counted as an error.</p>
+  <p><strong>Without <code>--sacl</code>, a DACL reset refuses objects that carry audit ACEs.</strong> Every object's ACL is read. An object with audit or alarm entries is not written, and is counted as an error (<code>ErrAuditedObject</code>), unless you pass <code>--allow-audited-dacl-reset</code>. The refusal exists because FlashArray rewrites the descriptor's control flags on any NFS ACL write, even one that writes back identical bytes: the SACL goes from auto-inherited to protected (<code>S:AI</code> &rarr; <code>S:P</code>) and the DACL is flattened (<code>D:AI</code> &rarr; <code>D:P</code>, RISKS.md #11). The kernel transport cannot tell FlashArray from FlashBlade, so the refusal applies on both. Reset audited objects over SMB instead.</p>
+  <p><strong>A refused object is not written, but its access can still change.</strong> FlashArray stores exactly the DACL written to an object and recomputes the inherited ACEs of every unprotected descendant when an ancestor's ACL changes, with no write to the descendant. So when a DACL reset writes an unaudited parent, a refused audited child that only inherits takes the parent's new inheritable ACEs. Its audit entries and stored headers are untouched; its effective access is not. To keep a refused subtree's access as it is, exclude its parent from the run, or protect the subtree's DACL over SMB first.</p>
+  <p>With <code>--allow-audited-dacl-reset</code>, the spec's DACL is written with that object's existing audit and alarm entries appended byte for byte (PS-04, RISKS.md #10). This holds for an audited subtree under an unaudited root too. An object whose ACL cannot be read or parsed is not written, and neither is one whose audit ACEs name <code>nobody</code> or an id at or above 1000000000 (<code>ErrUnpreservableAudit</code>); each is counted as an error.</p>
   <p>What is kept is the audit entries the NFS view shows. That is not proof that the SMB descriptor is unchanged: an inherited audit ACE written back over NFS may be stored as an explicit one. Check SMB fidelity from SMB. A dry run reads no ACL, so it cannot report which objects carry auditing.</p>
 </div>
+
+<h3 id="sacl-smb-written">SMB-written data</h3>
+
+<p>FlashArray translates each DACL principal back to a SID when the DACL is written over NFS, and a SID with no RFC 2307 id does not survive: it reads as <code>65534</code> and comes back as the array's local nobody account. A <code>sacl:</code>-only rule therefore refuses any object whose DACL names an unmapped principal (<code>ErrUnmappedPrincipal</code>), and refuses the whole run if the root does. Even with every principal mapped, FlashArray's NFS view has no inherited marker, so the write-back stores every inherited ACE as explicit and marks the DACL protected (<code>D:P</code>). ACE order and every ACE are kept, so effective access is kept, but Windows inheritance is not, so an apply with a <code>sacl:</code>-only rule is refused unless <code>--accept-dacl-flattening</code> is passed. Nothing is written to a refused object. Give those principals a uidNumber/gidNumber, or add the SACL from the SMB side (<code>tools/set-saclonly/</code>).</p>
+
+<p>For a tree written over SMB, check DACLs from SMB after a pilot run, because the NFS view does not show this (RISKS.md #11). <code>Get-Acl</code> is fine for SIDs and masks, but it re-sorts a canonical DACL by SID and merges ACEs for the same SID. On FlashBlade, <code>Get-Acl</code>, <code>icacls</code> and Explorer (all <code>GetNamedSecurityInfoW</code>) also compute <code>P</code> and inherited (<code>ID</code>) flags from the parent instead of reporting what the array stores. Do not use them to check ACE order, ACE count, inheritance flags or <code>D:P</code>; read the raw descriptor (<code>GetFileSecurityW</code>) for that (<code>benchmarks/sacl-ps07-20261026/RESULTS.md</code>).</p>
 
 <h3>Required privilege: the audit bypass</h3>
 

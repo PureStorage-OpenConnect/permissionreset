@@ -7,6 +7,8 @@ Operator-facing documentation, design documents, and field deployment materials.
 | File | Audience | Content |
 |---|---|---|
 | `spec-guide.md` / `spec-guide.html` | Operators | Full spec-file reference: ACE syntax, inheritance, rules engine, worked examples |
+| `usage.md` | Operators | Common `permissionreset` invocations; compare, validate, checkpoint and partition behavior |
+| `build-spec.md` | Operators | `build-spec` capture: flags, the audit-bypass probe, audit ACE handling, `--sacl-plan`, the differential test |
 | `build-spec-gui.md` | Operators | Building and using the build-spec desktop app |
 | `transports.md` | Operators | `--transport kernel` vs `userspace`, userspace tunables, per-transport restrictions, platform availability and flag gating, the AUTH_SYS credential, Kerberos |
 | `tuning-sweep.md` | Operators | The `sweep` tool: prerequisites, trial sizing, tree reuse, sidecar format, key precedence |
@@ -23,7 +25,7 @@ Operator-facing documentation, design documents, and field deployment materials.
 | `decision-flasharray-smb-20261107.md` | Maintainers, developers | FlashArray work moves to an SMB-native Windows tool (`permissionreset-smb`, proposed) in this repository; naming, layout, tags and CI proposals; open questions |
 
 `transports.md`, `tuning-sweep.md`, `performance.md` and `limitations.md` were split out of the
-README in the `docs/readme-restructure` work. The README keeps the overview and links here; do not
+README in the `docs/readme-restructure` work; `usage.md` and `build-spec.md` followed later. The README keeps the overview and links here; do not
 re-inline these sections into it.
 
 ## field-preview/
