@@ -65,6 +65,7 @@ var _ auditproof.Prober = (*proberReader)(nil)
 
 func newProber(t *testing.T) (*proberReader, transport.Ref, transport.Ref) {
 	r, dir, file := simpleReader(goldenDirACEs, goldenFileACEs, t)
+	r.attrs["/vol/scratch"] = transport.Attr{Kind: transport.KindDirectory, IsDir: true}
 	return &proberReader{fakeReader: r}, dir, file
 }
 

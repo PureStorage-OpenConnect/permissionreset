@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `build-spec` checks that `--probe-dir`, and a separate `--verify-write` scratch, exist and are
+  directories (not symlinks) before the audit-bypass proof and before either template is read. A
+  missing one is refused with `... does not exist` and a hint to create it; build-spec never creates
+  it, so a mistyped path cannot put a new directory in live data. Previously a missing probe
+  directory failed inside the proof with a bare `no such file or directory`, and a missing
+  `--verify-write` scratch failed only after the templates had been read. The GUI's Capture and
+  Verify get the same check on their probe folder.
 - The audited-object refusal of a DACL reset no longer says the write "makes FlashArray mark"
   the ACL protected, which read as a claim about the target on FlashBlade too. It names
   FlashArray as the reason and gives both ways out: reset FlashArray objects over SMB, or pass

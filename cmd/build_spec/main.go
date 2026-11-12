@@ -279,13 +279,11 @@ func runKernel(dirArg, fileArg, outputPath, verifyWrite string, opts speccapture
 		opts.ProbeDir = probeAbs
 	}
 
-	res, err := speccapture.CaptureWithOptions(reader, transport.Ref{Path: dirAbs}, transport.Ref{Path: fileAbs}, opts)
-	if err != nil {
-		return captureFailed(err, stderr)
-	}
-
+	// The scratch is checked before the capture, like the probe directory, so a
+	// wrong --verify-write path fails before either exemplar is read.
+	var scratchAbs string
 	if verifyWrite != "" {
-		scratchAbs, err := filepath.Abs(verifyWrite)
+		scratchAbs, err = filepath.Abs(verifyWrite)
 		if err != nil {
 			return fail("resolve --verify-write path %q: %v", verifyWrite, err)
 		}
@@ -298,6 +296,19 @@ func runKernel(dirArg, fileArg, outputPath, verifyWrite string, opts speccapture
 				"use a directory under the same NFS mount",
 				verifyWrite, scratchMount.MountPoint, dirMount.MountPoint)
 		}
+		if scratchAbs != opts.ProbeDir {
+			if err := speccapture.CheckWorkDir(reader, scratchAbs, "--verify-write scratch"); err != nil {
+				return captureFailed(err, stderr)
+			}
+		}
+	}
+
+	res, err := speccapture.CaptureWithOptions(reader, transport.Ref{Path: dirAbs}, transport.Ref{Path: fileAbs}, opts)
+	if err != nil {
+		return captureFailed(err, stderr)
+	}
+
+	if verifyWrite != "" {
 		verified, verifyErr := speccapture.Verify(
 			newKernelVerifier(),
 			transport.Ref{Path: scratchAbs},
@@ -330,6 +341,12 @@ func captureFailed(err error, stderr io.Writer) int {
 			"with root squash off, or an identity the array grants the bypass directly. Nothing was read.")
 	case errors.Is(err, auditproof.ErrAuditNotRetained):
 		fmt.Fprintln(stderr, "hint: the array accepted the probe's audit ACE but did not keep it. Nothing was read.")
+	case errors.Is(err, speccapture.ErrDirMissing):
+		fmt.Fprintln(stderr, "hint: build-spec does not create it. Create a scratch directory on the same mount "+
+			"(mkdir) and pass it as --probe-dir (or --verify-write, which --probe-dir defaults to). Nothing was read.")
+	case errors.Is(err, speccapture.ErrNotDir):
+		fmt.Fprintln(stderr, "hint: --probe-dir and --verify-write must name a directory on the same mount, "+
+			"not a file or a symlink. Nothing was read.")
 	}
 	return 1
 }
@@ -408,6 +425,12 @@ func runUserspace(dirArg, fileArg, outputPath, server, export, verifyWrite strin
 			return fail("%v", err)
 		}
 	}
+	if verifyWrite != "" {
+		// Validate scratch is inside the same export and is a well-formed server path.
+		if err := validateServerPath(verifyWrite, export, "scratch"); err != nil {
+			return fail("--verify-write: %v", err)
+		}
+	}
 
 	ctx := context.Background()
 	reader, verifier, closer, err := d.newUserspace(ctx, nfs41.Config{
@@ -440,16 +463,18 @@ func runUserspace(dirArg, fileArg, outputPath, server, export, verifyWrite strin
 	dirRef := transport.Ref{Path: dirArg}
 	fileRef := transport.Ref{Path: fileArg}
 
+	if verifyWrite != "" && verifyWrite != opts.ProbeDir {
+		if err := speccapture.CheckWorkDir(reader, verifyWrite, "--verify-write scratch"); err != nil {
+			return captureFailed(err, stderr)
+		}
+	}
+
 	res, err := speccapture.CaptureWithOptions(reader, dirRef, fileRef, opts)
 	if err != nil {
 		return captureFailed(err, stderr)
 	}
 
 	if verifyWrite != "" {
-		// Validate scratch is inside the same export and is a well-formed server path.
-		if err := validateServerPath(verifyWrite, export, "scratch"); err != nil {
-			return fail("--verify-write: %v", err)
-		}
 		scratchRef := transport.Ref{Path: verifyWrite}
 		verified, verifyErr := speccapture.Verify(verifier, scratchRef, dirRef, fileRef, res)
 		if verifyErr != nil {

@@ -69,7 +69,10 @@ Capture reads 2 templates: 1 directory and 1 file. All 3 entry points use
 | None of the above | Refused with `ErrUnprovenRead`. Nothing is read. |
 
 The probe folder must be on the same mount as the templates (kernel transport) or inside the
-export (userspace transport). Capture never writes the templates. The probe and `--verify-write`
+export (userspace transport). It must already exist and be a directory, not a symlink: capture
+refuses a missing one (`ErrDirMissing`) or a non-directory (`ErrNotDir`) before the probe, and
+never creates it. A `--verify-write` folder separate from the probe folder is checked the same way,
+also before the templates are read. Capture never writes the templates. The probe and `--verify-write`
 are its only writes to the array.
 
 What capture emits:

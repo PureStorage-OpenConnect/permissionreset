@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,7 +32,8 @@ type fakeReader struct {
 func (f *fakeReader) Stat(r transport.Ref) (transport.Attr, error) {
 	a, ok := f.attrs[r.Path]
 	if !ok {
-		return transport.Attr{}, fmt.Errorf("fakeReader: no attr for %q", r.Path)
+		// Wraps fs.ErrNotExist, as the kernel transport's lstat ENOENT does.
+		return transport.Attr{}, fmt.Errorf("fakeReader: no attr for %q: %w", r.Path, fs.ErrNotExist)
 	}
 	return a, nil
 }
@@ -68,12 +70,13 @@ func mustEncodeACL(t *testing.T, aces []string) []byte {
 }
 
 // workingFakeReader returns a fakeReader that Capture will accept for the
-// given dir and file paths.
-func workingFakeReader(dirPath, filePath string, t *testing.T) *fakeReader {
+// given dir and file paths. scratchDirs are further directories that exist,
+// for --probe-dir and --verify-write; any other path does not.
+func workingFakeReader(dirPath, filePath string, t *testing.T, scratchDirs ...string) *fakeReader {
 	t.Helper()
 	dirACL := mustEncodeACL(t, []string{"A:fd:OWNER@:rwaDxtTcCoy", "A:fdg:GROUP@:rxtncy"})
 	fileACL := mustEncodeACL(t, []string{"A::OWNER@:rwaTcCoy", "A:g:GROUP@:rncy"})
-	return &fakeReader{
+	r := &fakeReader{
 		attrs: map[string]transport.Attr{
 			dirPath:  {IsDir: true, Kind: transport.KindDirectory},
 			filePath: {IsDir: false, Kind: transport.KindRegular},
@@ -83,6 +86,10 @@ func workingFakeReader(dirPath, filePath string, t *testing.T) *fakeReader {
 			filePath: fileACL,
 		},
 	}
+	for _, d := range scratchDirs {
+		r.attrs[d] = transport.Attr{IsDir: true, Kind: transport.KindDirectory}
+	}
+	return r
 }
 
 // mountTableFor returns a minimal /proc/mounts entry for the given mount point
@@ -95,9 +102,9 @@ func mountTableFor(server, export, mountPoint string) string {
 // fakeDepsWithKernel returns a deps that satisfies runKernel for tests: it
 // injects a working fake reader and a mount table that maps both dir and file
 // to the same NFSv4.1 mount.
-func fakeDepsWithKernel(dirPath, filePath, mountPoint string, t *testing.T) deps {
+func fakeDepsWithKernel(dirPath, filePath, mountPoint string, t *testing.T, scratchDirs ...string) deps {
 	t.Helper()
-	reader := workingFakeReader(dirPath, filePath, t)
+	reader := workingFakeReader(dirPath, filePath, t, scratchDirs...)
 	mt := mountTableFor("192.0.2.1", "/export", mountPoint)
 	return deps{
 		newKernel: func(_ string) (speccapture.Reader, error) { return reader, nil },
@@ -481,9 +488,9 @@ func (f *fakeVerifier) Remove(parent transport.Ref, name string) error {
 
 // fakeDepsWithUserspace returns a deps that satisfies runUserspace for tests:
 // it injects a fakeReader and a fakeVerifier without any network connection.
-func fakeDepsWithUserspace(dirPath, filePath string, v speccapture.ReplayVerifier, t *testing.T) deps {
+func fakeDepsWithUserspace(dirPath, filePath string, v speccapture.ReplayVerifier, t *testing.T, scratchDirs ...string) deps {
 	t.Helper()
-	reader := workingFakeReader(dirPath, filePath, t)
+	reader := workingFakeReader(dirPath, filePath, t, scratchDirs...)
 	return deps{
 		newKernel: func(_ string) (speccapture.Reader, error) {
 			return nil, fmt.Errorf("not expected in userspace test")
@@ -749,7 +756,7 @@ func TestRunVerifyWriteUserspaceFailureNoOutput(t *testing.T) {
 		scratch  = "/export/scratch"
 	)
 	v := &fakeVerifier{failErr: fmt.Errorf("server rejected ACL: NFS4ERR_PERM")}
-	d := fakeDepsWithUserspace(dirPath, filePath, v, t)
+	d := fakeDepsWithUserspace(dirPath, filePath, v, t, scratch)
 
 	tmp := t.TempDir()
 	outPath := filepath.Join(tmp, "spec.yaml")
@@ -783,7 +790,7 @@ func TestRunVerifyWriteUserspaceSuccess(t *testing.T) {
 		export   = "/export"
 		scratch  = "/export/scratch"
 	)
-	d := fakeDepsWithUserspace(dirPath, filePath, &fakeVerifier{}, t)
+	d := fakeDepsWithUserspace(dirPath, filePath, &fakeVerifier{}, t, scratch)
 
 	tmp := t.TempDir()
 	outPath := filepath.Join(tmp, "verified-spec.yaml")
@@ -953,7 +960,7 @@ func kernelGuardRun(t *testing.T, mountFor func(target, mountPoint string) strin
 	mountPoint := filepath.Join(t.TempDir(), "mnt")
 	dirPath := filepath.Join(mountPoint, "dir")
 	filePath := filepath.Join(mountPoint, "file.txt")
-	d := fakeDepsWithKernel(dirPath, filePath, mountPoint, t)
+	d := fakeDepsWithKernel(dirPath, filePath, mountPoint, t, "/mnt/scratch")
 	if mountFor != nil {
 		d.resolveMount = func(target string, _ io.Reader) (tuning.Mount, error) {
 			return tuning.Mount{MountPoint: mountFor(target, mountPoint), FSType: "nfs4", Server: "192.0.2.1", Export: "/export"}, nil
@@ -1024,5 +1031,146 @@ func TestRunProbeDirMustBeOnTheExemplarMount(t *testing.T) {
 	}, "--probe-dir", "/elsewhere/scratch")
 	if code == 0 || !strings.Contains(stderr, "same NFS mount") {
 		t.Fatalf("exit %d, want a same-mount refusal; stderr: %s", code, stderr)
+	}
+}
+
+// ---- probe and scratch directories must already exist ----------------------
+
+// TestRunMissingProbeDirIsRefusedNotCreated: a --probe-dir that does not exist
+// stops the run before the proof or any exemplar read, says build-spec does not
+// create it, and writes no spec.
+func TestRunMissingProbeDirIsRefusedNotCreated(t *testing.T) {
+	code, out, stderr := kernelGuardRun(t, nil, "--probe-dir", "/mnt/scrach")
+	if code == 0 {
+		t.Fatal("exit 0, want a refusal")
+	}
+	if out != "" {
+		t.Errorf("stdout = %q, want no YAML", out)
+	}
+	for _, want := range []string{
+		`probe directory "/mnt/scrach" does not exist`,
+		"build-spec does not create it",
+		"Nothing was read",
+	} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr missing %q:\n%s", want, stderr)
+		}
+	}
+	if strings.Contains(stderr, "proof passed") {
+		t.Errorf("the proof ran against a missing directory:\n%s", stderr)
+	}
+}
+
+// TestRunProbeDirThatIsAFileIsRefused: --probe-dir naming a regular file (here
+// the file exemplar) is refused with the not-a-directory hint.
+func TestRunProbeDirThatIsAFileIsRefused(t *testing.T) {
+	old := caps
+	caps = platform.Linux()
+	defer func() { caps = old }()
+
+	mountPoint := filepath.Join(t.TempDir(), "mnt")
+	dirPath := filepath.Join(mountPoint, "dir")
+	filePath := filepath.Join(mountPoint, "file.txt")
+	d := fakeDepsWithKernel(dirPath, filePath, mountPoint, t)
+	var out, errBuf bytes.Buffer
+	code := run([]string{"--transport", "kernel", "--output", "-", "--probe-dir", filePath, dirPath, filePath}, &out, &errBuf, d)
+	if code == 0 {
+		t.Fatal("exit 0, want a refusal")
+	}
+	for _, want := range []string{"is not a directory", "not a file or a symlink", "Nothing was read"} {
+		if !strings.Contains(errBuf.String(), want) {
+			t.Errorf("stderr missing %q:\n%s", want, errBuf.String())
+		}
+	}
+}
+
+// TestRunMissingVerifyWriteScratchFailsBeforeCapture: a --verify-write scratch
+// that does not exist, given alongside a separate --probe-dir that does, is
+// refused before the capture runs -- the proof never starts.
+func TestRunMissingVerifyWriteScratchFailsBeforeCapture(t *testing.T) {
+	code, out, stderr := kernelGuardRun(t, nil, "--probe-dir", "/mnt/scratch", "--verify-write", "/mnt/verify")
+	if code == 0 {
+		t.Fatal("exit 0, want a refusal")
+	}
+	if out != "" {
+		t.Errorf("stdout = %q, want no YAML", out)
+	}
+	if want := `--verify-write scratch "/mnt/verify" does not exist`; !strings.Contains(stderr, want) {
+		t.Errorf("stderr missing %q:\n%s", want, stderr)
+	}
+	if strings.Contains(stderr, "proof passed") {
+		t.Errorf("the capture ran before the scratch was checked:\n%s", stderr)
+	}
+}
+
+// TestRunMissingVerifyWriteAsProbeDir: with no --probe-dir, the probe defaults
+// to the --verify-write scratch, and a missing one is refused as the probe
+// directory.
+func TestRunMissingVerifyWriteAsProbeDir(t *testing.T) {
+	code, _, stderr := kernelGuardRun(t, nil, "--verify-write", "/mnt/verify")
+	if code == 0 {
+		t.Fatal("exit 0, want a refusal")
+	}
+	if want := `probe directory "/mnt/verify" does not exist`; !strings.Contains(stderr, want) {
+		t.Errorf("stderr missing %q:\n%s", want, stderr)
+	}
+}
+
+// TestRunUserspaceMissingProbeDir: the userspace path refuses a missing probe
+// directory the same way, before any capture.
+func TestRunUserspaceMissingProbeDir(t *testing.T) {
+	const (
+		dirPath  = "/export/subdir"
+		filePath = "/export/file.txt"
+	)
+	d := fakeDepsWithUserspace(dirPath, filePath, &fakeVerifier{}, t)
+	var out, errBuf bytes.Buffer
+	code := run([]string{
+		"--transport", "userspace",
+		"--server", "192.0.2.1", "--export", "/export",
+		"--auth-uid", "10010", "--auth-gid", "10000",
+		"--output", "-",
+		"--probe-dir", "/export/missing",
+		dirPath, filePath,
+	}, &out, &errBuf, d)
+	if code == 0 {
+		t.Fatal("exit 0, want a refusal")
+	}
+	if out.Len() != 0 {
+		t.Errorf("stdout = %q, want no YAML", out.String())
+	}
+	for _, want := range []string{`probe directory "/export/missing" does not exist`, "Nothing was read"} {
+		if !strings.Contains(errBuf.String(), want) {
+			t.Errorf("stderr missing %q:\n%s", want, errBuf.String())
+		}
+	}
+}
+
+// TestRunUserspaceMissingVerifyWriteScratch: a separate --verify-write scratch
+// that does not exist is refused before the capture on the userspace path too.
+func TestRunUserspaceMissingVerifyWriteScratch(t *testing.T) {
+	const (
+		dirPath  = "/export/subdir"
+		filePath = "/export/file.txt"
+	)
+	d := fakeDepsWithUserspace(dirPath, filePath, &fakeVerifier{}, t, "/export/scratch")
+	var out, errBuf bytes.Buffer
+	code := run([]string{
+		"--transport", "userspace",
+		"--server", "192.0.2.1", "--export", "/export",
+		"--auth-uid", "10010", "--auth-gid", "10000",
+		"--output", "-",
+		"--probe-dir", "/export/scratch",
+		"--verify-write", "/export/verify",
+		dirPath, filePath,
+	}, &out, &errBuf, d)
+	if code == 0 {
+		t.Fatal("exit 0, want a refusal")
+	}
+	if want := `--verify-write scratch "/export/verify" does not exist`; !strings.Contains(errBuf.String(), want) {
+		t.Errorf("stderr missing %q:\n%s", want, errBuf.String())
+	}
+	if strings.Contains(errBuf.String(), "proof passed") {
+		t.Errorf("the capture ran before the scratch was checked:\n%s", errBuf.String())
 	}
 }

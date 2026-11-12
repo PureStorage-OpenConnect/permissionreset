@@ -8,9 +8,11 @@ package speccapture
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/auditproof"
+	"github.com/PureStorage-OpenConnect/permissionreset/internal/nfs41/xdr"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/nfs4acl"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/spec"
 	"github.com/PureStorage-OpenConnect/permissionreset/internal/transport"
@@ -139,6 +141,52 @@ var ErrUnprovenRead = errors.New("reading the exemplar ACLs needs a proven audit
 	"give a probe directory where a disposable object can be created and removed, " +
 	"or explicitly accept an unproven read")
 
+// ErrDirMissing reports a probe or scratch directory that does not exist.
+// The capture never creates one: a directory it made would be a write left
+// behind in the export, and a mistyped path would put it in live data.
+var ErrDirMissing = errors.New("does not exist")
+
+// ErrNotDir reports a probe or scratch path that names something other than a
+// directory. A symlink counts: following it could move the probe off the mount
+// the caller checked.
+var ErrNotDir = errors.New("is not a directory")
+
+// CheckWorkDir confirms that path names an existing directory, not a symlink,
+// before anything is created under it. label names the path in the error
+// ("probe directory", "--verify-write scratch"). It reads only path's
+// attributes, never an ACL. A missing path wraps ErrDirMissing, a
+// non-directory wraps ErrNotDir, and any other stat failure is returned
+// wrapped as is.
+func CheckWorkDir(r Reader, path, label string) error {
+	a, err := r.Stat(transport.Ref{Path: path})
+	if err != nil {
+		if isNotExist(err) {
+			return fmt.Errorf("%s %q %w", label, path, ErrDirMissing)
+		}
+		return fmt.Errorf("%s %q: %w", label, path, err)
+	}
+	if a.IsSymlink {
+		return fmt.Errorf("%s %q %w (it is a symlink, which is never followed)", label, path, ErrNotDir)
+	}
+	if !a.IsDir {
+		return fmt.Errorf("%s %q %w", label, path, ErrNotDir)
+	}
+	return nil
+}
+
+// nfsStatuser is implemented by the userspace client's status errors.
+type nfsStatuser interface{ NFSStatus() uint32 }
+
+// isNotExist recognizes a missing path from either transport: ENOENT from the
+// kernel's lstat, or NFS4ERR_NOENT from the userspace client.
+func isNotExist(err error) bool {
+	if errors.Is(err, fs.ErrNotExist) {
+		return true
+	}
+	var se nfsStatuser
+	return errors.As(err, &se) && se.NFSStatus() == uint32(xdr.NFS4ERR_NOENT)
+}
+
 // proveReadSafe runs before any exemplar ACL is read. It proves the audit
 // bypass under opts.ProbeDir, or returns ErrUnprovenRead unless the operator
 // accepted the risk, in which case it returns the note to show.
@@ -147,6 +195,9 @@ func proveReadSafe(r Reader, opts Options) (note string, err error) {
 		p, ok := r.(auditproof.Prober)
 		if !ok {
 			return "", fmt.Errorf("probe directory %q: this transport cannot create a disposable probe", opts.ProbeDir)
+		}
+		if err := CheckWorkDir(r, opts.ProbeDir, "probe directory"); err != nil {
+			return "", err
 		}
 		proof, err := auditproof.Prove(p, transport.Ref{Path: opts.ProbeDir})
 		if err != nil {

@@ -74,6 +74,7 @@ func TestDocumentedCaptureCommandsRun(t *testing.T) {
 				}
 				sawOutput := false
 				userspace := false
+				var scratchDirs []string // the documented probe/scratch directories exist
 				for i, a := range args {
 					switch a {
 					case "--output":
@@ -83,6 +84,10 @@ func TestDocumentedCaptureCommandsRun(t *testing.T) {
 						}
 					case "--server":
 						userspace = true
+					case "--probe-dir", "--verify-write":
+						if i+1 < len(args) {
+							scratchDirs = append(scratchDirs, args[i+1])
+						}
 					}
 				}
 				if !sawOutput {
@@ -97,10 +102,10 @@ func TestDocumentedCaptureCommandsRun(t *testing.T) {
 					// The userspace examples are for macOS and Windows, where it
 					// is the default transport.
 					caps = platform.Darwin()
-					d = fakeDepsWithUserspace(dirPath, filePath, nil, t)
+					d = fakeDepsWithUserspace(dirPath, filePath, nil, t, scratchDirs...)
 				} else {
 					caps = platform.Linux()
-					d = fakeDepsWithKernel(dirPath, filePath, "/mnt/fb", t)
+					d = fakeDepsWithKernel(dirPath, filePath, "/mnt/fb", t, scratchDirs...)
 				}
 
 				var out, errBuf bytes.Buffer
