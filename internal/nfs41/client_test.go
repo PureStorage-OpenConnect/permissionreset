@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -133,23 +135,44 @@ func TestUnsafeOverrideAllowsANonPureServer(t *testing.T) {
 	if !strings.Contains(joined, "WARNING") {
 		t.Error("the override must warn prominently on every run")
 	}
-	if !strings.Contains(joined, "2199023255552") {
-		t.Error("the warning must name the detected max file size; that is the point of taking the override")
+	// The value stays in the override warning, encoded, so support can
+	// diagnose a firmware release that moves it -- but neither it nor the
+	// attribute's name appears in the clear.
+	if !strings.Contains(joined, "gate code "+gateCode(1<<41)) {
+		t.Errorf("the override warning must carry the gate code %s, for support to diagnose a firmware bump:\n%s", gateCode(1<<41), joined)
+	}
+	for _, leak := range []string{"maxfilesize", "max file size", "2199023255552"} {
+		if strings.Contains(strings.ToLower(joined), leak) {
+			t.Errorf("the override warning names what the gate checks (%q):\n%s", leak, joined)
+		}
 	}
 }
 
-// TestObservedValueGoesToTheLogNotTheError keeps the diagnosability the opaque
-// refusal trades away, without putting it where an attacker reads it.
-func TestObservedValueGoesToTheLogNotTheError(t *testing.T) {
-	srv := startFakeServer(t, withMaxFileSize(1<<41))
-	defer srv.Close()
-	var logged []string
-	_, err := newTestClientErr(t, srv, Config{Connections: 1, Log: func(s string) { logged = append(logged, s) }})
-	if err == nil {
-		t.Fatal("want a refusal")
-	}
-	if !strings.Contains(strings.Join(logged, "\n"), "2199023255552") {
-		t.Error("the observed value must reach the log so a support engineer can diagnose a firmware bump")
+// TestGateLogsNothingAboutWhatItChecks: without the override, the gate logs
+// neither the attribute nor the value, whether it accepts or refuses. The log
+// is shown on stderr (#47), so either would tell anyone reading the output what
+// to change to get past the gate -- the same leak TestRefusalDisclosesNothing
+// keeps out of the error.
+func TestGateLogsNothingAboutWhatItChecks(t *testing.T) {
+	for name, size := range map[string]uint64{"refused": 1 << 41, "accepted": 1 << 46} {
+		t.Run(name, func(t *testing.T) {
+			srv := startFakeServer(t, withMaxFileSize(size))
+			defer srv.Close()
+			var logged []string
+			cl, err := newTestClientErr(t, srv, Config{Connections: 1, Log: func(s string) { logged = append(logged, s) }})
+			if cl != nil {
+				cl.Close()
+			}
+			if (err == nil) != (name == "accepted") {
+				t.Fatalf("err = %v, want the gate to have %s the server", err, name)
+			}
+			joined := strings.ToLower(strings.Join(logged, "\n"))
+			for _, leak := range []string{"maxfilesize", "max file size", "2199023255552", "70368744177664"} {
+				if strings.Contains(joined, leak) {
+					t.Errorf("the gate's log leaks %q:\n%s", leak, strings.Join(logged, "\n"))
+				}
+			}
+		})
 	}
 }
 
@@ -1275,4 +1298,39 @@ func TestReadDirLimitedAcrossPages(t *testing.T) {
 			t.Fatalf("entry %d: got %q, want %q", i, ent.Name, want)
 		}
 	}
+}
+
+// TestGateCodeRoundTrips: a code decodes back to the value, for the known
+// FlashBlade value, a generic server's, and the extremes; and the code does
+// not show the value in decimal or hex.
+func TestGateCodeRoundTrips(t *testing.T) {
+	for _, v := range []uint64{0, 1, 1 << 41, 1 << 46, 1<<64 - 1} {
+		code := gateCode(v)
+		got, err := decodeGateCode(code)
+		if err != nil || got != v {
+			t.Errorf("decodeGateCode(gateCode(%d) = %q) = %d, %v", v, code, got, err)
+		}
+		if v > 9 && (strings.Contains(code, strconv.FormatUint(v, 10)) || strings.Contains(strings.ToLower(code), strconv.FormatUint(v, 16))) {
+			t.Errorf("gateCode(%d) = %q shows the value", v, code)
+		}
+	}
+	if _, err := decodeGateCode("not-a-code!"); err == nil {
+		t.Error("decodeGateCode accepted garbage")
+	}
+}
+
+// TestDecodeGateCode is the support tool for an override warning's code: with
+// PERMISSIONRESET_GATE_CODE set it prints the value the server reported, and
+// whether the gate's table knows it. It is skipped otherwise.
+func TestDecodeGateCode(t *testing.T) {
+	code := os.Getenv("PERMISSIONRESET_GATE_CODE")
+	if code == "" {
+		t.Skip("set PERMISSIONRESET_GATE_CODE to decode an override warning's gate code")
+	}
+	v, err := decodeGateCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	label, known := pureMaxFileSizes[v]
+	t.Logf("gate code %s = %d (known: %v %s)", code, v, known, label)
 }

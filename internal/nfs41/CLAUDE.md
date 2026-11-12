@@ -7,7 +7,7 @@ subprocess.
 ## Client lifecycle
 
 `New(ctx, Config)` → TCP dial → `ExchangeID` → `NewSession` → server gate
-(max-file-size + impl_id check) → resolve export/target → open remaining pool
+(impl_id check + attribute fingerprint) → resolve export/target → open remaining pool
 connections. Each pool entry gets its own EXCHANGE_ID (FlashBlade allows one
 session per client ID — measured, not spec-derived; see `trunkprobe_live_test.go`).
 
@@ -137,7 +137,7 @@ behavior, not spec.
 ## Server gate
 
 Two checks at construction: `isFlashArrayIdentity` (refuses FA by impl_id name)
-then `pureMaxFileSizes` table (FATTR4_MAXFILESIZE gate). `AllowNonPureServer`
+then the FlashBlade attribute-fingerprint table. `AllowNonPureServer`
 overrides both. Platform recorded as `PlatformFlashBlade` or `PlatformFlashArray`.
 
 ## Test patterns
@@ -154,8 +154,8 @@ overrides both. Platform recorded as `PlatformFlashBlade` or `PlatformFlashArray
 
 **Live tests** (`*_live_test.go`, gated by env vars):
 - `PERMISSIONRESET_TEST_SERVER`, `PERMISSIONRESET_TEST_EXPORT`, `PERMISSIONRESET_TRAVERSE_DIR`
-- Protocol probes: COMPOUND shape limits, slot grants, trunk refusal, max file
-  size, GETATTR cap, READDIR bundling, CREATE w/ ACL, cached-size.
+- Protocol probes: COMPOUND shape limits, slot grants, trunk refusal, gate
+  fingerprint, GETATTR cap, READDIR bundling, CREATE w/ ACL, cached-size.
 - Results recorded in `RFC-Deviations.md` and `COMPATIBILITY.md`.
 
 ## Gotchas and invariants

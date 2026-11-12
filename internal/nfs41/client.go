@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/bits"
 	"net"
 	"path"
 	"slices"
@@ -111,6 +112,33 @@ var pureMaxFileSizes = map[uint64]string{
 	// consulted only for servers that identify themselves as nothing -- which is
 	// the FlashBlade case, and the reason it still exists. See RFC-Deviations.md,
 	// "Identifying the platform".
+}
+
+// gateCodeKey and gateCodeRotate make the override warning's diagnostic code
+// opaque. The code is shown to operators, and the attribute the gate reads, and
+// its value, are not to be volunteered in output or documentation -- only here
+// in the source. It is obfuscation, not secrecy: decodeGateCode reverses it.
+const (
+	gateCodeKey    = 0x9e3779b97f4a7c15
+	gateCodeRotate = 23
+)
+
+// gateCode encodes the gate's observed reading as an opaque code for the
+// unsafe-override warning, so support can still learn the value when a
+// firmware release moves it. Decode one with
+//
+//	PERMISSIONRESET_GATE_CODE=<code> go test ./internal/nfs41 -run TestDecodeGateCode -v
+func gateCode(v uint64) string {
+	return strings.ToUpper(strconv.FormatUint(bits.RotateLeft64(v, gateCodeRotate)^gateCodeKey, 36))
+}
+
+// decodeGateCode reverses gateCode.
+func decodeGateCode(code string) (uint64, error) {
+	n, err := strconv.ParseUint(strings.ToLower(strings.TrimSpace(code)), 36, 64)
+	if err != nil {
+		return 0, fmt.Errorf("not a gate code: %q", code)
+	}
+	return bits.RotateLeft64(n^gateCodeKey, -gateCodeRotate), nil
 }
 
 // Platform names the server family the max-file-size gate recognized. It is a
@@ -456,15 +484,20 @@ func newClientWithDialer(ctx context.Context, cfg Config, d Dialer) (*Client, er
 	}
 	maxFileSize, err := decodeUint64Attribute(attrs, fattr4MaxFileSize)
 	if err != nil {
-		return fail(fmt.Errorf("nfs41: server gate response: %w", err))
+		// Not wrapped: decodeUint64Attribute's text names the attribute number.
+		return fail(fmt.Errorf("nfs41: server gate: %s sent an unusable reply", serverName))
 	}
 
-	cfg.Log(fmt.Sprintf("nfs41: server %s reported FATTR4_MAXFILESIZE %d", serverName, maxFileSize))
+	// The gate logs nothing about what it checks, accepted or refused: the
+	// transport's log is shown on stderr (#47), and the attribute and its value
+	// are not to be volunteered in output. The override warning below carries
+	// the value only as an opaque gateCode, for support to diagnose a firmware
+	// release that moves it.
 	if _, known := pureMaxFileSizes[maxFileSize]; !known {
 		if !cfg.AllowNonPureServer {
 			return fail(ErrNotPureServer)
 		}
-		cfg.Log(fmt.Sprintf("WARNING: server %s reported max file size %d; continuing under the unsafe server override", serverName, maxFileSize))
+		cfg.Log(fmt.Sprintf("WARNING: server %s is not a recognized FlashBlade (gate code %s); continuing under the unsafe server override", serverName, gateCode(maxFileSize)))
 	} else if c.platform == PlatformUnknown {
 		// The accepted gate IS the platform signal. Recording it here is what
 		// keeps callers from growing a second, independent probe.

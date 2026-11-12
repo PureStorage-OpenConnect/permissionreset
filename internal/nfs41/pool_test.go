@@ -406,11 +406,10 @@ func TestSlotsFlagIsClampedToTheGrant(t *testing.T) {
 		t.Fatalf("asking for more slots than the grant must clamp, not fail: %v", err)
 	}
 	defer cl.Close()
-	// Match the clamp line specifically, not a bare "6". The gate logs the
-	// observed FATTR4_MAXFILESIZE (70368744177664) through this same sink, and
-	// that string contains a "6" -- so a substring test for "6" alone passes with
-	// the clamp log deleted outright, which is how this assertion was vacuous as
-	// first written.
+	// Match the clamp line specifically, not a bare "6". Other lines reach this
+	// same sink (the gate once logged a value containing a "6"), so a substring
+	// test for "6" alone can pass with the clamp log deleted outright, which is
+	// how this assertion was vacuous as first written.
 	const want = "requested 128 session slots; server granted 6; using 6"
 	if joined := strings.Join(logged, "\n"); !strings.Contains(joined, want) {
 		t.Errorf("the clamp must be logged with the value actually used; want a line containing %q, got:\n%s", want, joined)
