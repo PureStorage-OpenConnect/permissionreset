@@ -11,6 +11,8 @@ At 8 connections (`--connections 8`), FlashBlade S500R1, 12-CPU client, cold cac
 | kernel | 118,080 | 1x |
 | userspace | 177,448 | **1.50x** |
 
+Both arms predate the READDIR+SETATTR fold (0.9.1-sacl, 2026-10-15), which saves one round-trip per directory on the userspace transport. The fold's own measurement is in `../CHANGELOG.md`, not in `../benchmarks/`: 200K vs 185K ops/sec (8.3%) on an S500 running Purity//FB 4.8.0, and 5.1% on 4.8.4. That 200K is from a different array than the 118,080 kernel figure above, so dividing one by the other gives no speedup ratio. The S500R1 comparison has not been rerun with the fold.
+
 Earlier same-day runs in `../benchmarks/control-s500r1-20260822/` and the `fastdecode-run*` directories measured lower userspace rates (55K–152K at c8) before the encoder/decoder wiring in this run — do not average across those directories, they are different points in the tool's own development, not repeats of the same measurement.
 
 ## Measured: transport comparison (S200, 4-vCPU client)
