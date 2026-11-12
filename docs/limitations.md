@@ -2,7 +2,7 @@
 
 Operator-facing limitations for field deployment are in [field-preview/known-limitations.md](field-preview/known-limitations.md). This file records the technical/implementation limits of the current tree.
 
-- SMB repair is out of scope by design — NFSv4 ACLs are authoritative for SMB clients on FlashBlade (see the [README](../README.md#multiprotocol-smb)). `protocol: smb` rejected at spec load. NFSv4-to-SMB rendering verification from a Windows client is still pending.
+- SMB repair is out of scope by design — NFSv4 ACLs are authoritative for SMB clients on FlashBlade (see [DESIGN.md](../DESIGN.md#goal)). `protocol: smb` rejected at spec load. NFSv4-to-SMB rendering verification from a Windows client is still pending.
 - Validation (`--validate`) and structural compare (`--compare`) support both `posix` and `nfsv4` protocols. `smb` is not applicable (see above).
 - Directory-fix cost still scales with directory count, but is no longer a separate floor on every run — it is absorbed into the single walk. `--pfind` is the exception and keeps the two-phase cost, since an external enumerator cannot be fused with the fix.
 - The filehandle cache is in-memory and is not persisted. `--resume` on the userspace transport re-resolves directory filehandles by `LOOKUP` while descending to the checkpoint frontier. The cost is proportional to depth rather than to tree size, and resume is rare, but it is a real regression against the kernel's dentry cache.

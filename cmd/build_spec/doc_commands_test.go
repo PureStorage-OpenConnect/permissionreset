@@ -57,11 +57,11 @@ func documentedCommands(t *testing.T, path string) [][]string {
 }
 
 // TestDocumentedCaptureCommandsRun runs each build-spec command published in
-// README.md, INSTALL.md and the getting-started guide, verbatim except that --output is redirected to
+// README.md, docs/build-spec.md, INSTALL.md and the getting-started guide, verbatim except that --output is redirected to
 // stdout, against fake transports. It proves the documented flag order parses,
 // the audit-bypass proof runs before the read, and a spec comes out.
 func TestDocumentedCaptureCommandsRun(t *testing.T) {
-	for doc, min := range map[string]int{"README.md": 3, "INSTALL.md": 3, "docs/field-preview/getting-started.md": 2} {
+	for doc, min := range map[string]int{"README.md": 1, "docs/build-spec.md": 3, "INSTALL.md": 3, "docs/field-preview/getting-started.md": 2} {
 		cmds := documentedCommands(t, filepath.Join("..", "..", doc))
 		if len(cmds) < min {
 			t.Fatalf("%s: found %d build-spec commands, want at least %d", doc, len(cmds), min)

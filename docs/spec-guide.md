@@ -673,6 +673,27 @@ What is kept is the audit entries the NFS view shows. That is not proof that the
 unchanged: an inherited audit ACE written back over NFS may be stored as an explicit one. Check
 SMB fidelity from SMB. A dry run reads no ACL, so it cannot report which objects carry auditing.
 
+### SMB-written data
+
+FlashArray translates each DACL principal back to a SID when the DACL is written over NFS, and a
+SID with no RFC 2307 id does not survive: it reads as `65534` and comes back as the array's local
+nobody account. A `sacl:`-only rule therefore refuses any object whose DACL names an unmapped
+principal (`ErrUnmappedPrincipal`), and refuses the whole run if the root does. Even with every
+principal mapped, FlashArray's NFS view has no inherited marker, so the write-back stores every
+inherited ACE as explicit and marks the DACL protected (`D:P`). ACE order and every ACE are kept,
+so effective access is kept, but Windows inheritance is not, so an apply with a `sacl:`-only rule
+is refused unless `--accept-dacl-flattening` is passed. Nothing is written to a refused object.
+Give those principals a uidNumber/gidNumber, or add the SACL from the SMB side
+(`tools/set-saclonly/`).
+
+For a tree written over SMB, check DACLs from SMB after a pilot run, because the NFS view does not
+show this (RISKS.md #11). `Get-Acl` is fine for SIDs and masks, but it re-sorts a canonical DACL by
+SID and merges ACEs for the same SID. On FlashBlade, `Get-Acl`, `icacls` and Explorer (all
+`GetNamedSecurityInfoW`) also compute `P` and inherited (`ID`) flags from the parent instead of
+reporting what the array stores. Do not use them to check ACE order, ACE count, inheritance flags
+or `D:P`; read the raw descriptor (`GetFileSecurityW`) for that
+(`benchmarks/sacl-ps07-20261026/RESULTS.md`).
+
 ### Required privilege: the audit bypass
 
 Writing audit ACEs needs the array's audit bypass. That means one of:

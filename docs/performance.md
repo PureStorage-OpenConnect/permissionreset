@@ -34,6 +34,12 @@ Dataset: 1,104,409 objects (104,409 directories, 1,000,000 files), FlashBlade S5
 
 The one benchmark that actually ran at large scale: 109,650,011 objects (~13.5M directories, ~96M files) on FlashBlade S500, 12-core client. Apply (first run): 82,628 main-pass ops/sec, 65,638 overall ops/sec, 27.8 minutes total (pre-pass 343.5s across 13.5M directories). Zero errors. Source: `../benchmarks/PERFORMANCE.md`.
 
+## Measured: FlashArray SACL mode (1.1M objects)
+
+`--sacl` on one FlashArray: 1.1M objects in about a minute (18,000–20,500 objects/s, kernel
+transport, 64 workers). More workers or `nconnect` do not help; the array is the limit. See
+[spec-guide.md](spec-guide.md#audit-aces-sacl-on-flasharray).
+
 ## Extrapolated: 1B and 10B objects — NOT measured
 
 The following are **extrapolations only**, carrying the measured 110M overall rate (65,638–66,000 ops/sec) forward under the assumption of linear scaling and an unsaturated array. Neither assumption has been tested past 110M objects.

@@ -108,7 +108,7 @@ principal string verbatim and the array resolves it.
   (`vers=4.1,actimeo=0,nosharecache`). It is not the mount under test; the row above describes
   `/mnt/bench-perms`. A `vers=3` mount also exists and is unused by these runs.
 - The previous `55K ops/sec (4 vCPU)` entry has been replaced: no S200 measurement in `benchmarks/`
-  produces it, and the nearest 55K figures are pre-decoder-wiring S500R1 runs (see `README.md`
+  produces it, and the nearest 55K figures are pre-decoder-wiring S500R1 runs (see `docs/performance.md`
   "Earlier same-day runs").
 
 ## FlashArray (audit ACEs, `--sacl`)
