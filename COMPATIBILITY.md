@@ -9,7 +9,7 @@ may work but carry no guarantee.
 
 | Operation | Array | Client OS | Transport | Evidence |
 |---|---|---|---|---|
-| DACL reset (`acl:`) | FlashBlade | Linux | kernel, userspace | Lab runs on Purity//FB 4.8.0 and 4.8.4, kernel and userspace, 2026-11-02 to 2026-11-08, each on a recorded candidate build (the audited-object refusal on 4.8.0, both transports). `v0.10.0-rc2` archives qualified on Purity//FB 4.8.x, kernel and userspace, 2026-11-10 ([v0.10.0-rc2 scope](#v0100-rc2-scope)) |
+| DACL reset (`acl:`) | FlashBlade | Linux | kernel, userspace | Lab runs on Purity//FB 4.8.0 and 4.8.4, kernel and userspace, 2026-11-02 to 2026-11-08, each on a recorded candidate build (the audited-object refusal on 4.8.0, both transports). `v0.10.0-rc2` and `v0.10.0-rc3` archives qualified on Purity//FB 4.8.x, kernel and userspace, 2026-11-10; `v0.10.0-rc4` archives on the same, 2026-11-12 ([v0.10.0-rc4 scope](#v0100-rc4-scope)) |
 | DACL reset (`acl:`) | FlashArray | Linux | kernel | Historical hardware run, v0.9.5-sacl, Purity//FA 6.10.6, with an SMB raw-descriptor check (`benchmarks/dacl-reset-fidelity-20261020/RESULTS-fa.md`) |
 | DACL-keeping SACL (`sacl:` only, `--sacl`) | FlashArray | Linux | kernel | Historical hardware runs, Purity//FA 6.10.6 and 6.12.1 (section below) |
 | Any repair | FlashArray | any | userspace | Refused by design |
@@ -22,16 +22,19 @@ may work but carry no guarantee.
 Offline CI tests, compiling for a platform, a historical hardware run and verification of the current
 release are different evidence. This table says which one each row has.
 
-## v0.10.0-rc2 scope
+## v0.10.0-rc4 scope
 
-`v0.10.0-rc2` is a pre-release. It is qualified for one use: a DACL reset (`acl:` rules, without
+`v0.10.0-rc4` is a pre-release. It is qualified for one use: a DACL reset (`acl:` rules, without
 `--sacl`) on FlashBlade over NFSv4.1, from Linux, on the kernel and userspace transports. The
-archives attached to its release passed [release acceptance](docs/release-acceptance.md) for that
-scope on 2026-11-10: Ubuntu 24.04 (Linux 6.8.x, x86_64) against one FlashBlade on Purity//FB
-4.8.x, as an ordinary directory user over `sec=sys`. Cases L8 and L10 ran on the rc2 archives;
-L1, L2, L5, L7 and L9 ran on `v0.10.0-rc1` and carry over, because the code between the two
-changes only the summary heading. Its release notes are the record, with the candidate commit
-and archive checksums. `v0.10.0-rc1` was not published.
+linux_amd64 archive attached to its release passed [release acceptance](docs/release-acceptance.md)
+for that scope on 2026-11-12: Ubuntu 24.04 (Linux 6.8.x, x86_64) against one FlashBlade on
+Purity//FB 4.8.x, as an ordinary directory user over `sec=sys`. On rc4 itself ran L10, the
+`build-spec` probe and scratch directory checks, and the userspace gate and `--log` checks.
+The rest carries over, because nothing between rc3 and rc4 changes ACL writes, spec handling,
+traversal or checkpoints: L2 and L5's unpreservable-audit refusal from `v0.10.0-rc3`, L8 from
+`v0.10.0-rc2`, and L1, L5's spec refusal, L7 and L9 from `v0.10.0-rc1`. Its release notes are the
+record, with the candidate commit and archive checksums. `v0.10.0-rc2` and `v0.10.0-rc3` were
+qualified for the same scope and published; `v0.10.0-rc1` was not published.
 
 Not covered by this pre-release, though it ships in the archives:
 
@@ -39,6 +42,7 @@ Not covered by this pre-release, though it ships in the archives:
 - FlashArray, and SMB descriptors (acceptance cases L4 and L6).
 - The missing-audit-bypass refusal on FlashBlade (L3). The lab FlashBlades keep a non-admin
   identity's audit entries, so the refusal cannot be reached there; it is qualified on FlashArray.
+- The userspace transport's unsafe server override, which needs a server other than a FlashBlade.
 - linux_arm64, macOS, Windows capture and the GUI.
 - The external-reader trial and the independent review of the live-read safety work, which the
   self-service release still needs.
@@ -46,13 +50,14 @@ Not covered by this pre-release, though it ships in the archives:
 Known limits that apply within the scope:
 
 - An object that carries audit ACEs is refused by a DACL reset unless
-  `--allow-audited-dacl-reset` is passed. The refusal text describes FlashArray behavior, also on
-  FlashBlade.
-- When an object is refused because its audit entries name `nobody` or an id at or above
-  1000000000, the detail text says the DACL names that principal. The principal is reported
-  correctly; the wording is wrong.
+  `--allow-audited-dacl-reset` is passed.
 - A spec naming an id at or above 1000000000 is refused on an apply: FlashBlade would store it as a
   different SID. `--allow-high-ids` is for FlashArray and must not be used here.
+- An interrupted `--validate` prints no `INTERRUPTED:` line on stderr; its summary heading and exit
+  code 1 mark it incomplete.
+- `build-spec` refuses an existing `--output` file only when it writes the spec, after the
+  audit-bypass proof and both template reads. Nothing is overwritten
+  ([#51](https://github.com/PureStorage-OpenConnect/permissionreset/issues/51)).
 
 **macOS**: builds, ships, and runs `--transport=userspace`. One hardware run is recorded, on a
 FlashBlade (see [macOS hardware run](#macos-hardware-run)). Everything below that mentions idmapd
