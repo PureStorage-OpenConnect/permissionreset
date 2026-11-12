@@ -287,34 +287,35 @@ There are two candidate signals for "what am I talking to", and they have opposi
 - **`eir_server_impl_id`** (`EXCHANGE_ID`) is a real product identifier — name, version,
   domain — on FlashArray, and **empty** on FlashBlade (measured on two models and two
   releases; `eir_server_owner` and `eir_server_scope` carry only the data VIP there).
-- **`FATTR4_MAXFILESIZE`** is a stable single value on FlashBlade across the releases
-  measured, but on FlashArray it **changed with the release**: FA File raised it at 6.6.10,
-  so one product answers two different values depending on version.
+- **A server attribute fingerprint** is stable on FlashBlade across the releases measured,
+  but on FlashArray it **changed with the release** (FA File 6.6.10), so one product answers
+  two different ways depending on version. Which attribute, and the values it is matched
+  against, are in `internal/nfs41/client.go`.
 
-So the order matters, and it is `impl_id` first, max file size second. Identifying a
-FlashArray by size means encoding both of its values and keeping that list correct for every
-future release — a table that silently misidentifies the platform each time the product
-raises the limit. `impl_id` names the product directly and is version-proof.
+So the order matters, and it is `impl_id` first, the fingerprint second. Identifying a
+FlashArray by fingerprint means encoding both of its answers and keeping that list correct
+for every future release — a table that silently misidentifies the platform each time the
+product changes. `impl_id` names the product directly and is version-proof.
 
-The size heuristic cannot simply be replaced, because it is the *only* signal on FlashBlade.
-The correct shape is therefore `impl_id` where the server supplies one and the size table as
+The fingerprint cannot simply be replaced, because it is the *only* signal on FlashBlade.
+The correct shape is therefore `impl_id` where the server supplies one and the fingerprint as
 the fallback where it does not — not one displacing the other.
 
 **Implemented as a refusal, not yet as support.** The client asks `eir_server_impl_id`
 first and refuses a FlashArray outright, before it resolves the export — a distinct refusal
-from the size one, because a FlashArray *is* a Pure array and "requires a FlashBlade" read
-against one sends the reader hunting a cabling fault. The size table is consulted second and
-only for servers that name themselves nothing, which is the FlashBlade case. FlashArray runs
-the kernel transport.
+from the fingerprint one, because a FlashArray *is* a Pure array and "requires a FlashBlade"
+read against one sends the reader hunting a cabling fault. The fingerprint is consulted
+second and only for servers that name themselves nothing, which is the FlashBlade case.
+FlashArray runs the kernel transport.
 
-The ordering is what closes the hole. Before it, an FA on a release earlier than the size
-raise reported exactly what a FlashBlade reports, passed the gate, and was then labelled a
-FlashBlade — which would have handed it a concurrency default measured on a FlashBlade
+The ordering is what closes the hole. Before it, an FA on a release earlier than 6.6.10
+answered the fingerprint exactly as a FlashBlade does, passed the gate, and was then labelled
+a FlashBlade — which would have handed it a concurrency default measured on a FlashBlade
 against an array that saturates two orders lower.
 
 One residual gap, stated because the check cannot cover it: an array that supplies no
-implementation ID is judged on size alone, so if any FlashArray release populates nothing
-there, it is still indistinguishable from a FlashBlade. The measurements to date show
+implementation ID is judged on the fingerprint alone, so if any FlashArray release populates
+nothing there, it is still indistinguishable from a FlashBlade. The measurements to date show
 FlashArray populating the field and FlashBlade leaving it empty, but that is two platforms on
 three releases, not a guarantee about every release.
 

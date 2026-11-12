@@ -60,7 +60,7 @@ The anonymous stateid is confirmed too: 16 zero bytes, accepted by the server fo
 **`eir_server_impl_id` is not populated.** `v41probe-s500.log` shows `server_owner` and
 `server_scope` are both the literal string `192.0.2.50` — the IP address — and there is no
 impl id at all. So **no product identification is available from `EXCHANGE_ID`**, which is
-why the server gate in `client.go` uses a `FATTR4_MAXFILESIZE` heuristic instead. That is a
+why the server gate in `client.go` uses an attribute fingerprint instead. That is a
 measured fact now, not an assumption. A client must treat a missing impl id as normal.
 
 **Granted channel attributes**, for the `CREATE_SESSION` clamp:

@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   directory failed inside the proof with a bare `no such file or directory`, and a missing
   `--verify-write` scratch failed only after the templates had been read. The GUI's Capture and
   Verify get the same check on their probe folder.
+- The userspace transport's server gate no longer prints a per-connection line saying what it
+  checked. Accepted or refused, it now says only whether the server is a FlashBlade. Under the
+  unsafe server override, the `WARNING:` line carries an opaque `gate code` that support can
+  decode, in place of the raw reading, and a malformed gate reply no longer names the attribute
+  it was missing.
 - The audited-object refusal of a DACL reset no longer says the write "makes FlashArray mark"
   the ACL protected, which read as a claim about the target on FlashBlade too. It names
   FlashArray as the reason and gives both ways out: reset FlashArray objects over SMB, or pass
@@ -29,10 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- On the userspace transport, the transport's own messages (the server gate's
-  `FATTR4_MAXFILESIZE` line, the session slot grant, the unsafe-override `WARNING:` lines) go to
-  stderr only. They were also written into `--log` and the evidence record, so a clean userspace
-  run's `--log` was not empty and the evidence held lines that are not records (#47).
+- On the userspace transport, the transport's own messages (the session slot grant, the
+  unsafe-override `WARNING:` lines) go to stderr only. They were also written into `--log` and
+  the evidence record, so a clean userspace run's `--log` was not empty and the evidence held
+  lines that are not records (#47).
 
 ## [0.10.0-rc2] - 2026-11-10
 
@@ -204,7 +209,7 @@ Pre-release: shipped without SACL docs, and its `build-spec` fails on a FlashArr
 - Userspace NFSv4.1 transport (`--transport=userspace`) with connection pooling, fast encode/decode, and server gate (PR #7)
   - 177K ops/sec at c8 on S500R1 — 1.50× over kernel transport
   - Fast XDR encoder/decoder: 30× faster READDIR decode, 19× less allocation
-  - FlashBlade identity gate via `FATTR4_MAXFILESIZE`; FlashArray refused by `eir_server_impl_id`
+  - FlashBlade identity gate; FlashArray refused by `eir_server_impl_id`
   - Connection pool with N independent clients (workaround for one-session-per-client-ID limitation)
 - Tuning sweeper (`sweep` binary, PR #12): coordinate ascent over 5 transport knobs, probe-first tree sizing, JSONL trial recording
 - P1 operability (PR #13): `--json-summary`, enriched run summary, operator plan summary, support bundle, exclude patterns

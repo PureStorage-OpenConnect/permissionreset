@@ -27,9 +27,8 @@ func TestUserspaceTransportMessagesGoToStderrOnly(t *testing.T) {
 	}
 	msgs := []string{
 		"nfs41: server fake identified itself as \"fake\"",
-		"nfs41: server fake reported FATTR4_MAXFILESIZE 70368744177664",
 		"nfs41: requested 128 session slots; server granted 6; using 6",
-		"WARNING: server fake reported max file size 1; continuing under the unsafe server override",
+		"WARNING: server fake is not a recognized FlashBlade (1); continuing under the unsafe server override",
 	}
 	prev := newUserspaceTransport
 	newUserspaceTransport = func(_ context.Context, c nfs41.Config) (transport.Transport, error) {
