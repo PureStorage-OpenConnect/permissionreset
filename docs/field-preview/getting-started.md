@@ -70,8 +70,11 @@ Take a snapshot of the file system and **verify you can restore it** before chan
 
 Know what a restore costs. Restoring rolls back the whole file system, so every data change made
 after the snapshot, by anyone, is lost too, not only the ACL changes. A snapshot does not stop other
-users writing in the meantime. If that loss is not acceptable, agree a plan for it with the data owner
-before you start.
+users writing in the meantime. When the target is one subtree of a file system that holds other
+data, you can instead put back that subtree's ACLs from the file system's `.snapshot` directory
+([subtree restore](snapshot-runbook.md#restore-one-subtree-from-the-snapshot-directory)). On such a
+file system, check the snapshot directory, not a whole-file-system restore. If neither is
+acceptable, agree a plan with the data owner before you start.
 
 ## 5. Prepare two approved templates
 
@@ -184,7 +187,8 @@ incomplete. For very large trees, see [partitions](../partitions.md). Tuning is 
 
 ## 11. Recover or escalate
 
-- **Wrong result:** restore the snapshot (step 4), with the data-loss cost it carries.
+- **Wrong result:** restore the snapshot (step 4), with the data-loss cost it carries, or put back
+  just the target's ACLs from `.snapshot` ([subtree restore](snapshot-runbook.md#restore-one-subtree-from-the-snapshot-directory)).
 - **Errors or refusals:** look the message up in [troubleshooting](troubleshooting.md).
 - **Anything unexplained:** collect a support bundle and open an issue, as in
   [the runbook](runbook.md#6-when-to-escalate). Remove principal names and paths you cannot share.

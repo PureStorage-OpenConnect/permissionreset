@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The snapshot runbook and the getting-started guide describe putting back one subtree's ACLs
+  (or the whole subtree) from the file system's `.snapshot` directory, for targets on a file
+  system that holds other data. Before, the only restore they described rolled back the whole
+  file system.
+
 ## [0.10.0-rc4] - 2026-11-12
 
 Pre-release, qualified for the same single use as 0.10.0-rc1: a DACL reset on FlashBlade over
