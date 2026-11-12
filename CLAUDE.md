@@ -62,6 +62,9 @@ measured.
 ## build-spec
 
 `build-spec` (binary) / `cmd/build_spec/` reads the NFSv4 ACL from one directory and one file and emits a `permissionreset`-compatible YAML spec. It never writes the exemplars. Before it reads them it proves the audit bypass on a disposable probe under `--probe-dir` (default: the `--verify-write` folder; `internal/auditproof`), or refuses unless `--accept-unproven-read` (PS-02). `--verify-write` and the probe are its only writes.
+The probe directory and the `--verify-write` scratch must already exist as directories
+(`speccapture.CheckWorkDir`); build-spec refuses a missing one rather than creating it, so a mistyped
+path never lands a new directory in live data.
 
 Audit (`U`) ACEs decide the output: none → the plain DACL spec, no `sacl:` key; any → DACL-keeping
 `sacl:`-only rules (`sacl: []` for an exemplar with none), with `acl:` added only under
