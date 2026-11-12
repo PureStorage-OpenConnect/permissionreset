@@ -40,8 +40,8 @@ acceptance record.
 
 ## [0.10.0-rc3] - 2026-11-10
 
-Pre-release, qualified for the same single use as 0.10.0-rc1. The release notes hold the
-acceptance record.
+Pre-release, qualified for the same single use as 0.10.0-rc1. Withdrawn: 0.10.0-rc4 supersedes
+it.
 
 ### Changed
 
@@ -56,8 +56,8 @@ acceptance record.
 ## [0.10.0-rc2] - 2026-11-10
 
 Pre-release, qualified for the same single use as 0.10.0-rc1: a DACL reset on FlashBlade over
-NFSv4.1, from Linux, on the kernel and userspace transports. The release notes hold the
-acceptance record. 0.10.0-rc1 was tagged and qualified but not published.
+NFSv4.1, from Linux, on the kernel and userspace transports. Withdrawn: 0.10.0-rc4 supersedes
+it. 0.10.0-rc1 was tagged and qualified but not published.
 
 ### Fixed
 

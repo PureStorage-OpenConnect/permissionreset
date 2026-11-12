@@ -34,7 +34,8 @@ The rest carries over, because nothing between rc3 and rc4 changes ACL writes, s
 traversal or checkpoints: L2 and L5's unpreservable-audit refusal from `v0.10.0-rc3`, L8 from
 `v0.10.0-rc2`, and L1, L5's spec refusal, L7 and L9 from `v0.10.0-rc1`. Its release notes are the
 record, with the candidate commit and archive checksums. `v0.10.0-rc2` and `v0.10.0-rc3` were
-qualified for the same scope and published; `v0.10.0-rc1` was not published.
+qualified for the same scope; rc4 supersedes them and their releases are withdrawn.
+`v0.10.0-rc1` was not published.
 
 Not covered by this pre-release, though it ships in the archives:
 
