@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (or the whole subtree) from the file system's `.snapshot` directory, for targets on a file
   system that holds other data. Before, the only restore they described rolled back the whole
   file system.
+- The subtree restore section now matches a FlashBlade check (Purity//FB 4.8.7): how `.snapshot`
+  is listed and named, that the ACL loop drops `ACE4_DELETE_CHILD` from file ACEs (invisible over
+  NFS, a changed mask over SMB), a raw-attribute comparison, and which copy tools carry the ACL
+  (`cp -a` does, `rsync -aX` does not).
 
 ## [0.10.0-rc4] - 2026-11-12
 
