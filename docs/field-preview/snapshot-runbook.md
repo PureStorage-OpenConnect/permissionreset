@@ -54,11 +54,13 @@ by anyone, anywhere in it, is lost. When the target is one subtree of a file sys
 other data, put back only that subtree from the file system's snapshot directory instead.
 
 Every snapshot of the file system can be read from the `.snapshot` directory at its root. It is
-read-only, and holds the tree as it was when the snapshot was taken, ACLs included. It may not
-appear in `ls -a`; address it by name:
+read-only, and holds the tree as it was when the snapshot was taken, ACLs included. On FlashBlade
+it appears in `ls -a` at the file system root, but not in a plain `ls` or in subdirectories, so
+address it by name:
 
 ```bash
-ls /mnt/fb/.snapshot/                  # one directory per snapshot; find the pre-repair one
+ls /mnt/fb/.snapshot/                  # one directory per snapshot, named with the snapshot's
+                                       # full name (<file system>.<suffix>); find the pre-repair one
 SNAP=/mnt/fb/.snapshot/<snapshot directory>
 nfs4_getfacl "$SNAP/projects/target"   # the ACL from before the repair
 ```
@@ -102,18 +104,39 @@ rm -f "$ACL"
 - An identity without the audit bypass doesn't see audit entries, so it would write the ACLs back
   without them. Use the same identity as the repair.
 - This runs two commands per object. It suits a canary or a subtree, not millions of objects.
+- It puts back what `nfs4_getfacl` shows, which is not always the stored bytes. `nfs4-acl-tools`
+  does not show or carry `ACE4_DELETE_CHILD` on a file ACE, so a file ACE that had it comes back
+  without it. Over NFS that changes nothing, but an SMB client sees a different mask (Full Control
+  `0x1f01ff` becomes `0x1f01bf`), and an `nfs4_getfacl` comparison does not show the difference.
+  On data that SMB clients use, compare the raw bytes as in [Verify](#verify), and check the
+  affected objects from an SMB client, or copy the subtree back instead.
 
 ### Or copy the subtree back
 
 If the contents must be rolled back too, or the subtree is disposable (a trial fixture, say), copy
 it back from `$SNAP`. This loses every change made in the subtree since the snapshot. Copy tools
-don't all carry the NFSv4 ACL, so compare `nfs4_getfacl` on a sample of copied objects with the
-`.snapshot` copy. If they differ, run the ACL loop above on the copied tree.
+don't all carry the NFSv4 ACL:
+
+- On Linux, `cp -a` (or `cp -r --preserve=all`) carried every ACL byte for byte on FlashBlade,
+  audit entries included, and copied symlinks as links.
+- `rsync -aX` does not carry the NFSv4 ACL. On FlashBlade it also failed partway with
+  `Permission denied` errors. Don't use it for this.
+
+Compare a sample of copied objects with the `.snapshot` copy as in [Verify](#verify). If they
+differ, run the ACL loop above. The loop writes to `$LIVE/$SUB`, so if the copy is not at the
+subtree's original path, point `LIVE` and `SUB` at the copy first.
 
 ### Verify
 
-Compare `nfs4_getfacl` on a sample of objects with their `.snapshot` copies, and repeat the
-ordinary-user access checks from before the repair. `permissionreset --validate` checks the tree
+Compare a sample of objects with their `.snapshot` copies, and repeat the ordinary-user access
+checks from before the repair. `nfs4_getfacl` misses some differences (`ACE4_DELETE_CHILD` on a
+file), so for a byte-for-byte check compare the raw attribute:
+
+```bash
+getfattr --absolute-names -n system.nfs4_acl -e hex "$SNAP/$SUB/<object>"
+getfattr --absolute-names -n system.nfs4_acl -e hex "$LIVE/$SUB/<object>"
+```
+ `permissionreset --validate` checks the tree
 against the spec, so after a restore it reports mismatches. That is expected.
 
 ## Retention
