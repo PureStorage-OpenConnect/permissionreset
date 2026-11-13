@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-07 (section 8 question 1 partly answered the same day) |
-| Status | **Accepted:** FlashArray work leaves the NFSv4 tool. **Proposed:** tool name, layout, version tags, CI (sections 4–7), pending maintainer confirmation. |
+| Status | **Accepted:** FlashArray work leaves the NFSv4 tool. **Started (2026-11-09):** a read-only `smb/` scaffold following the proposed name, layout and CI (sections 4, 5 and 7). **Proposed:** version tags (section 6), until the first release. |
 | Scope | Where FlashArray DACL and SACL work lives, what it is built on, and how it shares this repository with the NFSv4 tool. Not a design for the new tool. |
 
 ## 1. Context

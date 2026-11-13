@@ -91,6 +91,36 @@ jobs:
       - name: test
         run: go test -count=1 -race -timeout 5m ./...
 
+  # permissionreset-smb (smb/): builds the .NET solution and runs its unit tests on a hosted
+  # Windows runner, the platform the tool ships for. Hardware qualification is maintainer-run.
+  smb-windows:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: smb/global.json
+
+      # dotnet test builds only what the tests reference, so the CLI exe the smoke step runs is
+      # built explicitly.
+      - name: build
+        run: dotnet build smb/PermissionResetSmb.sln -c Release --nologo
+
+      - name: test
+        run: dotnet test smb/PermissionResetSmb.sln -c Release --nologo --no-build
+
+      - name: smoke
+        shell: pwsh
+        run: |
+          $exe = 'smb/src/PermissionReset.Smb/bin/Release/net8.0/permissionreset-smb.exe'
+          if (-not (Test-Path $exe)) { throw "smoke: $exe was not built" }
+          & $exe version
+          if ($LASTEXITCODE -ne 0) { throw "version exited $LASTEXITCODE" }
+          & $exe plan cmd/build_spec/testdata/saclplan.golden.json
+          if ($LASTEXITCODE -ne 0) { throw "plan exited $LASTEXITCODE" }
+
   # Builds the release archives exactly as the release workflow does and smoke-checks them, so a
   # packaging break shows up on the pull request rather than at tag time. Nothing is published.
   release-smoke:

@@ -96,6 +96,12 @@ and neither is one whose audit ACEs name nobody or an id >= 1e9 (`ErrUnpreservab
 
 `generate-tree` / `cmd/generate_tree/`: usage, scenarios and the principal roster live in `cmd/generate_tree/CLAUDE.md`.
 
+## permissionreset-smb
+
+`smb/` holds `permissionreset-smb`, the SMB-native .NET 8 tool for FlashArray
+(`docs/decision-flasharray-smb-20261107.md`). It is read-only for now. Build, test and layout
+live in `smb/CLAUDE.md`.
+
 ## Tuning sweeper
 
 `sweep` / `cmd/sweep/` measures the transport tunables against one client/server/export/transport

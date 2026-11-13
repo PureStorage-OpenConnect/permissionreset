@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>permissionreset-smb</AssemblyName>
+    <RootNamespace>PermissionReset.Smb</RootNamespace>
+    <!-- LibraryImport generates the P/Invoke marshalling as unsafe code. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PermissionReset.Smb.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PermissionReset.Smb.Core\PermissionReset.Smb.Core.csproj" />
+  </ItemGroup>
+</Project>

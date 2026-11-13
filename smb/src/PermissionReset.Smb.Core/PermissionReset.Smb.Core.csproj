@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Portable logic only: plan loading, rule selection, descriptor decoding. No Win32 calls,
+       so it builds and tests on any OS. -->
+</Project>
