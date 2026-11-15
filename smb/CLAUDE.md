@@ -14,8 +14,9 @@
   hardware only.
 
 Rules:
-- The tool writes nothing yet. Do not add a write path until section 8 questions 1 and 3 are
-  answered on hardware; record the answers in the decision record first.
+- The tool writes nothing yet. Section 8 questions 1 and 3 are answered; the write path follows
+  `DESIGN-write-path.md` once that is accepted, phase by phase (its section 8). Do not write before
+  the phase that allows it, and never without G1 and G2 (its section 5).
 - Never parse YAML here. Spec meaning lives in Go (`internal/saclplan`); extend the plan schema
   there, bump `Schema`, and match it in `Plan.SupportedSchema`.
 - `GoGlob` and `RuleSelector` must stay equivalent to `tools/set-saclonly/SaclOnly.cs` and to
