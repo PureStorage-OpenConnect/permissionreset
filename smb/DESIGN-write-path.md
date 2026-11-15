@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-15 |
-| Status | **Draft for review.** No write code exists. Nothing here is qualified. |
+| Status | **Draft for review.** The three-form model (section 2.1) was chosen by the maintainer on 2026-11-15, over writing every object explicit and protected. No write code exists. Nothing here is qualified. |
 | Builds on | `docs/decision-flasharray-smb-20261107.md` (sections 4–8), and the read-only scaffold in this directory |
 
 This is how `permissionreset-smb` will reset DACLs and SACLs on FlashArray over SMB. It takes the
