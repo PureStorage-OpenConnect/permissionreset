@@ -33,7 +33,11 @@ function Read-SaclPlan {
     param([string]$Spec, [string]$Plan, [string]$BuildSpec)
     if ($Spec) {
         $exe = Find-BuildSpec $BuildSpec
-        $out = & $exe --sacl-plan $Spec 2>&1
+        # Captured in a child scope under Continue: Set-SaclOnly runs with ErrorActionPreference Stop,
+        # and Windows PowerShell 5.1 turns a native command's redirected stderr into a terminating
+        # error under Stop, which would throw build-spec's first stderr line before the exit code
+        # and the rest of stderr are reported below. PowerShell 7 does not.
+        $out = & { $ErrorActionPreference = 'Continue'; & $exe --sacl-plan $Spec 2>&1 }
         $code = $LASTEXITCODE
         $stdout = @($out | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }) -join "`n"
         $stderr = @($out | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }) -join "`n"
