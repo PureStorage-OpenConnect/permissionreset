@@ -103,25 +103,18 @@ jobs:
         with:
           global-json-file: smb/global.json
 
-      # dotnet test builds only what the tests reference, so the CLI exe the smoke step runs is
-      # built explicitly.
       - name: build
         run: dotnet build smb/PermissionResetSmb.sln -c Release --nologo
 
       - name: test
         run: dotnet test smb/PermissionResetSmb.sln -c Release --nologo --no-build
 
-      - name: smoke
+      # Packs the release archive exactly as release-smb.yml does and smoke-checks it extracted
+      # (version, and plan on both golden plans), so a packaging break shows up on the pull
+      # request rather than at tag time. Nothing is published.
+      - name: pack and smoke-check
         shell: pwsh
-        run: |
-          $exe = 'smb/src/PermissionReset.Smb/bin/Release/net8.0/permissionreset-smb.exe'
-          if (-not (Test-Path $exe)) { throw "smoke: $exe was not built" }
-          & $exe version
-          if ($LASTEXITCODE -ne 0) { throw "version exited $LASTEXITCODE" }
-          & $exe plan cmd/build_spec/testdata/saclplan.golden.json
-          if ($LASTEXITCODE -ne 0) { throw "plan exited $LASTEXITCODE" }
-          & $exe plan cmd/build_spec/testdata/smbplan.golden.json
-          if ($LASTEXITCODE -ne 0) { throw "plan (schema 2) exited $LASTEXITCODE" }
+        run: smb/release/pack.ps1 -OutDir dist-smb
 
   # Builds the release archives exactly as the release workflow does and smoke-checks them, so a
   # packaging break shows up on the pull request rather than at tag time. Nothing is published.
