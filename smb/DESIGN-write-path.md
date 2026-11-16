@@ -251,8 +251,9 @@ every object (RISKS.md #11), and converting them back to dynamic inheritance is 
    on a fixture covering every case, an NFS-flattened tree, an audited subtree, a protected
    subtree, and a deny-only directory under backup intent).
 3. **SACL**, first with Set-SaclOnly's behavior and its strict checks (a parity run against
-   Set-SaclOnly on the same fixture), then computed SACL inheritance. Set-SaclOnly is retired after
-   a qualified release covers it (decision record, section 2).
+   Set-SaclOnly on the same fixture), then computed SACL inheritance. Set-SaclOnly is retired only
+   after a release is qualified for SACL writes on FlashArray and on FlashBlade (decision record,
+   section 2.5), so this phase includes a FlashBlade SACL design and qualification.
 4. **`smb-v0.1.0`** when phase 2 is qualified: the tag (the `smb-v*` release workflow is built), a
    COMPATIBILITY.md row, and the platform-to-tool split in the operator docs.
 
@@ -260,7 +261,9 @@ every object (RISKS.md #11), and converting them back to dynamic inheritance is 
 
 - Repairing ownership of objects the spec does not name an owner for.
 - Concurrency limits or pacing for the array's controller. Q2 decides whether that is needed.
-- FlashBlade. FlashBlade stays on the NFSv4 tool (decision record, section 2); running this tool on
-  FlashBlade is not designed or tested.
+- FlashBlade DACLs. FlashBlade stays on the NFSv4 tool for DACLs (decision record, section 2);
+  running this tool's DACL path on FlashBlade is not designed or tested. FlashBlade SACLs are not
+  left out: Set-SaclOnly's retirement waits on them (phase 3, decision record section 2.5), and
+  their design comes with phase 3.
 - `CREATOR OWNER` and `CREATOR GROUP` placeholders, object-type ACEs, and conditional ACEs: refused
   if the plan names them, and preserved byte for byte only where the tool does not write.
