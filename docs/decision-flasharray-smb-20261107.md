@@ -160,8 +160,9 @@ maintainer-run exercise against a pinned revision or artifact, as it is for the 
    its parent's inheritable ACEs in inherited form.
 
    **Answered (2026-11-12, one lab FlashArray, Purity//FA 6.10.7 as last recorded, Windows Server
-   2022 over SMB 3.1.1).** These are platform tests with a lab harness, not a product
-   qualification. Each write was one `SetFileSecurityW` of the DACL alone; each read was
+   2022 over SMB 3.1.1; summary:
+   [benchmarks/fa-smb-q1q3-20261112](../benchmarks/fa-smb-q1q3-20261112/RESULTS.md)).** These are
+   platform tests with a lab harness, not a product qualification. Each write was one `SetFileSecurityW` of the DACL alone; each read was
    `GetFileSecurityW` with owner, group, DACL and SACL. The same harness on local NTFS changed no
    descendant.
    - **Inherited-form ACEs that match the parent stay dynamic.** A child written with its parent's
@@ -190,7 +191,7 @@ maintainer-run exercise against a pinned revision or artifact, as it is for the 
 3. **Does an SMB DACL write on an audited object leave `S:AI` and `D:AI` alone?** It is expected to,
    since the write uses the native model, but this must be qualified.
 
-   **Answered (2026-11-12, same array, client and harness as question 1): yes.** On a directory and
+   **Answered (2026-11-12, same array, client and harness as question 1, same summary): yes.** On a directory and
    a file that carried `S:AI` and `D:AI`, an inherited audit ACE and inherited DACL ACEs, a
    DACL-only write, first with the same bytes and then with an explicit ACE added, kept the control
    word identical (both auto-inherited bits set, neither protected bit set). The SACL bytes, owner
