@@ -6,7 +6,8 @@ array's own model over SMB: SIDs without id mapping, inherited flags as stored, 
 [the decision record](../docs/decision-flasharray-smb-20261107.md).
 
 **Status: pre-release scaffold. It writes nothing.** Today it reads and decodes descriptors and
-validates plans; the repair itself waits on the open questions in section 8 of the decision record.
+validates plans. The write path is designed in [DESIGN-write-path.md](DESIGN-write-path.md)
+(draft) and not built.
 
 | Platform | Tool |
 |---|---|
