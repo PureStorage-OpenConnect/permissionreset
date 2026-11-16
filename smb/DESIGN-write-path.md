@@ -56,8 +56,12 @@ comparing type, flags without `ID`, mask and SID.
 | Case | Condition | Desired stored DACL | Control |
 |---|---|---|---|
 | **Inherits** | `want(o) == inh(desired(parent), isDir)` | `inh(desired(parent), isDir)` | unprotected |
-| **Explicit + inherits** | `want(o) == E ++ inh(desired(parent), isDir)`, with `E` non-empty and no `ID` in `E` | `E ++ inh(…)` | unprotected |
+| **Explicit + inherits** | `want(o) == E ++ inh(desired(parent), isDir)`, with `E` and `inh(…)` both non-empty and no `ID` in `E` | `E ++ inh(…)` | unprotected |
 | **Protected** | anything else | `want(o)`, every ACE explicit | `D:P` |
+
+When the parent passes nothing down, the object is **Protected**, not **Explicit + inherits** with
+an empty inherited part. The rule's ACL is complete, and an unprotected explicit-only ACL would take
+on whatever the parent passes down later (hardware question Q-EXP).
 
 `desired(parent)` is the parent's desired DACL from this table, not its stored one, so the result
 depends only on the spec and the tree shape. The run is deterministic and a rerun writes nothing.
