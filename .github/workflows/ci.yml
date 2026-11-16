@@ -116,6 +116,68 @@ jobs:
         shell: pwsh
         run: smb/release/pack.ps1 -OutDir dist-smb
 
+  # Set-SaclOnly's Pester suite under Windows PowerShell 5.1 and PowerShell 7 (decision record
+  # docs/decision-flasharray-smb-20261107.md, section 7). Its GoGlob and rule tests read the shared
+  # Go-generated vectors that permissionreset-smb also tests against, so drift between the
+  # script's matching and Go's shows up here. The hosted runner is elevated, so the tree tests
+  # (SACL writes on local NTFS under the Pester test drive) run too, and build-spec.exe is built
+  # for the -Spec end-to-end test. A skipped test fails the job: a skip here would mean a check
+  # silently stopped running.
+  saclonly-pester:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [powershell, pwsh]
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # plan-golden.json is a copy of build-spec's golden plan; the Pester plan tests read the copy.
+      - name: golden plan copy matches build-spec
+        run: |
+          $a = [IO.File]::ReadAllBytes('tools/set-saclonly/testdata/plan-golden.json')
+          $b = [IO.File]::ReadAllBytes('cmd/build_spec/testdata/saclplan.golden.json')
+          if ([Convert]::ToBase64String($a) -ne [Convert]::ToBase64String($b)) {
+            throw 'tools/set-saclonly/testdata/plan-golden.json differs from cmd/build_spec/testdata/saclplan.golden.json; copy it again'
+          }
+
+      - name: build build-spec.exe
+        run: |
+          $env:CGO_ENABLED = '0'
+          go build -o "$env:RUNNER_TEMP\build-spec.exe" ./cmd/build_spec/
+          if ($LASTEXITCODE -ne 0) { throw "go build exited $LASTEXITCODE" }
+
+      # Windows PowerShell 5.1 ships Pester 3.4; the suite needs 5. Pinned so a Pester release
+      # cannot change the result.
+      - name: install Pester
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          Install-Module Pester -RequiredVersion 5.7.1 -Repository PSGallery -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Pester
+        env:
+          SACLONLY_BUILD_SPEC: ${{ runner.temp }}\build-spec.exe
+        run: |
+          Import-Module Pester -RequiredVersion 5.7.1
+          $PSVersionTable.PSVersion
+          $c = New-PesterConfiguration
+          $c.Run.Path = 'tools/set-saclonly'
+          $c.Run.PassThru = $true
+          $c.Output.Verbosity = 'Detailed'
+          $r = Invoke-Pester -Configuration $c
+          if ($r.Result -ne 'Passed') { throw "Pester: $($r.FailedCount) failed" }
+          if ($r.SkippedCount -ne 0) { throw "Pester: $($r.SkippedCount) skipped; the tree and -Spec tests must run here" }
+          if ($r.PassedCount -eq 0) { throw 'Pester: no tests ran' }
+
   # Builds the release archives exactly as the release workflow does and smoke-checks them, so a
   # packaging break shows up on the pull request rather than at tag time. Nothing is published.
   release-smoke:

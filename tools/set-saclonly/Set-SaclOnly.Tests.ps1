@@ -271,7 +271,9 @@ public static class TestSd {
 
         # Runs the script in a fresh process (fresh token), returns @{ Out; Code }.
         function Invoke-SaclOnly([string[]]$Arguments) {
-            $out = & $script:Shell -NoProfile -ExecutionPolicy Bypass -File $script:Script @Arguments 2>&1
+            # Continue in a child scope: under a caller's Stop (GitHub's powershell shell sets it),
+            # Windows PowerShell 5.1 would throw on the child's first stderr line instead of capturing it.
+            $out = & { $ErrorActionPreference = 'Continue'; & $script:Shell -NoProfile -ExecutionPolicy Bypass -File $script:Script @Arguments 2>&1 }
             return @{ Out = ($out | Out-String); Code = $LASTEXITCODE }
         }
         function Get-Count([string]$Out, [string]$Name) {
