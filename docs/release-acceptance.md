@@ -49,6 +49,9 @@ snapshot must run one at a time.
 Use the archives attached to the candidate's draft release. Pushing a version tag runs the release
 workflow, which builds, smoke-checks and uploads the archives and their `SHA256SUMS` to a **draft**
 release and publishes nothing; a tag with a suffix (`v0.10.0-rc1`) is marked as a pre-release.
+`permissionreset-smb` is tagged `smb-vX.Y.Z` and has its own workflow (`release-smb.yml`) and
+draft, with one Windows zip and its own `SHA256SUMS`; that draft never becomes the repository's
+latest release, so leave "Set as the latest release" unticked when publishing it.
 Verify each download against that `SHA256SUMS` and record it. The offline script's local build
 carries a different build date, so its checksums differ: it qualifies the commit, not the shipped
 archives. Do not use a build from a checkout. `make release` runs `make clean` first, which deletes the host binaries that

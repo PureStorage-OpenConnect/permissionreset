@@ -72,3 +72,12 @@ Set-SaclOnly (`tools/set-saclonly/testdata/glob-vectors.json`) and against build
 
 Independent of `permissionreset`: tags are `smb-vX.Y.Z`, starting at `smb-v0.1.0` (decision record,
 section 6). No release exists yet.
+
+Pushing an `smb-vX.Y.Z` tag runs `.github/workflows/release-smb.yml` on a hosted Windows runner: it
+builds and tests the solution, then `smb/release/pack.ps1` publishes a self-contained single-file
+`permissionreset-smb.exe` (no .NET runtime needed on the server), zips it with this README and the
+LICENSE as `permissionreset-smb_vX.Y.Z_windows_amd64.zip`, smoke-checks the extracted archive and
+writes `SHA256SUMS`. Both go to a **draft** release that does not become the repository's latest;
+qualification runs on those exact assets before a maintainer publishes it. The tag's X.Y.Z must
+equal `<Version>` in `Directory.Build.props`, so bump that file first. CI runs the same pack script
+on every pull request, without publishing.

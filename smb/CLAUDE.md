@@ -12,6 +12,8 @@
   descriptor reads and directory listing with backup intent, privilege enabling) and `Win32Tree`
   (the Windows `ITree`, and principal lookup). Windows-only paths are guarded with
   `OperatingSystem.IsWindows()` and `[SupportedOSPlatform("windows")]`.
+- `release/pack.ps1` — builds, packs and smoke-checks the release zip and `SHA256SUMS`; run by the
+  `smb-windows` CI job and by `.github/workflows/release-smb.yml` on `smb-v*` tags (draft only).
 - `tests/PermissionReset.Smb.Tests/` — xUnit; runs on Linux too (`dotnet test`). The CLI's records
   and exit codes are tested through a fake `IDescriptorReader`; the Win32 reads are checked on
   hardware only.

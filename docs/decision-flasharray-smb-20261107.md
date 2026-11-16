@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-07. Section 8 question 1 partly answered the same day; questions 1 and 3 answered 2026-11-12; sections 4–7 accepted 2026-11-15. |
-| Status | **Accepted:** FlashArray work leaves the NFSv4 tool (section 2), and the name, layout, version tags and CI (sections 4–7, maintainer confirmation 2026-11-15). **Started (2026-11-09):** a read-only `smb/` scaffold (PR #38). **Not yet built:** the `smb-v*` release workflow (section 6) and the Set-SaclOnly Pester job (section 7). |
+| Status | **Accepted:** FlashArray work leaves the NFSv4 tool (section 2), and the name, layout, version tags and CI (sections 4–7, maintainer confirmation 2026-11-15). **Started (2026-11-09):** a read-only `smb/` scaffold (PR #38). **Built:** the `smb-v*` release workflow (section 6, `.github/workflows/release-smb.yml`); no tag pushed yet. **Not yet built:** the Set-SaclOnly Pester job (section 7). |
 | Scope | Where FlashArray DACL and SACL work lives, what it is built on, and how it shares this repository with the NFSv4 tool. Not a design for the new tool. |
 
 ## 1. Context
@@ -126,7 +126,7 @@ The shared contract is behavioral, not code:
 The tools release on different schedules, so the versions are independent. `permissionreset` keeps
 plain `vX.Y.Z` tags. `permissionreset-smb` uses `smb-vX.Y.Z`, starting at `smb-v0.1.0`. The current
 release workflow triggers on `v*`, which `smb-v*` does not match, so the new tool gets its own
-release workflow and archive. The existing archives keep shipping Set-SaclOnly until it is retired.
+release workflow and archive (`.github/workflows/release-smb.yml`, packed by `smb/release/pack.ps1`). The existing archives keep shipping Set-SaclOnly until it is retired.
 
 ## 7. CI (accepted)
 

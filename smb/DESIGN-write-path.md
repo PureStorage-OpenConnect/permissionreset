@@ -253,8 +253,8 @@ every object (RISKS.md #11), and converting them back to dynamic inheritance is 
 3. **SACL**, first with Set-SaclOnly's behavior and its strict checks (a parity run against
    Set-SaclOnly on the same fixture), then computed SACL inheritance. Set-SaclOnly is retired after
    a qualified release covers it (decision record, section 2).
-4. **`smb-v0.1.0`** when phase 2 is qualified: the `smb-v*` release workflow, a COMPATIBILITY.md
-   row, and the platform-to-tool split in the operator docs.
+4. **`smb-v0.1.0`** when phase 2 is qualified: the tag (the `smb-v*` release workflow is built), a
+   COMPATIBILITY.md row, and the platform-to-tool split in the operator docs.
 
 ## 9. What this design leaves out
 

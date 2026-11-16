@@ -6,14 +6,23 @@ using static PermissionReset.Smb.Tests.CheckerTests;
 namespace PermissionReset.Smb.Tests;
 
 // check's records, summary and exit codes, through a fake tree. The walk's logic is in
-// CheckerTests; these pin what the CLI does with its results.
-public class CheckCliTests
+// CheckerTests; these pin what the CLI does with its results. xUnit makes an instance per test and
+// disposes it afterwards, so each test's plan files are deleted when it ends.
+public sealed class CheckCliTests : IDisposable
 {
-    static string PlanFile(Plan p)
+    readonly List<string> _planFiles = [];
+
+    string PlanFile(Plan p)
     {
         var f = Path.Combine(Path.GetTempPath(), $"smbplan-{Guid.NewGuid():N}.json");
+        _planFiles.Add(f);
         File.WriteAllText(f, JsonSerializer.Serialize(p));
         return f;
+    }
+
+    public void Dispose()
+    {
+        foreach (var f in _planFiles) File.Delete(f);
     }
 
     static (int Code, string Out, string Err) Run(FakeTree tree, string? missingPrivilege, params string[] args)

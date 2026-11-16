@@ -1,0 +1,107 @@
+# Build a DRAFT GitHub release of permissionreset-smb when an smb-v* tag is pushed (decision record
+# docs/decision-flasharray-smb-20261107.md, section 6). The tool versions independently of
+# permissionreset, whose release workflow triggers on v* and so never sees these tags.
+# Nothing is published here: qualification runs on these exact assets and their SHA256SUMS, and a
+# maintainer then publishes the draft (docs/release-acceptance.md). A tag with a suffix
+# (smb-v0.1.0-rc1) is marked as a pre-release. The release is created with make_latest false, so
+# publishing it never moves the repository's "latest" release off permissionreset.
+# Release creation calls the GitHub API with curl rather than a third-party action, so the job
+# depends on nothing outside the actions/* namespace.
+# Runs only in the public repository; a private mirror runs its own workflow instead.
+name: Release permissionreset-smb
+
+on:
+  push:
+    tags: ['smb-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.repository == 'PureStorage-OpenConnect/permissionreset'
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: smb/global.json
+
+      - name: tag
+        id: tag
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! $tag =~ ^smb-v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+            echo "::error::tag $tag is not smb-vX.Y.Z or smb-vX.Y.Z-suffix"
+            exit 1
+          fi
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+      - name: build
+        run: dotnet build smb/PermissionResetSmb.sln -c Release --nologo
+
+      - name: test
+        run: dotnet test smb/PermissionResetSmb.sln -c Release --nologo --no-build
+
+      # Publishes the self-contained exe, zips it with README and LICENSE, smoke-checks the
+      # extracted archive (version, and plan on both golden plans) and writes SHA256SUMS. Fails if
+      # the tag's X.Y.Z differs from smb/Directory.Build.props.
+      - name: pack and smoke-check
+        shell: pwsh
+        run: smb/release/pack.ps1 -Version '${{ steps.tag.outputs.version }}' -OutDir dist-smb
+
+      - name: create draft release and upload assets
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          repo="${GITHUB_REPOSITORY}"
+          api="https://api.github.com"
+          case "$tag" in
+            smb-v*-*) prerelease=true ;;
+            *)        prerelease=false ;;
+          esac
+
+          body="permissionreset-smb ${tag#smb-}. Draft: qualify these exact assets against SHA256SUMS before publishing (docs/release-acceptance.md)."
+          release_json=$(curl -sfS \
+            -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${api}/repos/${repo}/releases" \
+            -d "{
+              \"tag_name\": \"${tag}\",
+              \"name\": \"permissionreset-smb ${tag}\",
+              \"body\": \"${body}\",
+              \"draft\": true,
+              \"prerelease\": ${prerelease},
+              \"make_latest\": \"false\"
+            }")
+
+          upload_url=$(echo "$release_json" | grep -o '"upload_url": *"[^"]*"' | head -1 | sed 's/"upload_url": *"//;s/{.*//;s/"$//')
+          if [ -z "$upload_url" ]; then
+            echo "Failed to create release:"
+            echo "$release_json"
+            exit 1
+          fi
+
+          for file in dist-smb/*; do
+            name=$(basename "$file")
+            case "$name" in
+              SHA256SUMS) content_type="text/plain" ;;
+              *.zip)      content_type="application/zip" ;;
+              *)          content_type="application/octet-stream" ;;
+            esac
+            echo "  Uploading $name..."
+            curl -sfS \
+              -X POST \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Content-Type: ${content_type}" \
+              --data-binary "@${file}" \
+              "${upload_url}?name=${name}" > /dev/null
+          done
+
+          echo "Assets uploaded to the draft release. Publish it only after qualification."
