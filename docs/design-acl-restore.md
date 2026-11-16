@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-16 |
-| Status | **Proposed.** Nothing is built. Open questions are in section 9. |
+| Status | **Proposed.** Nothing is built. Questions 2–4 of section 9 decided 2026-11-16 (maintainer); question 1 waits on a lab read. |
 | Issue | [#56](https://github.com/PureStorage-OpenConnect/permissionreset/issues/56) |
 | Scope | A `permissionreset` mode that writes each object's raw `system.nfs4_acl` from a reference tree (a snapshot path, usually) onto the live object at the same relative path. Kernel transport, Linux, FlashBlade first. |
 
@@ -58,7 +58,8 @@ permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects/target /mnt
   root name the same subtree in the reference and in the live tree. Both roots are included.
 - Allowed with it: `--apply`, `--validate`, `--exclude`, `--checkpoint`/`--resume`,
   `--evidence-dir`, `--workers`, `--one-filesystem`, `--quiet`, `--allow-high-ids`,
-  `--allow-audited-dacl-reset` (section 4.4).
+  `--allow-audited-dacl-reset` and `--allow-audit-removal` (section 4.4), `--allow-writable-reference`
+  (section 7).
 - Refused with it: `--spec`, `--sacl`, `--set-owner`, `--compare` (always on, section 4.3),
   `--partitions`, `--pfind`, `--transport userspace`.
 - Refused at start: `REF` and the root resolve to the same directory, or one contains the other
@@ -159,7 +160,7 @@ written:
   refused with `ErrAuditedObject` unless `--allow-audited-dacl-reset`. The reason is the same as for
   a repair: on FlashArray the write marks the SACL and DACL protected, and the kernel transport
   cannot tell the arrays apart. On FlashBlade the flag is expected on every restore of audited
-  data, which section 9 question 2 revisits.
+  data. The flag stays the same as the repair's (section 9 decision 2).
 - **Unparseable ACL** on either side: an error, with no write.
 
 ### 4.5 Identity
@@ -178,7 +179,7 @@ today than it did when the snapshot was taken.
 An object deleted and recreated under the same name since the snapshot gets the old object's ACL.
 If the array keeps file ids across snapshots, a mismatch between the reference's and the live
 object's file id identifies such an object, which would then count as `replaced_since` and stay
-untouched. Whether FlashBlade keeps file ids in `.snapshot` is section 9 question 1. READDIR returns the id on
+untouched. Section 9 decision 1 turns the check on by default if FlashBlade keeps file ids in `.snapshot`; whether it does is still open. READDIR returns the id on
 both sides (`d_ino`), so the check needs no extra round trip if it holds. `transport.Dirent` does
 not carry the id today and would gain a field.
 
@@ -241,7 +242,7 @@ hosts without the binary, with its `DELETE_CHILD` warning.
   live ACLs into a reference. A snapshot is read-only, so that fails at the first write. Any other
   reference tree would be overwritten. The dry run names both roots and the direction, and the
   containment check catches overlapping roots. `--apply` refuses a writable `REF` unless
-  `--allow-writable-reference` is given (section 9 question 3).
+  `--allow-writable-reference` is given (section 9 decision 3).
 - **Path swap races.** An object replaced by a symlink between READDIR and the write is followed by
   `setxattr`, as it is in a repair today. The window is the same, and so is the exposure.
 - **Hard links.** A file with several links is written once per path, with the same bytes. Harmless.
@@ -257,7 +258,7 @@ candidate. FlashBlade, kernel NFSv4.1, as the identity that ran the repair with 
    `system.nfs4_acl` bytes, file ACEs with `0x40` included, audit entries included. Then check the
    affected file masks from an SMB client.
 2. **Every row of 4.1** on a fixture built for it: deleted, created, now a symlink, was a symlink,
-   type changed, excluded, and the same name recreated (with question 1's answer).
+   type changed, excluded, and the same name recreated (with the answer to section 9's open question).
 3. **Guards:** an identity without the bypass is refused before any read. A reference naming an
    unmapped principal, a high id, and audit entries the live side lacks or has extra.
 4. **Lockout ordering:** a reference directory that denies the running identity traverse. Its
@@ -270,18 +271,18 @@ candidate. FlashBlade, kernel NFSv4.1, as the identity that ran the repair with 
 FlashArray is not part of the first qualification (section 2). Record it in COMPATIBILITY.md as not
 qualified.
 
-## 9. Open questions
+## 9. Decisions and the open question
 
-1. **Does FlashBlade keep file ids in `.snapshot`?** If it does, 4.6's `replaced_since` check is
-   cheap and should be on by default. If not, document the limit. This is a lab read on one
-   snapshot, with no writes.
-2. **The audited-object flag on FlashBlade.** Requiring `--allow-audited-dacl-reset` for every
-   audited object is right on FlashArray and noise on FlashBlade, where restoring audit entries is
-   the point. Keep the flag for parity with the repair (proposed), or use a restore-specific flag
-   whose help text names the FlashArray header change?
-3. **A writable reference.** Refuse `--apply` when `REF` is writable (proposed, with
-   `--allow-writable-reference`), or only warn? The issue mentions "any reference tree", for
-   example a restored copy.
-4. **Command shape.** `--restore-from` as a mode of `permissionreset` (proposed, matching
-   `--partitions` and the flag style), or a separate `permissionreset restore` subcommand? The flag
-   keeps one binary and one set of shared flags. A subcommand would separate the help text.
+Decided 2026-11-16 by the maintainer, as proposed:
+
+1. **Same name, recreated object (4.6).** If FlashBlade keeps file ids in `.snapshot`, the
+   `replaced_since` check is on by default. If it does not, the limit is documented in the operator
+   docs and the check is left out. **Still open:** whether FlashBlade keeps them, which needs one
+   read-only lab check of a snapshot, with no writes.
+2. **Audited objects keep `--allow-audited-dacl-reset`**, the same flag as the repair, for parity.
+   Its help text and the restore docs say why it is needed on FlashBlade too: the kernel transport
+   cannot tell FlashBlade from FlashArray, where the write marks the SACL and DACL protected.
+3. **A writable reference is refused under `--apply`** unless `--allow-writable-reference` is
+   given. A snapshot is read-only, so the usual restore never needs the flag.
+4. **The command is the `--restore-from` flag** on `permissionreset`, a mode like `--partitions`,
+   not a subcommand.
