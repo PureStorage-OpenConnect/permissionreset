@@ -22,6 +22,7 @@ Operator-facing documentation, design documents, and field deployment materials.
 | `NAMESPACE_SEMANTICS.md` | Developers | How path resolution and identity mapping interact across transports |
 | `rfc8881-one-session-violation.md` | Developers | Analysis of the one-session-per-client-ID constraint |
 | `plan-readdir-bundling.md` | Developers | Design notes on READDIR operation bundling |
+| `design-acl-restore.md` | Developers, maintainers | Proposed `--restore-from` mode: byte-for-byte ACL restore from a snapshot or reference tree (#56); paired walk, guards, qualification, open questions |
 | `decision-flasharray-smb-20261107.md` | Maintainers, developers | FlashArray work moves to an SMB-native Windows tool (`permissionreset-smb`, proposed) in this repository; naming, layout, tags and CI proposals; open questions |
 
 `transports.md`, `tuning-sweep.md`, `performance.md` and `limitations.md` were split out of the
