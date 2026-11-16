@@ -203,7 +203,7 @@ func BuildSMB(s *spec.Spec, source string) (*Plan, error) {
 
 func smbRule(r *Rule, rp *spec.RulePerms) error {
 	if len(rp.DACL) > 0 {
-		return fmt.Errorf("%s: dacl: is not supported in an SMB plan; use acl:", r.Label)
+		return fmt.Errorf("%s: dacl: is not supported in an SMB plan; use acl: instead", r.Label)
 	}
 	for _, f := range []struct{ name, v string }{{"owner", rp.Owner}, {"group", rp.Group}} {
 		if isNumeric(f.v) {
