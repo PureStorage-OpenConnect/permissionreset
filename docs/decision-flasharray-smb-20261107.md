@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-07. Section 8 question 1 partly answered the same day; questions 1 and 3 answered 2026-11-12; sections 4–7 accepted 2026-11-15. |
-| Status | **Accepted:** FlashArray work leaves the NFSv4 tool (section 2), and the name, layout, version tags and CI (sections 4–7, maintainer confirmation 2026-11-15). **Started (2026-11-09):** a read-only `smb/` scaffold (PR #38). **Built:** the `smb-v*` release workflow (section 6, `.github/workflows/release-smb.yml`); no tag pushed yet. **Not yet built:** the Set-SaclOnly Pester job (section 7). |
+| Status | **Accepted:** FlashArray work leaves the NFSv4 tool (section 2), and the name, layout, version tags and CI (sections 4–7, maintainer confirmation 2026-11-15). **Started (2026-11-09):** a read-only `smb/` scaffold (PR #38). **Built:** the `smb-v*` release workflow (section 6, `.github/workflows/release-smb.yml`; no tag pushed yet) and the Set-SaclOnly Pester job (section 7, CI job `saclonly-pester`). |
 | Scope | Where FlashArray DACL and SACL work lives, what it is built on, and how it shares this repository with the NFSv4 tool. Not a design for the new tool. |
 
 ## 1. Context
@@ -132,7 +132,8 @@ release workflow and archive (`.github/workflows/release-smb.yml`, packed by `sm
 
 Per MAINTAINERS.md section 5, public CI uses GitHub-hosted runners. A hosted Windows job builds
 `smb/`, runs its unit tests, and also runs the Set-SaclOnly Pester suite under Windows PowerShell 5.1
-and PowerShell 7. That suite is not run in CI today. Self-hosted runners, including internal Windows
+and PowerShell 7 (the `saclonly-pester` job, with the tree tests and the `-Spec` end-to-end test,
+failing on any skip). Self-hosted runners, including internal Windows
 runners, never run code from this repository's pull requests. Hardware qualification stays a
 maintainer-run exercise against a pinned revision or artifact, as it is for the NFSv4 tool.
 

@@ -108,6 +108,11 @@ and need an elevated shell holding SeSecurity, SeBackup and SeRestore. Without e
 They run the script in child processes, cover a directory owned by and open only to SYSTEM, and nothing
 touches an array.
 
+CI runs the whole suite on a hosted Windows runner under Windows PowerShell 5.1 and PowerShell 7 (the
+`saclonly-pester` job in `.github/workflows/ci.yml`, Pester 5.7.1). The runner is elevated and the job
+builds `build-spec.exe` for the `-Spec` test, so every test runs there; a skipped test fails the job.
+The job also checks that `testdata/plan-golden.json` is still byte-identical to build-spec's golden plan.
+
 To regenerate the glob vectors after a Go upgrade:
 
 ```bash
