@@ -120,6 +120,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "version exited $LASTEXITCODE" }
           & $exe plan cmd/build_spec/testdata/saclplan.golden.json
           if ($LASTEXITCODE -ne 0) { throw "plan exited $LASTEXITCODE" }
+          & $exe plan cmd/build_spec/testdata/smbplan.golden.json
+          if ($LASTEXITCODE -ne 0) { throw "plan (schema 2) exited $LASTEXITCODE" }
 
   # Builds the release archives exactly as the release workflow does and smoke-checks them, so a
   # packaging break shows up on the pull request rather than at tag time. Nothing is published.
