@@ -22,6 +22,17 @@ import (
 // have to know about.
 const Schema = 1
 
+// SchemaSMB is the version of the plan BuildSMB makes for permissionreset-smb:
+// schema 1 plus each rule's DACL (Rule.Dacl), and stricter principals. Schema 1
+// stays what --sacl-plan writes, because Set-SaclOnly reads only schema 1.
+const SchemaSMB = 2
+
+// Windows ACE types for the DACL (MS-DTYP 2.4.4.1).
+const (
+	WindowsAllowType = 0
+	WindowsDenyType  = 1
+)
+
 // WindowsAuditType is SYSTEM_AUDIT_ACE_TYPE.
 const WindowsAuditType = 2
 
@@ -99,6 +110,9 @@ type Rule struct {
 	Owner    string `json:"owner"`
 	Group    string `json:"group"`
 	Sacl     []ACE  `json:"sacl"`
+	// Dacl is the rule's acl: lines translated, set only by BuildSMB and only
+	// when the rule has acl:. Absent means the rule says nothing about the DACL.
+	Dacl []ACE `json:"dacl,omitempty"`
 }
 
 type Match struct {
@@ -161,6 +175,113 @@ func Build(s *spec.Spec, source string) (*Plan, error) {
 	return p, nil
 }
 
+// BuildSMB makes the schema 2 plan that permissionreset-smb reads. On top of
+// Build it translates every rule's acl: lines to Rule.Dacl, and refuses what
+// the SMB write path cannot write faithfully (smb/DESIGN-write-path.md, 2.3):
+//   - an I (inherited) flag in any ACE: inheritance is computed, and a written
+//     ID ACE that does not match the parent is a frozen copy;
+//   - OWNER@ or GROUP@ in acl:: on Windows they become CREATOR OWNER/GROUP,
+//     which do not mean the object's owner or group;
+//   - a numeric principal or owner/group: an SMB ACE needs a SID;
+//   - dacl: (a field no SMB rule defines).
+func BuildSMB(s *spec.Spec, source string) (*Plan, error) {
+	p, err := Build(s, source)
+	if err != nil {
+		return nil, err
+	}
+	p.Schema = SchemaSMB
+	if err := smbRule(&p.Default, &s.Default); err != nil {
+		return nil, err
+	}
+	for i := range s.Rules {
+		if err := smbRule(&p.Rules[i], &s.Rules[i].RulePerms); err != nil {
+			return nil, err
+		}
+	}
+	return p, nil
+}
+
+func smbRule(r *Rule, rp *spec.RulePerms) error {
+	if len(rp.DACL) > 0 {
+		return fmt.Errorf("%s: dacl: is not supported in an SMB plan; use acl: instead", r.Label)
+	}
+	for _, f := range []struct{ name, v string }{{"owner", rp.Owner}, {"group", rp.Group}} {
+		if isNumeric(f.v) {
+			return fmt.Errorf("%s: %s %q is a numeric id; an SMB plan needs a name that resolves to a SID", r.Label, f.name, f.v)
+		}
+	}
+	for j, a := range r.Sacl {
+		if err := smbPrincipalOK(a, false); err != nil {
+			return fmt.Errorf("%s: sacl[%d]: %w", r.Label, j, err)
+		}
+	}
+	if !r.HasACL {
+		return nil
+	}
+	r.Dacl = []ACE{}
+	for j, line := range rp.ACL {
+		t := strings.TrimSpace(line)
+		if t == "" || t[0] == '#' {
+			continue
+		}
+		a, err := nfs4acl.ParseACELine(t)
+		if err != nil {
+			return fmt.Errorf("%s: acl[%d]: %w", r.Label, j, err)
+		}
+		ace, err := TranslateDACE(a)
+		if err != nil {
+			return fmt.Errorf("%s: acl[%d]: %w", r.Label, j, err)
+		}
+		if err := smbPrincipalOK(ace, true); err != nil {
+			return fmt.Errorf("%s: acl[%d]: %w", r.Label, j, err)
+		}
+		ace.Line = t
+		r.Dacl = append(r.Dacl, ace)
+	}
+	return nil
+}
+
+func smbPrincipalOK(a ACE, dacl bool) error {
+	if a.NFS4Flags&nfs4acl.FlagInherited != 0 {
+		return fmt.Errorf("%q: the I (inherited) flag is not allowed in an SMB plan; permissionreset-smb computes inheritance from the parent", a.Line)
+	}
+	if dacl && (a.Principal == "OWNER@" || a.Principal == "GROUP@") {
+		return fmt.Errorf("%q: %s in a DACL is not supported over SMB: Windows has no principal for the object's own owner or group", a.Line, a.Principal)
+	}
+	if isNumeric(a.Principal) {
+		return fmt.Errorf("%q: numeric principal %s has no SID; name the account instead", a.Line, a.Principal)
+	}
+	return nil
+}
+
+func isNumeric(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// TranslateDACE converts one NFSv4 allow or deny ACE to its Windows form, as
+// TranslateACE does for audit ACEs. Line is left for the caller to fill.
+func TranslateDACE(a nfs4acl.ACE) (ACE, error) {
+	var typ int
+	var sddlType string
+	switch a.Type {
+	case nfs4acl.TypeAllow:
+		typ, sddlType = WindowsAllowType, "A"
+	case nfs4acl.TypeDeny:
+		typ, sddlType = WindowsDenyType, "D"
+	default:
+		return ACE{}, fmt.Errorf("ACE type %d is not A or D; only allow and deny ACEs translate to a DACL", a.Type)
+	}
+	return translate(a, typ, sddlType)
+}
+
 // Marshal renders the plan as indented JSON with a trailing newline.
 func (p *Plan) Marshal() ([]byte, error) {
 	b, err := json.MarshalIndent(p, "", "  ")
@@ -211,6 +332,10 @@ func TranslateACE(a nfs4acl.ACE) (ACE, error) {
 	if a.Type != nfs4acl.TypeAudit {
 		return ACE{}, fmt.Errorf("ACE type %d is not U (audit); only audit ACEs translate to a SACL", a.Type)
 	}
+	return translate(a, WindowsAuditType, "AU")
+}
+
+func translate(a nfs4acl.ACE, typ int, sddlType string) (ACE, error) {
 	flags, sddlFlags, err := TranslateFlags(a.Flags)
 	if err != nil {
 		return ACE{}, err
@@ -222,7 +347,7 @@ func TranslateACE(a nfs4acl.ACE) (ACE, error) {
 	out := ACE{
 		NFS4Flags:    a.Flags,
 		NFS4Mask:     a.Mask,
-		WindowsType:  WindowsAuditType,
+		WindowsType:  typ,
 		WindowsFlags: flags,
 		WindowsMask:  mask,
 		Principal:    a.Who,
@@ -230,7 +355,7 @@ func TranslateACE(a nfs4acl.ACE) (ACE, error) {
 	}
 	if wk, ok := wellKnown[a.Who]; ok {
 		out.SID = wk.sid
-		out.SDDL = fmt.Sprintf("(AU;%s;0x%x;;;%s)", sddlFlags, mask, wk.alias)
+		out.SDDL = fmt.Sprintf("(%s;%s;0x%x;;;%s)", sddlType, sddlFlags, mask, wk.alias)
 	}
 	return out, nil
 }

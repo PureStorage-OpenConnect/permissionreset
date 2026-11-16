@@ -225,3 +225,80 @@ func TestBuildRefusesSlashAbsoluteExclude(t *testing.T) {
 		t.Fatalf("Build err = %v, want an exclude[1] refusal", err)
 	}
 }
+
+func TestBuildSMB(t *testing.T) {
+	s := mustParse(t, `protocol: nfsv4
+default:
+  acl: ["A:fd:EVERYONE@:rx", "D:fdg:blocked@example.net:w"]
+  sacl: []
+rules:
+  - match: {type: directory, pattern: "audit*"}
+    sacl: ["U:fdS:OWNER@:w"]
+  - match: {type: file}
+    acl: ["A::admins@example.net:rwx"]
+`)
+	p, err := BuildSMB(s, "s.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Schema != SchemaSMB {
+		t.Errorf("schema = %d, want %d", p.Schema, SchemaSMB)
+	}
+	d := p.Default.Dacl
+	if len(d) != 2 {
+		t.Fatalf("default dacl = %+v", d)
+	}
+	if d[0].WindowsType != WindowsAllowType || d[0].WindowsFlags != WinObjectInherit|WinContainerInherit ||
+		d[0].SID != "S-1-1-0" || d[0].SDDL != "(A;OICI;0x21;;;WD)" || d[0].Line != "A:fd:EVERYONE@:rx" {
+		t.Errorf("dacl[0] = %+v", d[0])
+	}
+	if d[1].WindowsType != WindowsDenyType || !d[1].Group || d[1].SID != "" || d[1].Principal != "blocked@example.net" {
+		t.Errorf("dacl[1] = %+v", d[1])
+	}
+	// A sacl:-only rule has no Dacl; OWNER@ stays allowed in a SACL.
+	if p.Rules[0].Dacl != nil || len(p.Rules[0].Sacl) != 1 {
+		t.Errorf("rules[0] = %+v", p.Rules[0])
+	}
+	if len(p.Rules[1].Dacl) != 1 {
+		t.Errorf("rules[1] dacl = %+v", p.Rules[1].Dacl)
+	}
+	// Build itself stays schema 1 and never sets Dacl.
+	p1, err := Build(s, "s.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p1.Schema != Schema || p1.Default.Dacl != nil {
+		t.Errorf("Build changed: schema %d, dacl %+v", p1.Schema, p1.Default.Dacl)
+	}
+}
+
+func TestBuildSMBRefuses(t *testing.T) {
+	tests := []struct{ name, body, want string }{
+		{"inherited flag in acl", "default:\n  acl: [\"A:I:admins@example.net:r\"]\n", "I (inherited)"},
+		{"inherited flag in sacl", "default:\n  sacl: [\"U:IS:EVERYONE@:r\"]\n", "I (inherited)"},
+		{"OWNER@ in acl", "default:\n  acl: [\"A::OWNER@:r\"]\n", "OWNER@ in a DACL"},
+		{"GROUP@ in acl", "default:\n  acl: [\"A:g:GROUP@:r\"]\n", "GROUP@ in a DACL"},
+		{"numeric in acl", "default:\n  acl: [\"A::1000:r\"]\n", "numeric principal"},
+		{"numeric in sacl", "default:\n  sacl: [\"U:S:1000:r\"]\n", "numeric principal"},
+		{"numeric owner", "default:\n  acl: [\"A::admins@example.net:r\"]\n  owner: \"1000\"\n", "numeric id"},
+		{"dacl field", "default:\n  acl: [\"A::admins@example.net:r\"]\n  dacl: [\"A::admins@example.net:r\"]\n", "dacl: is not supported"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := mustParse(t, "protocol: nfsv4\n"+tt.body)
+			if _, err := BuildSMB(s, "s.yaml"); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("err = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestTranslateDACERefusesAudit(t *testing.T) {
+	a, err := nfs4acl.ParseACELine("U:S:EVERYONE@:r")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := TranslateDACE(a); err == nil {
+		t.Fatal("TranslateDACE accepted an audit ACE")
+	}
+}

@@ -90,6 +90,53 @@ static partial class Win32Security
         finally { CloseHandle(h); }
     }
 
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetFileInformationByHandleEx(IntPtr h, int cls, byte[] buf, uint len);
+
+    public const uint AttrDirectory = 0x10, AttrReparsePoint = 0x400;
+
+    // ListDir enumerates one directory through a handle opened with backup intent, so the listing
+    // gets the same access the descriptor reads do, as Set-SaclOnly's ListDir does. "." and ".."
+    // are left out. Each entry is its name and FILE_ATTRIBUTE_* bits.
+    public static List<(string Name, uint Attributes)> ListDir(string path)
+    {
+        const uint FILE_LIST_DIRECTORY = 0x1, SYNCHRONIZE = 0x00100000;
+        const int FileFullDirectoryInfo = 14, ERROR_NO_MORE_FILES = 18;
+        IntPtr h = CreateFile(LongPath(path), FILE_LIST_DIRECTORY | SYNCHRONIZE, SHARE_ALL, IntPtr.Zero, OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, IntPtr.Zero);
+        if (h == new IntPtr(-1)) throw LastError("open directory");
+        var list = new List<(string, uint)>();
+        try
+        {
+            var buf = new byte[64 * 1024];
+            while (true)
+            {
+                if (!GetFileInformationByHandleEx(h, FileFullDirectoryInfo, buf, (uint)buf.Length))
+                {
+                    int err = Marshal.GetLastPInvokeError();
+                    if (err == ERROR_NO_MORE_FILES) break;
+                    throw Error(err, "list");
+                }
+                int off = 0;
+                while (true)
+                {
+                    // FILE_FULL_DIR_INFO: NextEntryOffset @0, FileAttributes @56,
+                    // FileNameLength (bytes) @60, FileName @68.
+                    int next = BitConverter.ToInt32(buf, off);
+                    uint attrs = BitConverter.ToUInt32(buf, off + 56);
+                    int nameLen = BitConverter.ToInt32(buf, off + 60);
+                    string name = System.Text.Encoding.Unicode.GetString(buf, off + 68, nameLen);
+                    if (name is not ("." or "..")) list.Add((name, attrs));
+                    if (next == 0) break;
+                    off += next;
+                }
+            }
+        }
+        finally { CloseHandle(h); }
+        return list;
+    }
+
     // Error names the step that failed and keeps the system's text for the code, which
     // Win32Exception(code, message) would otherwise replace: "open: Access is denied." The code
     // itself stays in NativeErrorCode.

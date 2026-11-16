@@ -897,6 +897,62 @@ func TestRunSaclPlanGolden(t *testing.T) {
 	}
 }
 
+func TestRunSmbPlanGolden(t *testing.T) {
+	var out, errBuf bytes.Buffer
+	if code := run([]string{"--smb-plan", "testdata/smbplan.yaml"}, &out, &errBuf, deps{}); code != 0 {
+		t.Fatalf("exit %d, stderr:\n%s", code, errBuf.String())
+	}
+	golden := filepath.Join("testdata", "smbplan.golden.json")
+	if *updateGolden {
+		if err := os.WriteFile(golden, out.Bytes(), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, w := out.String(), strings.ReplaceAll(string(want), "\r\n", "\n"); got != w {
+		t.Errorf("plan differs from %s:\n--- got\n%s\n--- want\n%s", golden, got, w)
+	}
+}
+
+func TestRunSmbPlanErrors(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	good := write("good.yaml", "protocol: nfsv4\ndefault:\n  sacl: []\n")
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"OWNER@ in acl", []string{"--smb-plan", write("owner.yaml", "protocol: nfsv4\ndefault:\n  acl: [\"A::OWNER@:r\"]\n")}, "OWNER@ in a DACL"},
+		{"with --sacl-plan", []string{"--smb-plan", good, "--sacl-plan", good}, "is a mode of its own and cannot be combined"},
+		{"with positionals", []string{"--smb-plan", good, "/d"}, "--smb-plan takes no positional arguments"},
+		{"empty value", []string{"--smb-plan="}, "--smb-plan needs the path"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out, errBuf bytes.Buffer
+			if code := run(tt.args, &out, &errBuf, deps{}); code == 0 {
+				t.Fatalf("exit 0, want non-zero; stdout:\n%s", out.String())
+			}
+			if out.Len() != 0 {
+				t.Errorf("stdout must stay empty on error, got %q", out.String())
+			}
+			if !strings.Contains(errBuf.String(), tt.want) {
+				t.Errorf("stderr %q does not mention %q", errBuf.String(), tt.want)
+			}
+		})
+	}
+}
+
 func TestRunSaclPlanErrors(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, body string) string {

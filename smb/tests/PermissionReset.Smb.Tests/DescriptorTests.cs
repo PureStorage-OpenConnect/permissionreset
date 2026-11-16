@@ -6,7 +6,7 @@ namespace PermissionReset.Smb.Tests;
 public class DescriptorTests
 {
     // Builders for MS-DTYP binary structures.
-    static byte[] SidBytes(ulong authority, params uint[] subs)
+    internal static byte[] SidBytes(ulong authority, params uint[] subs)
     {
         var b = new byte[8 + 4 * subs.Length];
         b[0] = 1; b[1] = (byte)subs.Length;
@@ -15,7 +15,7 @@ public class DescriptorTests
         return b;
     }
 
-    static byte[] Ace(byte type, byte flags, uint mask, byte[] sid)
+    internal static byte[] Ace(byte type, byte flags, uint mask, byte[] sid)
     {
         var b = new byte[8 + sid.Length];
         b[0] = type; b[1] = flags;
@@ -25,7 +25,7 @@ public class DescriptorTests
         return b;
     }
 
-    static byte[] Acl(params byte[][] aces)
+    internal static byte[] Acl(params byte[][] aces)
     {
         int size = 8 + aces.Sum(a => a.Length);
         var b = new byte[size];
@@ -37,7 +37,7 @@ public class DescriptorTests
         return b;
     }
 
-    static byte[] Sd(ushort control, byte[]? owner, byte[]? group, byte[]? sacl, byte[]? dacl)
+    internal static byte[] Sd(ushort control, byte[]? owner, byte[]? group, byte[]? sacl, byte[]? dacl)
     {
         var parts = new List<byte>(new byte[20]);
         uint Put(byte[]? x) { if (x is null) return 0; uint off = (uint)parts.Count; parts.AddRange(x); return off; }

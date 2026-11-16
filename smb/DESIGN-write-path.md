@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-15 |
-| Status | **Draft for review.** The three-form model (section 2.1) was chosen by the maintainer on 2026-11-15, over writing every object explicit and protected. No write code exists. Nothing here is qualified. |
+| Status | **Draft for review.** The three-form model (section 2.1) was chosen by the maintainer on 2026-11-15, over writing every object explicit and protected. Phase 1 (section 8) is built: plan schema 2 (`build-spec --smb-plan`), `Inheritance`, `Desired` and `check`. No write code exists. Nothing here is qualified. |
 | Builds on | `docs/decision-flasharray-smb-20261107.md` (sections 4–8), and the read-only scaffold in this directory |
 
 This is how `permissionreset-smb` will reset DACLs and SACLs on FlashArray over SMB. It takes the
@@ -56,8 +56,12 @@ comparing type, flags without `ID`, mask and SID.
 | Case | Condition | Desired stored DACL | Control |
 |---|---|---|---|
 | **Inherits** | `want(o) == inh(desired(parent), isDir)` | `inh(desired(parent), isDir)` | unprotected |
-| **Explicit + inherits** | `want(o) == E ++ inh(desired(parent), isDir)`, with `E` non-empty and no `ID` in `E` | `E ++ inh(…)` | unprotected |
+| **Explicit + inherits** | `want(o) == E ++ inh(desired(parent), isDir)`, with `E` and `inh(…)` both non-empty and no `ID` in `E` | `E ++ inh(…)` | unprotected |
 | **Protected** | anything else | `want(o)`, every ACE explicit | `D:P` |
+
+When the parent passes nothing down, the object is **Protected**, not **Explicit + inherits** with
+an empty inherited part. The rule's ACL is complete, and an unprotected explicit-only ACL would take
+on whatever the parent passes down later (hardware question Q-EXP).
 
 `desired(parent)` is the parent's desired DACL from this table, not its stored one, so the result
 depends only on the spec and the tree shape. The run is deterministic and a rerun writes nothing.

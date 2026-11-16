@@ -88,6 +88,7 @@ type buildSpecFlags struct {
 	probeDir    *string
 	acceptRead  *bool
 	saclPlan    *string
+	smbPlan     *string
 	auth        *cmdflags.AuthFlags
 	gate        *cmdflags.Gate
 }
@@ -116,11 +117,13 @@ func registerFlags(fs *flag.FlagSet, errOut io.Writer) (*flag.FlagSet, *buildSpe
 		"where an unprivileged read empties inherited auditing, this can change the exemplars")
 	f.saclPlan = fs.String("sacl-plan", "", "print the SACL plan for this permissionreset spec as JSON on stdout and exit, for "+
 		"tools/set-saclonly/Set-SaclOnly.ps1; reads only the spec and takes no other flag or argument")
+	f.smbPlan = fs.String("smb-plan", "", "print the permissionreset-smb plan (schema 2: DACL and SACL) for this spec as JSON on "+
+		"stdout and exit; reads only the spec and takes no other flag or argument")
 	f.showVersion = fs.Bool("version", false, "print version and exit")
 	f.auth = cmdflags.RegisterAuth(fs, func(s string) string { return s + " (--transport=userspace only)" })
 
 	fs.Usage = func() {
-		fmt.Fprintln(errOut, "usage: build-spec [flags] DIRECTORY FILE\n       build-spec --sacl-plan SPEC.yaml")
+		fmt.Fprintln(errOut, "usage: build-spec [flags] DIRECTORY FILE\n       build-spec --sacl-plan SPEC.yaml\n       build-spec --smb-plan SPEC.yaml")
 		fs.VisitAll(func(ff *flag.Flag) {
 			if ff.Usage == "" {
 				return // hidden flag
@@ -160,7 +163,10 @@ func run(args []string, stdout, stderr io.Writer, d deps) int {
 	explicit := tuning.Explicit(fs)
 
 	if explicit["sacl-plan"] {
-		return runSaclPlan(*f.saclPlan, explicit, fs.Args(), stdout, stderr)
+		return runPlan("sacl-plan", *f.saclPlan, saclplan.Build, explicit, fs.Args(), stdout, stderr)
+	}
+	if explicit["smb-plan"] {
+		return runPlan("smb-plan", *f.smbPlan, saclplan.BuildSMB, explicit, fs.Args(), stdout, stderr)
 	}
 
 	// Gate check: refuses --transport=kernel on non-kernel builds.
@@ -575,30 +581,31 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, productionDeps()))
 }
 
-// runSaclPlan is the --sacl-plan mode: load specPath with full validation and
-// print saclplan's JSON for it. It is a mode of its own, so any other flag or a
-// positional argument is refused rather than silently ignored -- a capture
-// flag next to it would read as though a capture ran.
-func runSaclPlan(specPath string, explicit map[string]bool, args []string, stdout, stderr io.Writer) int {
+// runPlan is the --sacl-plan and --smb-plan modes: load specPath with full
+// validation and print the plan build makes for it. Each is a mode of its own,
+// so any other flag or a positional argument is refused rather than silently
+// ignored -- a capture flag next to it would read as though a capture ran.
+func runPlan(mode, specPath string, build func(*spec.Spec, string) (*saclplan.Plan, error),
+	explicit map[string]bool, args []string, stdout, stderr io.Writer) int {
 	var others []string
 	for name := range explicit {
-		if name != "sacl-plan" {
+		if name != mode {
 			others = append(others, "--"+name)
 		}
 	}
 	if len(others) > 0 {
 		sort.Strings(others)
-		fmt.Fprintf(stderr, "error: --sacl-plan is a mode of its own and cannot be combined with %s\n",
+		fmt.Fprintf(stderr, "error: --%s is a mode of its own and cannot be combined with %s\n", mode,
 			strings.Join(others, ", "))
 		return 1
 	}
 	if len(args) > 0 {
-		fmt.Fprintf(stderr, "error: --sacl-plan takes no positional arguments, got %d (%s)\n",
-			len(args), strings.Join(args, " "))
+		fmt.Fprintf(stderr, "error: --%s takes no positional arguments, got %d (%s)\n",
+			mode, len(args), strings.Join(args, " "))
 		return 1
 	}
 	if specPath == "" {
-		fmt.Fprintln(stderr, "error: --sacl-plan needs the path of a permissionreset spec")
+		fmt.Fprintf(stderr, "error: --%s needs the path of a permissionreset spec\n", mode)
 		return 1
 	}
 
@@ -607,7 +614,7 @@ func runSaclPlan(specPath string, explicit map[string]bool, args []string, stdou
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 1
 	}
-	plan, err := saclplan.Build(s, specPath)
+	plan, err := build(s, specPath)
 	if err != nil {
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 1
