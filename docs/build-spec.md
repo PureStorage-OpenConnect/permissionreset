@@ -76,6 +76,15 @@ translated to Windows audit ACEs (flags, mask, and SID and SDDL for `EVERYONE@`,
 `GROUP@`), and the exclude list split into base-name and path patterns. It reads only the spec,
 takes no other flag or argument, and exits non-zero for an invalid or non-`nfsv4` spec.
 
+## `--smb-plan`
+
+`build-spec --smb-plan SPEC.yaml` is the same kind of mode for `permissionreset-smb` (`smb/`). It
+prints a schema 2 plan: everything `--sacl-plan` prints, plus each `acl:` rule's lines translated to
+Windows allow and deny ACEs (`dacl`). It refuses what the SMB tool can't write faithfully: an `I`
+(inherited) flag in any ACE, `OWNER@` or `GROUP@` in `acl:`, a numeric principal, owner or group,
+and the `dacl:` field (`smb/DESIGN-write-path.md`, section 2.3). `--sacl-plan` output is unchanged,
+because Set-SaclOnly reads only schema 1.
+
 ## Live differential test
 
 `tools/build-spec-differential.sh` verifies that kernel and userspace transports produce

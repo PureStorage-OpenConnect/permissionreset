@@ -15,7 +15,7 @@ static class Cli
           inspect [--no-sacl] PATH...   print each object's raw security descriptor as JSON, one line
                                         per path: owner, group, control flags, DACL and SACL as
                                         stored, and the raw bytes. Read-only.
-          plan PLAN.json                validate a `build-spec --sacl-plan` file and summarize it.
+          plan PLAN.json                validate a `build-spec --smb-plan` (or --sacl-plan) file and summarize it.
           version                       print the version.
 
         inspect needs an elevated shell with SeBackupPrivilege, and SeSecurityPrivilege unless
@@ -118,7 +118,8 @@ static class Cli
         foreach (var r in plan.Rules.Prepend(plan.Default))
         {
             var match = r.Match.Type.Length == 0 && r.Match.Pattern.Length == 0 ? "everything else" : $"{(r.Match.Type.Length == 0 ? "any" : r.Match.Type)} {r.Match.Pattern}".Trim();
-            stdout.WriteLine($"  {r.Label}: {match}; sacl {(r.SaclSet ? (r.Sacl?.Count ?? 0) + " ACE(s)" : "untouched")}{(r.KeepDacl ? ", keeps DACL" : "")}");
+            var dacl = r.Dacl is not null ? $"; dacl {r.Dacl.Count} ACE(s)" : "";
+            stdout.WriteLine($"  {r.Label}: {match}{dacl}; sacl {(r.SaclSet ? (r.Sacl?.Count ?? 0) + " ACE(s)" : "untouched")}{(r.KeepDacl ? ", keeps DACL" : "")}");
         }
         if (plan.Exclude.Patterns.Count > 0) stdout.WriteLine($"  exclude: {string.Join(", ", plan.Exclude.Patterns)}");
         return 0;

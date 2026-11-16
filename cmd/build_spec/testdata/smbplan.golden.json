@@ -1,0 +1,211 @@
+{
+  "schema": 2,
+  "source": "testdata/smbplan.yaml",
+  "protocol": "nfsv4",
+  "exclude": {
+    "patterns": [
+      ".snapshot",
+      "./logs/*.gz"
+    ],
+    "base": [
+      ".snapshot"
+    ],
+    "path": [
+      "logs/*.gz"
+    ]
+  },
+  "default": {
+    "label": "default",
+    "match": {
+      "type": "",
+      "pattern": ""
+    },
+    "sacl_set": false,
+    "keep_dacl": false,
+    "has_acl": true,
+    "has_dacl": false,
+    "has_mode": false,
+    "owner": "",
+    "group": "",
+    "sacl": [],
+    "dacl": [
+      {
+        "line": "A:fd:EVERYONE@:rxtncy",
+        "nfs4_flags": 3,
+        "nfs4_mask": 1179817,
+        "windows_type": 0,
+        "windows_flags": 3,
+        "windows_mask": 1179817,
+        "principal": "EVERYONE@",
+        "group": false,
+        "sid": "S-1-1-0",
+        "sddl": "(A;OICI;0x1200a9;;;WD)"
+      },
+      {
+        "line": "A:fdg:smb-admins@example.net:rwaDdxtTnNcCoy",
+        "nfs4_flags": 67,
+        "nfs4_mask": 2032127,
+        "windows_type": 0,
+        "windows_flags": 3,
+        "windows_mask": 2032127,
+        "principal": "smb-admins@example.net",
+        "group": true,
+        "sid": "",
+        "sddl": ""
+      }
+    ]
+  },
+  "rules": [
+    {
+      "label": "rule[0]",
+      "match": {
+        "type": "directory",
+        "pattern": "audit*"
+      },
+      "sacl_set": true,
+      "keep_dacl": true,
+      "has_acl": false,
+      "has_dacl": false,
+      "has_mode": false,
+      "owner": "",
+      "group": "",
+      "sacl": [
+        {
+          "line": "U:fdSF:EVERYONE@:rwadDxtTcCoy",
+          "nfs4_flags": 51,
+          "nfs4_mask": 2032103,
+          "windows_type": 2,
+          "windows_flags": 195,
+          "windows_mask": 2032103,
+          "principal": "EVERYONE@",
+          "group": false,
+          "sid": "S-1-1-0",
+          "sddl": "(AU;OICISAFA;0x1f01e7;;;WD)"
+        }
+      ]
+    },
+    {
+      "label": "rule[1]",
+      "match": {
+        "type": "directory",
+        "pattern": ""
+      },
+      "sacl_set": true,
+      "keep_dacl": false,
+      "has_acl": true,
+      "has_dacl": false,
+      "has_mode": false,
+      "owner": "",
+      "group": "",
+      "sacl": [],
+      "dacl": [
+        {
+          "line": "D:fdg:smb-blocked@example.net:wadD",
+          "nfs4_flags": 67,
+          "nfs4_mask": 65606,
+          "windows_type": 1,
+          "windows_flags": 3,
+          "windows_mask": 65606,
+          "principal": "smb-blocked@example.net",
+          "group": true,
+          "sid": "",
+          "sddl": ""
+        },
+        {
+          "line": "A:fd:EVERYONE@:rxtncy",
+          "nfs4_flags": 3,
+          "nfs4_mask": 1179817,
+          "windows_type": 0,
+          "windows_flags": 3,
+          "windows_mask": 1179817,
+          "principal": "EVERYONE@",
+          "group": false,
+          "sid": "S-1-1-0",
+          "sddl": "(A;OICI;0x1200a9;;;WD)"
+        },
+        {
+          "line": "A:fdg:smb-admins@example.net:rwaDdxtTnNcCoy",
+          "nfs4_flags": 67,
+          "nfs4_mask": 2032127,
+          "windows_type": 0,
+          "windows_flags": 3,
+          "windows_mask": 2032127,
+          "principal": "smb-admins@example.net",
+          "group": true,
+          "sid": "",
+          "sddl": ""
+        }
+      ]
+    },
+    {
+      "label": "rule[2]",
+      "match": {
+        "type": "file",
+        "pattern": "*.db"
+      },
+      "sacl_set": false,
+      "keep_dacl": false,
+      "has_acl": true,
+      "has_dacl": false,
+      "has_mode": false,
+      "owner": "smb-owner@example.net",
+      "group": "",
+      "sacl": [],
+      "dacl": [
+        {
+          "line": "A:g:smb-admins@example.net:rwatTnNcCoy",
+          "nfs4_flags": 64,
+          "nfs4_mask": 1966495,
+          "windows_type": 0,
+          "windows_flags": 0,
+          "windows_mask": 1966495,
+          "principal": "smb-admins@example.net",
+          "group": true,
+          "sid": "",
+          "sddl": ""
+        }
+      ]
+    },
+    {
+      "label": "rule[3]",
+      "match": {
+        "type": "file",
+        "pattern": ""
+      },
+      "sacl_set": false,
+      "keep_dacl": false,
+      "has_acl": true,
+      "has_dacl": false,
+      "has_mode": false,
+      "owner": "",
+      "group": "",
+      "sacl": [],
+      "dacl": [
+        {
+          "line": "A::EVERYONE@:rtncy",
+          "nfs4_flags": 0,
+          "nfs4_mask": 1179785,
+          "windows_type": 0,
+          "windows_flags": 0,
+          "windows_mask": 1179785,
+          "principal": "EVERYONE@",
+          "group": false,
+          "sid": "S-1-1-0",
+          "sddl": "(A;;0x120089;;;WD)"
+        },
+        {
+          "line": "A:g:smb-admins@example.net:rwaDdxtTnNcCoy",
+          "nfs4_flags": 64,
+          "nfs4_mask": 2032127,
+          "windows_type": 0,
+          "windows_flags": 0,
+          "windows_mask": 2032127,
+          "principal": "smb-admins@example.net",
+          "group": true,
+          "sid": "",
+          "sddl": ""
+        }
+      ]
+    }
+  ]
+}

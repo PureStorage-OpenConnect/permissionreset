@@ -1,0 +1,28 @@
+# Golden input for TestRunSmbPlanGolden: the shapes permissionreset-smb has to
+# tell apart in a schema 2 plan.
+protocol: nfsv4
+exclude:
+  - .snapshot
+  - ./logs/*.gz
+default:
+  acl:
+    - "A:fd:EVERYONE@:rxtncy"
+    - "A:fdg:smb-admins@example.net:rwaDdxtTnNcCoy"
+rules:
+  - match: {type: directory, pattern: "audit*"}
+    sacl:
+      - "U:fdSF:EVERYONE@:rwadDxtTcCoy"
+  - match: {type: directory}
+    acl:
+      - "D:fdg:smb-blocked@example.net:wadD"
+      - "A:fd:EVERYONE@:rxtncy"
+      - "A:fdg:smb-admins@example.net:rwaDdxtTnNcCoy"
+    sacl: []
+  - match: {type: file, pattern: "*.db"}
+    acl:
+      - "A:g:smb-admins@example.net:rwatTnNcCoy"
+    owner: smb-owner@example.net
+  - match: {type: file}
+    acl:
+      - "A::EVERYONE@:rtncy"
+      - "A:g:smb-admins@example.net:rwaDdxtTnNcCoy"

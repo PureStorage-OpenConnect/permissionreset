@@ -36,8 +36,8 @@ A path that cannot be read still gets a line, with `error` naming the step and t
 `inspect` exits 0 when every path was read, 1 when any path failed or a privilege is missing (then
 it reads nothing and says which privilege on stderr), and 2 on a usage error.
 
-`plan` reads the JSON that `build-spec --sacl-plan` writes. The spec has one parser, in Go; this tool
-never reads YAML. A plan with another schema version, another protocol, an unknown field or an
+`plan` reads the JSON that `build-spec --smb-plan` (schema 2, DACL and SACL) or `--sacl-plan`
+(schema 1) writes. The spec has one parser, in Go; this tool never reads YAML. A plan with another schema version, another protocol, an unknown field or an
 unknown match type is refused rather than guessed at.
 
 ## Build and test
