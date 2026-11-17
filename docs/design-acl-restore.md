@@ -49,9 +49,9 @@ Non-goals (for the first version):
 
 ```bash
 permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects/target /mnt/fb/projects/target           # dry run
-permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects/target /mnt/fb/projects/target --apply \
-    --checkpoint restore.ckpt --evidence-dir restore-evidence
-permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects/target /mnt/fb/projects/target --validate
+permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects/target --apply \
+    --checkpoint restore.ckpt --evidence-dir restore-evidence /mnt/fb/projects/target
+permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects/target --validate /mnt/fb/projects/target
 ```
 
 - `--restore-from REF` replaces `--spec`; the two are mutually exclusive. `REF` and the positional
@@ -308,7 +308,18 @@ Where the implementation differs from the text above, and why:
   when every child succeeded, so a resume revisits it.
 - **`ErrAuditVanished` and the restore's `ErrAuditedObject`** live in `internal/restore`, with
   restore wording. The flag is the repair's `--allow-audited-dacl-reset` (decision 2).
-- **Writable reference** is decided with `access(REF, W_OK)` on the reference root. A dry run does
-  not read a writable reference at all, since without the proof a read of a live tree can empty its
-  inherited auditing.
+- **Writable reference** is decided by trying a write, under `--apply` only: create an empty probe
+  file in the reference root and remove it. Only EROFS counts as read-only; any other failure is
+  treated as writable. The first build used `access(REF, W_OK)`, and the lab found it wrong on
+  FlashBlade (Purity//FB 4.8.7, 2026-11-17): NFS ACCESS is answered from the ACL, so `access(2)`
+  says a snapshot is writable, and each snapshot is its own read-write submount (`ST_RDONLY` clear),
+  yet `touch` and `setxattr` on it fail EROFS. A same-bytes ACL write was rejected as the probe:
+  on a reference that is in fact writable, and on FlashArray, it would flatten SMB inheritance.
+- **A dry run reads no ACL on either side** (section 4.7 had it read the reference). It runs no
+  proof, and it no longer probes the reference, so it cannot know the reference is a snapshot that
+  is safe to read without one. It pairs the trees and reports `WOULD` per pair; `--validate` is the
+  read-only comparison.
+- **Flags go before TARGET.** Go's flag parsing stops at the first positional argument, so
+  `--restore-from REF TARGET --validate` is refused with a message naming the stray flag. The
+  examples in section 3 were corrected.
 - **`replaced_since` is not built** (section 9, question 1 still open).

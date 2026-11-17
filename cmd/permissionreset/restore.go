@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -49,10 +50,33 @@ var restoreConflicts = []struct{ flag, why string }{
 	{"rpc-stats", "a restore runs on the kernel transport only"},
 }
 
-// referenceWritable is a seam: whether the reference root accepts writes. A
-// snapshot answers EROFS.
-var referenceWritable = func(path string) bool {
-	return unix.Access(path, unix.W_OK) == nil
+// referenceWritable is a seam: whether the reference root accepts writes, and
+// how that was decided.
+//
+// It tries the write: create a probe file in the reference root, and remove it
+// if that worked. Only EROFS counts as read-only. access(W_OK) and statvfs
+// cannot answer this on FlashBlade: NFS ACCESS is answered from the ACL, so
+// access(2) says a snapshot is writable, and each snapshot is its own
+// read-write submount, so ST_RDONLY is clear -- yet every write to it fails
+// EROFS (lab, Purity//FB 4.8.7). A no-op ACL write is not used as the probe:
+// on a reference that is in fact writable, and on FlashArray, an NFS ACL write
+// flattens SMB inheritance even with identical bytes (RISKS.md #11). Creating
+// and removing an empty file touches no ACL. Any other failure (EACCES, say)
+// cannot tell, and is treated as writable.
+var referenceWritable = func(dir string) (bool, string) {
+	f, err := os.CreateTemp(dir, ".permissionreset-refprobe-")
+	if err == nil {
+		name := f.Name()
+		f.Close()
+		if rerr := os.Remove(name); rerr != nil {
+			return true, fmt.Sprintf("created probe %s and could not remove it (%v); remove it by hand", name, rerr)
+		}
+		return true, "a probe file could be created in it (and was removed)"
+	}
+	if errors.Is(err, unix.EROFS) {
+		return false, "read-only (EROFS)"
+	}
+	return true, fmt.Sprintf("could not tell (%v), so it is treated as writable", err)
 }
 
 // runRestore is --restore-from REF TARGET.
@@ -158,12 +182,19 @@ func runRestore(f *flags, pf *preflightResult, out, errOut io.Writer) (exitCode 
 		}
 	}
 
+	writable := false
+	if mode == restore.Apply {
+		var how string
+		writable, how = referenceWritable(ref)
+		fmt.Fprintf(errOut, "NOTE: reference write probe: %s\n", how)
+	}
+
 	cfg := restore.Config{
 		Reference: ref, Target: target, Ref: refT, Live: liveT, Mode: mode, Workers: *f.workers,
 		Excluder: excluder, Excludes: pf.excludes, OneFilesystem: *f.oneFilesystem,
 		Checkpoint: ckpt, Evidence: sink,
 		AllowAuditedDACLReset: *f.allowAudited, AllowAuditRemoval: *f.allowAuditRemoval,
-		AllowWritableReference: *f.allowWritableRef, ReferenceWritable: referenceWritable(ref),
+		AllowWritableReference: *f.allowWritableRef, ReferenceWritable: writable,
 		Resolver: idmap.NewNSS(),
 	}
 	if lh.logFile != nil {

@@ -405,24 +405,28 @@ func TestRestoreValidateComparesWithoutWriting(t *testing.T) {
 	}
 }
 
-func TestRestoreDryRunReadsNoLiveACL(t *testing.T) {
+func TestRestoreDryRunReadsNoACL(t *testing.T) {
 	fx := newFixture(t)
 	fx.file("a.txt", true, true)
+	fx.file("gone", true, false)
 	res := fx.run(fx.config(DryRun))
-	if fx.live.gets() != 0 || len(fx.live.sets()) != 0 {
-		t.Errorf("dry run touched the live tree: %v", fx.live.calls)
+	if fx.live.gets() != 0 || len(fx.live.sets()) != 0 || fx.ref.gets() != 0 {
+		t.Errorf("dry run read or wrote an ACL: live %v, ref %v", fx.live.calls, fx.ref.calls)
 	}
-	if res.Counts.Would != 2 {
-		t.Errorf("would = %d, want 2", res.Counts.Would)
+	if res.Counts.Would != 2 || res.Counts.DeletedSince != 1 {
+		t.Errorf("counts = %+v, want 2 would, 1 deleted-since", res.Counts)
 	}
+}
 
-	fx2 := newFixture(t)
-	fx2.file("a.txt", true, true)
-	cfg := fx2.config(DryRun)
-	cfg.ReferenceWritable = true
-	fx2.run(cfg)
-	if fx2.ref.gets() != 0 {
-		t.Errorf("dry run read a writable reference")
+func TestRestoreWritableReferenceMattersOnlyUnderApply(t *testing.T) {
+	for _, mode := range []Mode{DryRun, Validate} {
+		fx := newFixture(t)
+		fx.file("a.txt", true, true)
+		cfg := fx.config(mode)
+		cfg.ReferenceWritable = true
+		if res := fx.run(cfg); res.Counts.Errors() != 0 {
+			t.Errorf("%s with a writable reference: %+v", mode, res.Counts)
+		}
 	}
 }
 

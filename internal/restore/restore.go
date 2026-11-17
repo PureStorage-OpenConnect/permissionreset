@@ -43,9 +43,10 @@ import (
 type Mode int
 
 const (
-	// DryRun reads only the reference and reports what an apply would compare.
-	// It reads no live ACL: a dry run has no audit-bypass proof, and a live read
-	// without the proven bypass can empty inherited auditing (PS-02).
+	// DryRun pairs the two trees and reports what an apply would compare. It
+	// reads no ACL on either side: a dry run has no audit-bypass proof, a live
+	// read without the proven bypass can empty inherited auditing (PS-02), and
+	// whether the reference is a read-only snapshot is only probed under Apply.
 	DryRun Mode = iota
 	// Apply proves the bypass, compares every pair byte for byte and writes the
 	// reference bytes where they differ.
@@ -111,9 +112,9 @@ type Config struct {
 	AllowAuditedDACLReset  bool
 	AllowAuditRemoval      bool
 	AllowWritableReference bool
-	// ReferenceWritable is the caller's answer to whether Reference accepts
-	// writes. A dry run does not read a writable reference, and an apply
-	// refuses one unless AllowWritableReference.
+	// ReferenceWritable is the caller's answer, under Apply only, to whether
+	// Reference accepts writes. An apply refuses a writable reference unless
+	// AllowWritableReference. Other modes ignore it.
 	ReferenceWritable bool
 
 	Resolver idmap.Resolver
@@ -224,10 +225,7 @@ func Run(ctx context.Context, cfg Config, out, errOut io.Writer) (res Result, ru
 		res.Proof = proof.String()
 		fmt.Fprintf(errOut, "NOTE: %s (on the live filesystem; the reference is read with the same identity)\n", proof)
 	} else {
-		fmt.Fprintln(errOut, "NOTE: dry run: no live ACL is read (no audit-bypass proof runs without --apply), so every pair is reported as WOULD compare")
-		if cfg.ReferenceWritable {
-			fmt.Fprintln(errOut, "NOTE: the reference is writable, so a dry run does not read it either; an --apply would need --allow-writable-reference")
-		}
+		fmt.Fprintln(errOut, "NOTE: dry run: no ACL is read on either side (no audit-bypass proof runs without --apply or --validate), so every pair is reported as WOULD compare; --validate compares them")
 	}
 
 	if cfg.OneFilesystem {
@@ -584,28 +582,7 @@ func (e *engine) processPair(rel string, dir bool) bool {
 
 	if e.cfg.Mode == DryRun {
 		e.c.would.Add(1)
-		if e.cfg.ReferenceWritable {
-			e.audit(fmt.Sprintf("WOULD: compare %s %s with %s (reference not read: it is writable)", kind, livePath, refPath))
-			return true
-		}
-		refACL, err := e.cfg.Ref.GetACL(transport.Ref{Path: refPath})
-		if err != nil {
-			e.c.would.Add(-1)
-			e.c.readErr.Add(1)
-			e.errorf("ERR: getxattr reference %s: %v", refPath, err)
-			return false
-		}
-		saclCount, err := apply.CheckRestorable(refACL)
-		if err != nil {
-			e.c.would.Add(-1)
-			e.refuse(err, fmt.Errorf("%s: reference %s: %w", livePath, refPath, err))
-			return false
-		}
-		note := ""
-		if saclCount > 0 && !e.cfg.AllowAuditedDACLReset {
-			note = fmt.Sprintf(" (reference has %d audit ACEs: a write would need --allow-audited-dacl-reset)", saclCount)
-		}
-		e.audit(fmt.Sprintf("WOULD: compare %s %s with %s%s", kind, livePath, refPath, note))
+		e.audit(fmt.Sprintf("WOULD: compare %s %s with %s", kind, livePath, refPath))
 		return true
 	}
 

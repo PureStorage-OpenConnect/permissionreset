@@ -66,7 +66,8 @@ writes each object's raw `system.nfs4_acl` from REF onto TARGET at the same rela
 where the bytes differ (#56, `docs/design-acl-restore.md`, section 10 lists as-built deviations).
 No spec; kernel transport on Linux only (`cmdflags.RestoreFrom`). Paired walk with sorted
 merge-join; directories written after their subtree, root last. Apply and validate prove the audit
-bypass first; dry run reads no live ACL. Guards (`apply.CheckRestorable`, audited object, audit
+bypass first; dry run reads no ACL on either side. `--apply` probes the reference for EROFS by
+creating and removing a file (`access(W_OK)` says yes on a FlashBlade snapshot). Flags go before TARGET. Guards (`apply.CheckRestorable`, audited object, audit
 vanished) apply only when a write is needed. Built, not hardware-qualified; `replaced_since` is
 not built (design section 9, question 1).
 

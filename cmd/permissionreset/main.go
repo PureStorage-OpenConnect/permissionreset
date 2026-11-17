@@ -481,6 +481,9 @@ func postProcessFlags(fs *flag.FlagSet, f *flags, out, errOut io.Writer) (*prefl
 			return nil, 1
 		}
 		if fs.NArg() != 1 {
+			if fs.NArg() > 1 && strings.HasPrefix(fs.Arg(1), "-") {
+				fmt.Fprintf(errOut, "ERROR: %s after TARGET is not parsed as a flag; put every flag before TARGET\n", fs.Arg(1))
+			}
 			fmt.Fprintln(errOut, "usage: permissionreset --restore-from REF [flags] TARGET")
 			return nil, 1
 		}

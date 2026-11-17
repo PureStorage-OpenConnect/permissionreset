@@ -73,8 +73,9 @@ func TestRestoreFlagSelectsModeAndRoots(t *testing.T) {
 		if cfg.Reference != ref || cfg.Target != target {
 			t.Errorf("roots = %s -> %s", cfg.Reference, cfg.Target)
 		}
-		if !cfg.ReferenceWritable {
-			t.Error("a tmpdir reference is writable")
+		// The write probe runs only under --apply.
+		if cfg.ReferenceWritable != (tc.want == restore.Apply) {
+			t.Errorf("%v: ReferenceWritable = %v", tc.args, cfg.ReferenceWritable)
 		}
 	}
 }
@@ -154,5 +155,54 @@ func TestRestoreWritesJSONSummary(t *testing.T) {
 	}
 	if got["mode"] != "dry-run" || got["reference"] != ref || got["target"] != target {
 		t.Errorf("summary = %s", data)
+	}
+}
+
+func TestReferenceWriteProbe(t *testing.T) {
+	dir := t.TempDir()
+	writable, how := referenceWritable(dir)
+	if !writable {
+		t.Fatalf("tmpdir reported read-only: %s", how)
+	}
+	if ents, _ := os.ReadDir(dir); len(ents) != 0 {
+		t.Errorf("probe left %d entries behind", len(ents))
+	}
+	if os.Geteuid() != 0 {
+		ro := t.TempDir()
+		os.Chmod(ro, 0o555)
+		t.Cleanup(func() { os.Chmod(ro, 0o755) })
+		// EACCES cannot tell, so it is treated as writable; only EROFS is read-only.
+		if w, how := referenceWritable(ro); !w || !strings.Contains(how, "could not tell") {
+			t.Errorf("EACCES: writable=%v %q", w, how)
+		}
+	}
+}
+
+func TestRestoreReadOnlyReferenceIsNotRefused(t *testing.T) {
+	cfg := captureRestoreConfig(t)
+	ref, target := restoreRoots(t)
+	old := referenceWritable
+	calls := 0
+	referenceWritable = func(string) (bool, string) { calls++; return false, "read-only (EROFS)" }
+	t.Cleanup(func() { referenceWritable = old })
+
+	if code, _, errOut := runArgs(t, "--restore-from", ref, "--validate", target); code != 0 || calls != 0 {
+		t.Fatalf("validate: exit %d, probe calls %d: %s", code, calls, errOut)
+	}
+	code, _, errOut := runArgs(t, "--restore-from", ref, "--apply", target)
+	if code != 0 || calls != 1 || cfg.ReferenceWritable {
+		t.Fatalf("apply: exit %d, probe calls %d, writable %v: %s", code, calls, cfg.ReferenceWritable, errOut)
+	}
+	if !strings.Contains(errOut, "read-only (EROFS)") {
+		t.Errorf("probe result not reported: %q", errOut)
+	}
+}
+
+func TestRestoreFlagsAfterTargetAreNamed(t *testing.T) {
+	captureRestoreConfig(t)
+	ref, target := restoreRoots(t)
+	code, _, errOut := runArgs(t, "--restore-from", ref, target, "--validate")
+	if code == 0 || !strings.Contains(errOut, "--validate after TARGET") {
+		t.Errorf("exit %d: %q", code, errOut)
 	}
 }

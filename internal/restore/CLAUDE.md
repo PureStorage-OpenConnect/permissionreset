@@ -19,8 +19,8 @@ as-built deviations: `docs/design-acl-restore.md` (section 10).
 ## Invariants
 
 - Apply and validate call `Config.Prove` (default `auditproof.Prove` on `Live` at `Target`) before
-  any ACL read on either side. Dry run reads no live ACL, and no reference ACL when
-  `ReferenceWritable`.
+  any ACL read on either side. Dry run reads no ACL on either side. `ReferenceWritable` matters
+  only under Apply; the CLI decides it with an EROFS create probe (`cmd/permissionreset/restore.go`).
 - Compare is raw `bytes.Equal`, never structural: the bytes on both sides came from the array.
 - Guards run only when the bytes differ: `apply.CheckRestorable` on the reference bytes, then
   `ErrAuditVanished` (live has audit, reference none; lifted by `AllowAuditRemoval`), then

@@ -53,9 +53,10 @@ permissionreset --partitions examples/partitions/manifest.yaml --apply --resume
 
 # Put ACLs back from a snapshot, byte for byte, only where they differ (no spec).
 # Not yet hardware-qualified; see "Restore from a reference tree" below.
-permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects /mnt/fb/projects --validate
-permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects /mnt/fb/projects --apply \
-    --checkpoint restore.ckpt --evidence-dir restore-evidence
+# Every flag goes before TARGET.
+permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects --validate /mnt/fb/projects
+permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects --apply \
+    --checkpoint restore.ckpt --evidence-dir restore-evidence /mnt/fb/projects
 ```
 
 ## Compare and validate
@@ -98,8 +99,8 @@ creates or deletes an object. Design: [design-acl-restore.md](design-acl-restore
 qualification in the design (section 8) has not run. Until it has, use it on a canary subtree and
 check the result with `--validate` and from an SMB client.
 
-- **Modes.** Without `--apply` it is a dry run: it reads only the reference (not even that when the
-  reference is writable) and reports `WOULD` per pair. `--validate` and `--apply` first prove the
+- **Modes.** Without `--apply` it is a dry run: it pairs the two trees, reads no ACL on either side,
+  and reports `WOULD` per pair with every skip counted. `--validate` and `--apply` first prove the
   audit bypass on a disposable probe under `TARGET`, then compare every pair. `--validate` writes
   nothing and exits 1 on any mismatch, naming the first differing ACE (so a missing `0x40` shows).
 - **Pairing.** Both trees are listed together. An object only in the reference (`deleted-since`),
@@ -112,7 +113,9 @@ check the result with `--validate` and from an SMB client.
   kernel transport cannot tell FlashBlade from FlashArray, where the write marks the SACL and DACL
   protected. A live ACL with audit ACEs the reference lacks is refused unless `--allow-audit-removal`.
 - **Wrong way round.** `--apply` refuses a reference that accepts writes unless
-  `--allow-writable-reference`; a snapshot does not. The same directory, or one inside the other, is
+  `--allow-writable-reference`. It finds out by creating and removing an empty probe file in the
+  reference root: a snapshot answers EROFS. Any other failure (no permission, say) cannot tell, so
+  the reference is treated as writable. The same directory, or one inside the other, is
   refused outright.
 - **Allowed:** `--apply`, `--validate`, `--exclude` (matched on target paths), `--checkpoint` and
   `--resume` (with `--apply`), `--evidence-dir`, `--log`, `--json-summary`, `--workers`,
