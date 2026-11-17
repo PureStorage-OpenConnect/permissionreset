@@ -43,8 +43,12 @@ const (
 // kernel transport reports st_dev; the userspace transport reports FATTR4_FSID,
 // which is what the kernel derives st_dev from on an NFS mount.
 type Attr struct {
-	Mode      uint32
-	FSID      uint64
+	Mode uint32
+	FSID uint64
+	// Ino is the object's file id (st_ino) where the transport knows it, and
+	// 0 where it does not. The kernel transport fills it; --restore-from uses
+	// it to tell a recreated object from the one a snapshot holds.
+	Ino       uint64
 	IsDir     bool
 	IsSymlink bool
 	Kind      Kind
@@ -79,6 +83,18 @@ type Dirent struct {
 	AttrsKnown bool
 	Mode       uint32
 	FSID       uint64
+	// Ino is the file id READDIR returned (d_ino), set only by InoLister.
+	// 0 means unknown, not a file id.
+	Ino uint64
+}
+
+// InoLister is implemented by a transport that can list a directory with each
+// child's file id at no extra cost. On Linux the kernel transport reads d_ino
+// from getdents64. --restore-from uses it to spot an object deleted and
+// recreated under the same name since the snapshot (design-acl-restore.md
+// section 4.6). Entries are sorted by name, as ReadDir's are.
+type InoLister interface {
+	ReadDirIno(Ref) ([]Dirent, error)
 }
 
 // DirBatcher is implemented by a transport that can list a directory in

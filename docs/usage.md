@@ -120,12 +120,21 @@ check the result with `--validate` and from an SMB client.
 - **Allowed:** `--apply`, `--validate`, `--exclude` (matched on target paths), `--checkpoint` and
   `--resume` (with `--apply`), `--evidence-dir`, `--log`, `--json-summary`, `--workers`,
   `--one-filesystem`. **Refused:** `--spec`, `--sacl`, `--compare`, `--set-owner`, `--partitions`,
-  `--pfind`, and the userspace transport and its flags. Linux, kernel transport only.
+  `--pfind`, `--allow-high-ids` (no flag lifts the per-object high-id refusal), and the userspace
+  transport and its flags. Linux, kernel transport only.
 - **Not FlashArray SMB-written data**: an NFS write flattens its inheritance (RISKS.md #11). Use
   `permissionreset-smb` for those trees.
 - **Same name, new object.** An object deleted and recreated under the same name since the snapshot
-  gets the old object's ACL. Whether FlashBlade keeps file ids in `.snapshot`, which would let the
-  restore detect this, is still open (design section 9).
+  has a different file id, so it is skipped and counted as `replaced-since` rather than given the
+  old object's ACL. A replaced directory is not descended. The ids come from READDIR, and a
+  mismatch is confirmed with `lstat` on both sides before the object is skipped. FlashBlade keeps
+  file ids in `.snapshot` (one lab check, Purity//FB 4.8.7).
+- **Objects created under audited directories may not restore.** On one lab FlashBlade (Purity//FB
+  4.8.7), a file created over NFS in a directory whose ACL carries an inheritable audit ACE came back
+  with three extra ALLOW entries naming ids that resolve to nothing, two of them at or above
+  1000000000. The restore refuses such an object (`synthetic_range_principal`), since writing those
+  ids back over NFS would land on different SIDs. Expect a few refusals on trees built that way; the
+  array-side cause is not yet explained.
 
 ## See also
 

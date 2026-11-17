@@ -70,6 +70,9 @@ func TestRestoreFlagSelectsModeAndRoots(t *testing.T) {
 		if cfg.Mode != tc.want {
 			t.Errorf("%v: mode %s, want %s", tc.args, cfg.Mode, tc.want)
 		}
+		if !cfg.ReplacedCheck {
+			t.Errorf("%v: the replaced check is off", tc.args)
+		}
 		if cfg.Reference != ref || cfg.Target != target {
 			t.Errorf("roots = %s -> %s", cfg.Reference, cfg.Target)
 		}
@@ -95,6 +98,7 @@ func TestRestoreRefusesConflictingFlags(t *testing.T) {
 		{"--partitions", "m.yaml"},
 		{"--checkpoint", "c.ckpt"}, // without --apply
 		{"--resume"},
+		{"--allow-high-ids"},
 	} {
 		args := append([]string{"--restore-from", ref}, extra...)
 		args = append(args, target)

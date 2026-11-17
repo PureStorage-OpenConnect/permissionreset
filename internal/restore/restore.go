@@ -105,6 +105,13 @@ type Config struct {
 
 	OneFilesystem bool
 
+	// ReplacedCheck skips a pair whose file ids differ: an object deleted and
+	// recreated under the same name since the snapshot, which would otherwise
+	// get the old object's ACL (design section 4.6). It needs transports that
+	// implement transport.InoLister; without one the check cannot run and Run
+	// says so. FlashBlade keeps file ids in .snapshot (lab, Purity//FB 4.8.7).
+	ReplacedCheck bool
+
 	Checkpoint *checkpoint.Checkpoint // nil: no checkpoint
 	Evidence   *evidence.Sink         // nil: no evidence; Run closes it
 	Log        io.Writer              // error records; nil sends the first few to ErrOut
@@ -137,6 +144,7 @@ type Counts struct {
 	TypeChanged     int64 `json:"type_changed"`
 	Excluded        int64 `json:"excluded"`
 	OtherFilesystem int64 `json:"other_filesystem"`
+	ReplacedSince   int64 `json:"replaced_since"`
 	Resumed         int64 `json:"resumed_dirs"`
 	Refused         int64 `json:"refused"`
 	ReadErrors      int64 `json:"read_errors"`
@@ -228,6 +236,15 @@ func Run(ctx context.Context, cfg Config, out, errOut io.Writer) (res Result, ru
 		fmt.Fprintln(errOut, "NOTE: dry run: no ACL is read on either side (no audit-bypass proof runs without --apply or --validate), so every pair is reported as WOULD compare; --validate compares them")
 	}
 
+	if cfg.ReplacedCheck {
+		_, okR := cfg.Ref.(transport.InoLister)
+		_, okL := cfg.Live.(transport.InoLister)
+		if !okR || !okL {
+			fmt.Fprintln(errOut, "NOTE: this transport cannot list file ids, so objects recreated since the reference are not detected")
+			e.cfg.ReplacedCheck = false
+		}
+	}
+
 	if cfg.OneFilesystem {
 		ra, err := cfg.Ref.Stat(transport.Ref{Path: cfg.Reference})
 		if err != nil {
@@ -289,6 +306,7 @@ type job struct {
 type counters struct {
 	compared, restored, same, would, mismatch                          atomic.Int64
 	deleted, created, symlink, typeChanged, excluded, otherFS, resumed atomic.Int64
+	replaced                                                           atomic.Int64
 	refused, readErr, writeErr, listErr                                atomic.Int64
 }
 
@@ -321,7 +339,7 @@ func (e *engine) counts() Counts {
 		Compared: c.compared.Load(), Restored: c.restored.Load(), Same: c.same.Load(), Would: c.would.Load(),
 		Mismatch: c.mismatch.Load(), DeletedSince: c.deleted.Load(), CreatedSince: c.created.Load(),
 		Symlink: c.symlink.Load(), TypeChanged: c.typeChanged.Load(), Excluded: c.excluded.Load(),
-		OtherFilesystem: c.otherFS.Load(), Resumed: c.resumed.Load(), Refused: c.refused.Load(),
+		OtherFilesystem: c.otherFS.Load(), ReplacedSince: c.replaced.Load(), Resumed: c.resumed.Load(), Refused: c.refused.Load(),
 		ReadErrors: c.readErr.Load(), WriteErrors: c.writeErr.Load(), ListErrors: c.listErr.Load(),
 	}
 }
@@ -457,14 +475,14 @@ func kindOf(d transport.Dirent) side {
 func (e *engine) listPair(n *dirNode) {
 	n.pending.Store(1) // the listing itself
 	refDir, liveDir := e.ref(n.rel), e.live(n.rel)
-	refEnts, err := e.cfg.Ref.ReadDir(transport.Ref{Path: refDir})
+	refEnts, err := e.readDir(e.cfg.Ref, refDir)
 	if err != nil {
 		e.c.listErr.Add(1)
 		e.errorf("ERR: readdir reference %s: %v", refDir, err)
 		e.abandon(n)
 		return
 	}
-	liveEnts, err := e.cfg.Live.ReadDir(transport.Ref{Path: liveDir})
+	liveEnts, err := e.readDir(e.cfg.Live, liveDir)
 	if err != nil {
 		e.c.listErr.Add(1)
 		e.errorf("ERR: readdir %s: %v", liveDir, err)
@@ -487,6 +505,7 @@ func (e *engine) listPair(n *dirNode) {
 	i, k := 0, 0
 	for i < len(refEnts) || k < len(liveEnts) {
 		var name string
+		var refIno, liveIno uint64
 		rk, lk := missing, missing
 		switch {
 		case k >= len(liveEnts) || (i < len(refEnts) && refEnts[i].Name < liveEnts[k].Name):
@@ -497,6 +516,7 @@ func (e *engine) listPair(n *dirNode) {
 			k++
 		default:
 			name, rk, lk = refEnts[i].Name, kindOf(refEnts[i]), kindOf(liveEnts[k])
+			refIno, liveIno = refEnts[i].Ino, liveEnts[k].Ino
 			i++
 			k++
 		}
@@ -521,6 +541,8 @@ func (e *engine) listPair(n *dirNode) {
 			skip(&e.c.symlink, "symlink", livePath)
 		case rk != lk:
 			skip(&e.c.typeChanged, "type-changed", livePath)
+		case e.replacedSince(rel, liveDir, refIno, liveIno, &signals):
+			// Counted and recorded inside; a directory is not descended.
 		case rk == isFile:
 			signals++
 			n.pending.Add(1)
@@ -543,6 +565,50 @@ func (e *engine) listPair(n *dirNode) {
 		e.cfg.Checkpoint.RegisterDir(liveDir, signals)
 	}
 	e.childFinished(n) // the listing is done
+}
+
+// readDir lists dir with file ids when the replaced check needs them.
+func (e *engine) readDir(t transport.Transport, dir string) ([]transport.Dirent, error) {
+	if e.cfg.ReplacedCheck {
+		if l, ok := t.(transport.InoLister); ok {
+			return l.ReadDirIno(transport.Ref{Path: dir})
+		}
+	}
+	return t.ReadDir(transport.Ref{Path: dir})
+}
+
+// replacedSince reports whether a same-type pair is an object recreated since
+// the reference: its file ids differ. READDIR's ids are confirmed with an
+// lstat on both sides before a pair is skipped, so an id READDIR reports
+// differently from stat (a mount point's, say) cannot skip a real pair. It
+// records the skip, or a read error, itself.
+func (e *engine) replacedSince(rel, liveDir string, refIno, liveIno uint64, signals *int) bool {
+	if !e.cfg.ReplacedCheck || refIno == 0 || liveIno == 0 || refIno == liveIno {
+		return false
+	}
+	livePath := e.live(rel)
+	ra, err := e.cfg.Ref.Stat(transport.Ref{Path: e.ref(rel)})
+	if err != nil {
+		e.c.readErr.Add(1)
+		e.errorf("ERR: replaced check: %v", err)
+		return true
+	}
+	la, err := e.cfg.Live.Stat(transport.Ref{Path: livePath})
+	if err != nil {
+		e.c.readErr.Add(1)
+		e.errorf("ERR: replaced check: %v", err)
+		return true
+	}
+	if ra.Ino == 0 || la.Ino == 0 || ra.Ino == la.Ino {
+		return false
+	}
+	e.c.replaced.Add(1)
+	e.audit(fmt.Sprintf("SKIP: replaced-since %s (file id %d, reference %d)", livePath, la.Ino, ra.Ino))
+	*signals++
+	if e.cfg.Checkpoint != nil {
+		e.cfg.Checkpoint.EntryDone(liveDir)
+	}
+	return true
 }
 
 // abandon gives up on a directory pair whose listing failed: neither its
@@ -753,6 +819,7 @@ func printSummary(out io.Writer, c Counts, refusedBy map[string]int64, mode Mode
 	fmt.Fprintf(out, "  Created since:    %d (live only; nothing done)\n", c.CreatedSince)
 	fmt.Fprintf(out, "  Symlinks:         %d (on either side; not followed)\n", c.Symlink)
 	fmt.Fprintf(out, "  Type changed:     %d (nothing done, not descended)\n", c.TypeChanged)
+	fmt.Fprintf(out, "  Replaced since:   %d (same name, different file id; nothing done, not descended)\n", c.ReplacedSince)
 	if c.Excluded > 0 {
 		fmt.Fprintf(out, "  Excluded:         %d\n", c.Excluded)
 	}

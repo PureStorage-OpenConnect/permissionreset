@@ -48,6 +48,7 @@ var restoreConflicts = []struct{ flag, why string }{
 	{"auth-gids", "a restore runs on the kernel transport only"},
 	{"auth-hostname", "a restore runs on the kernel transport only"},
 	{"rpc-stats", "a restore runs on the kernel transport only"},
+	{"allow-high-ids", "a restore refuses each object naming an id at or above 1000000000, and no flag lifts that: the refusal protects a SID"},
 }
 
 // referenceWritable is a seam: whether the reference root accepts writes, and
@@ -191,7 +192,7 @@ func runRestore(f *flags, pf *preflightResult, out, errOut io.Writer) (exitCode 
 
 	cfg := restore.Config{
 		Reference: ref, Target: target, Ref: refT, Live: liveT, Mode: mode, Workers: *f.workers,
-		Excluder: excluder, Excludes: pf.excludes, OneFilesystem: *f.oneFilesystem,
+		Excluder: excluder, Excludes: pf.excludes, OneFilesystem: *f.oneFilesystem, ReplacedCheck: true,
 		Checkpoint: ckpt, Evidence: sink,
 		AllowAuditedDACLReset: *f.allowAudited, AllowAuditRemoval: *f.allowAuditRemoval,
 		AllowWritableReference: *f.allowWritableRef, ReferenceWritable: writable,
@@ -199,9 +200,6 @@ func runRestore(f *flags, pf *preflightResult, out, errOut io.Writer) (exitCode 
 	}
 	if lh.logFile != nil {
 		cfg.Log = lh.logOut
-	}
-	if *f.allowHighIDs {
-		fmt.Fprintln(errOut, "NOTE: --allow-high-ids does not lift a restore's per-object refusal of ids at or above 1000000000: that refusal protects a SID")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

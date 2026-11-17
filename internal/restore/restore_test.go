@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +28,39 @@ type aclFS struct {
 	calls   []string // "get PATH" / "set PATH"
 	failSet map[string]error
 	failGet map[string]error
+	// File ids are scripted, since the two tmpdir trees really are different
+	// files. By default an object's id is a hash of its path relative to the
+	// root, the same on both sides; direntIno and statIno override it.
+	root      string
+	direntIno map[string]uint64
+	statIno   map[string]uint64
+}
+
+func (f *aclFS) defaultIno(p string) uint64 {
+	rel, _ := filepath.Rel(f.root, p)
+	h := fnv.New64a()
+	h.Write([]byte(rel))
+	return h.Sum64() | 1
+}
+
+func (f *aclFS) ReadDirIno(r transport.Ref) ([]transport.Dirent, error) {
+	ents, err := f.Kernel.ReadDir(r)
+	for i := range ents {
+		ents[i].Ino = f.defaultIno(ents[i].Ref.Path)
+		if v, ok := f.direntIno[ents[i].Ref.Path]; ok {
+			ents[i].Ino = v
+		}
+	}
+	return ents, err
+}
+
+func (f *aclFS) Stat(r transport.Ref) (transport.Attr, error) {
+	a, err := f.Kernel.Stat(r)
+	a.Ino = f.defaultIno(r.Path)
+	if v, ok := f.statIno[r.Path]; ok {
+		a.Ino = v
+	}
+	return a, err
 }
 
 func newACLFS(t *testing.T, root string) *aclFS {
@@ -35,7 +69,8 @@ func newACLFS(t *testing.T, root string) *aclFS {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &aclFS{Kernel: k, acls: map[string][]byte{}, failSet: map[string]error{}, failGet: map[string]error{}}
+	return &aclFS{Kernel: k, acls: map[string][]byte{}, failSet: map[string]error{}, failGet: map[string]error{},
+		root: root, direntIno: map[string]uint64{}, statIno: map[string]uint64{}}
 }
 
 func (f *aclFS) GetACL(r transport.Ref) ([]byte, error) {
@@ -154,7 +189,8 @@ func (fx *fixture) file(rel string, onRef, onLive bool) {
 func (fx *fixture) config(mode Mode) Config {
 	return Config{
 		Reference: fx.refRoot, Target: fx.liveRoot, Ref: fx.ref, Live: fx.live, Mode: mode, Workers: 4,
-		Prove: func() (auditproof.Proof, error) { return auditproof.Proof{Probe: "probe"}, nil },
+		ReplacedCheck: true,
+		Prove:         func() (auditproof.Proof, error) { return auditproof.Proof{Probe: "probe"}, nil },
 	}
 }
 
@@ -536,5 +572,70 @@ func TestCheckRestorableCountsAudit(t *testing.T) {
 	n, err := apply.CheckRestorable(acl(allow("OWNER@", 1), audit("EVERYONE@"), audit("OWNER@")))
 	if err != nil || n != 2 {
 		t.Fatalf("n=%d err=%v", n, err)
+	}
+}
+
+func TestRestoreSkipsObjectsRecreatedSinceTheReference(t *testing.T) {
+	fx := newFixture(t)
+	fx.file("kept", true, true)
+	fx.file("recreated", true, true)
+	fx.dir("newdir", true, true)
+	fx.file("newdir/inner", true, true)
+	fx.file("readdir-only", true, true)
+	for _, rel := range []string{"recreated", "newdir"} {
+		fx.live.direntIno[fx.livePath(rel)] = 7
+		fx.live.statIno[fx.livePath(rel)] = 7
+	}
+	// READDIR disagrees but lstat agrees: not a replacement.
+	fx.live.direntIno[fx.livePath("readdir-only")] = 9
+
+	res := fx.run(fx.config(Apply))
+	if res.Counts.ReplacedSince != 2 || res.Counts.Restored != 3 || !res.OK() {
+		t.Fatalf("counts = %+v, want 2 replaced; kept, readdir-only and root restored", res.Counts)
+	}
+	for _, s := range fx.live.sets() {
+		if strings.Contains(s, "recreated") || strings.Contains(s, "newdir") {
+			t.Errorf("wrote replaced object %s", s)
+		}
+	}
+	for _, c := range fx.live.calls {
+		if strings.Contains(c, "newdir/inner") {
+			t.Errorf("descended into a replaced directory: %s", c)
+		}
+	}
+}
+
+func TestRestoreReplacedCheckOffWritesRecreatedObjects(t *testing.T) {
+	fx := newFixture(t)
+	fx.file("recreated", true, true)
+	fx.live.direntIno[fx.livePath("recreated")] = 7
+	fx.live.statIno[fx.livePath("recreated")] = 7
+	cfg := fx.config(Apply)
+	cfg.ReplacedCheck = false
+	if res := fx.run(cfg); res.Counts.ReplacedSince != 0 || res.Counts.Restored != 2 {
+		t.Errorf("counts = %+v", res.Counts)
+	}
+}
+
+func TestRestoreReplacedSkipsCompleteInTheCheckpoint(t *testing.T) {
+	fx := newFixture(t)
+	fx.dir("d", true, true)
+	fx.file("d/recreated", true, true)
+	fx.live.direntIno[fx.livePath("d/recreated")] = 7
+	fx.live.statIno[fx.livePath("d/recreated")] = 7
+	ckptPath := filepath.Join(t.TempDir(), "c.ckpt")
+	hash := checkpoint.RestoreHash(fx.refRoot, fx.liveRoot, "test", nil)
+	c, err := checkpoint.Open(ckptPath, hash, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := fx.config(Apply)
+	cfg.Checkpoint = c
+	fx.run(cfg)
+	c.Close()
+	c, _ = checkpoint.Open(ckptPath, hash, true)
+	defer c.Close()
+	if !c.DirCompleted(fx.liveRoot) {
+		t.Error("a replaced-since skip kept the tree from completing")
 	}
 }

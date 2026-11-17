@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-16 |
-| Status | **Built, not qualified.** Implemented in `internal/restore` (2026-11-17) without the `replaced_since` check, which waits on question 1 of section 9. Hardware qualification (section 8) is pending. Deviations from this text are listed in section 10. |
+| Status | **Built, not release-qualified.** Implemented in `internal/restore` (2026-11-17). A FlashBlade lab run on `fdedaf7` passed every scenario it could run (`benchmarks/restore-fb-20261117/`); the `replaced_since` check was added after it, so scenarios 1, 2 and 5 need a rerun, and scenarios 3 (no-bypass identity) and 4 (lockout) were not run. Deviations from this text are listed in section 10. |
 | Issue | [#56](https://github.com/PureStorage-OpenConnect/permissionreset/issues/56) |
 | Scope | A `permissionreset` mode that writes each object's raw `system.nfs4_acl` from a reference tree (a snapshot path, usually) onto the live object at the same relative path. Kernel transport, Linux, FlashBlade first. |
 
@@ -57,7 +57,7 @@ permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects/target --va
 - `--restore-from REF` replaces `--spec`; the two are mutually exclusive. `REF` and the positional
   root name the same subtree in the reference and in the live tree. Both roots are included.
 - Allowed with it: `--apply`, `--validate`, `--exclude`, `--checkpoint`/`--resume`,
-  `--evidence-dir`, `--workers`, `--one-filesystem`, `--quiet`, `--allow-high-ids`,
+  `--evidence-dir`, `--workers`, `--one-filesystem`, `--quiet`,
   `--allow-audited-dacl-reset` and `--allow-audit-removal` (section 4.4), `--allow-writable-reference`
   (section 7).
 - Refused with it: `--spec`, `--sacl`, `--set-owner`, `--compare` (always on, section 4.3),
@@ -322,4 +322,11 @@ Where the implementation differs from the text above, and why:
 - **Flags go before TARGET.** Go's flag parsing stops at the first positional argument, so
   `--restore-from REF TARGET --validate` is refused with a message naming the stray flag. The
   examples in section 3 were corrected.
-- **`replaced_since` is not built** (section 9, question 1 still open).
+- **`replaced_since` is built and on** (section 9, question 1 answered yes on a lab FlashBlade,
+  Purity//FB 4.8.7: unchanged objects keep their file id in `.snapshot`, 13/13 across two
+  snapshots, and a file recreated under the same name gets a new one). The ids come from
+  `getdents64` (`transport.InoLister`; `os.ReadDir` does not expose them), so the check costs no
+  round trip; a mismatch is confirmed with `lstat` on both sides before the pair is skipped. A
+  replaced directory is not descended. There is no flag to turn it off.
+- **`--allow-high-ids` is refused** with `--restore-from`, not accepted for parity (section 4.4):
+  it could lift nothing, and the lab found accepting it misleading.

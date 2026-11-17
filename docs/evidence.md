@@ -32,7 +32,8 @@ The record lines are the per-object lines permissionreset has always written:
 A `--restore-from` run writes `OK: restore nfs4_acl TARGET-PATH from REF-PATH`, `SAME: PATH` (byte
 for byte already the reference's), `WOULD: compare …` on a dry run, `MISMATCH: …` under
 `--validate` (also sent to `--log`), `EXCLUDE:`, `ERR:` with the guard or I/O error, and `SKIP:`
-with one of `deleted-since`, `created-since`, `symlink`, `type-changed` or `other-filesystem`. The
+with one of `deleted-since`, `created-since`, `symlink`, `type-changed`, `replaced-since` or
+`other-filesystem`. The
 `detailed` profile adds the live ACL before the write to each `OK:` line, as `before=`.
 
 Two profiles, set with `--evidence-profile`:
@@ -99,6 +100,10 @@ An interrupted run (Ctrl-C) writes an `incomplete` manifest with the reason
 `run interrupted`. A run refused before it walked anything writes one with
 `run ended before it finished`. Apply errors do not make evidence incomplete: they
 are in it.
+
+A run that is killed (SIGKILL, an OOM kill, power loss) writes no manifest at all: the
+directory holds shards and no `manifest.json`. Treat a missing manifest as incomplete
+evidence, never as a complete run.
 
 ## What evidence does not promise
 
