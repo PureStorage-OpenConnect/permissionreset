@@ -72,6 +72,25 @@ func RunHash(specPath, target, protocol, toolVersion string, excludes []string) 
 	return out, nil
 }
 
+// RestoreHash is RunHash for --restore-from, which has no spec file: it binds a
+// checkpoint to the mode, both resolved roots, the tool version and the
+// effective excludes. Swapping the roots, or restoring from a different
+// reference, invalidates it.
+func RestoreHash(reference, target, toolVersion string, excludes []string) [32]byte {
+	h := sha256.New()
+	for _, f := range []string{"restore", reference, target, toolVersion} {
+		h.Write([]byte(f))
+		h.Write([]byte("\x00"))
+	}
+	for _, p := range excludes {
+		h.Write([]byte(p))
+		h.Write([]byte("\x00"))
+	}
+	var out [32]byte
+	copy(out[:], h.Sum(nil))
+	return out
+}
+
 // SpecHash is kept for backward compatibility but callers should prefer RunHash.
 func SpecHash(specPath string) ([32]byte, error) {
 	data, err := os.ReadFile(specPath)

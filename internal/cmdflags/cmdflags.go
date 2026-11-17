@@ -51,6 +51,17 @@ func Pfind(c platform.Capabilities) Capability {
 	}
 }
 
+// RestoreFrom is --restore-from and its options. The restore reads and writes
+// raw system.nfs4_acl through the kernel transport only; there is no userspace
+// restore yet (docs/design-acl-restore.md section 2).
+func RestoreFrom(c platform.Capabilities) Capability {
+	return Capability{
+		Supported: c.KernelTransport,
+		Name:      "the NFSv4 ACL extended attribute system.nfs4_acl on a mounted export, a Linux NFS client feature",
+		Needs:     "run the restore from a Linux host that mounts both the reference and the target over NFSv4.1",
+	}
+}
+
 // Gate registers flags that only function on some builds.
 //
 // It registers the flag EVERYWHERE and refuses an explicit use, rather than

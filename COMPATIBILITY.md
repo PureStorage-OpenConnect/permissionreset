@@ -16,6 +16,8 @@ may work but carry no guarantee.
 | DACL reset (`acl:`) | FlashBlade | macOS | userspace | One hardware run on 0ed7524, darwin/arm64, Purity//FB version not recorded (section below) |
 | DACL-keeping SACL (`sacl:` only, `--sacl`) | FlashBlade | macOS | userspace | No hardware run recorded; offline tests in CI only |
 | Any repair | FlashArray | macOS | userspace | Refused by design (userspace refuses FlashArray) |
+| ACL restore (`--restore-from`) | FlashBlade | Linux | kernel | Not qualified: offline tests only. Hardware plan in `docs/design-acl-restore.md` section 8 |
+| ACL restore (`--restore-from`) | FlashArray | Linux | kernel | Not qualified and not designed for SMB-written data (RISKS.md #11) |
 | Any repair | either | Windows | — | Does not build |
 | Template capture (`build-spec`) | either | Linux, macOS, Windows | kernel (Linux), userspace | Offline tests in CI; capture on hardware recorded in `benchmarks/` only for Linux |
 

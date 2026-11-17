@@ -33,7 +33,7 @@ PATH="/usr/local/go/bin:$PATH" go test ./...
 ```
 
 Unit tests cover `internal/apply`, `internal/nfs4acl`, `internal/spec`, `internal/walk`,
-`internal/checkpoint`, `internal/partition`, `internal/run`, `internal/tuning` and `cmd/sweep`. Use `go test ./...` for
+`internal/checkpoint`, `internal/partition`, `internal/run`, `internal/restore`, `internal/tuning` and `cmd/sweep`. Use `go test ./...` for
 the current count rather than trusting a number written here — a count in prose goes stale by
 construction.
 
@@ -58,6 +58,17 @@ apart from excludes); a root it never reaches makes the run incomplete. Slash ex
 anchored at the manifest root (`run.Config.ExcludeRoot`). Restart is `--resume`: completed
 partitions are skipped, the rest resume their checkpoints. Concurrency is deliberately absent until
 measured.
+
+## Restore mode (`--restore-from`)
+
+`permissionreset --restore-from REF TARGET` (`internal/restore`, `cmd/permissionreset/restore.go`)
+writes each object's raw `system.nfs4_acl` from REF onto TARGET at the same relative path, only
+where the bytes differ (#56, `docs/design-acl-restore.md`, section 10 lists as-built deviations).
+No spec; kernel transport on Linux only (`cmdflags.RestoreFrom`). Paired walk with sorted
+merge-join; directories written after their subtree, root last. Apply and validate prove the audit
+bypass first; dry run reads no live ACL. Guards (`apply.CheckRestorable`, audited object, audit
+vanished) apply only when a write is needed. Built, not hardware-qualified; `replaced_since` is
+not built (design section 9, question 1).
 
 ## build-spec
 

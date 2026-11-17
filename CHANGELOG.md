@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `--restore-from REF TARGET` restores each object's raw NFSv4 ACL from a reference tree (usually a
+  snapshot) onto the same relative path, byte for byte and only where it differs, with dry run,
+  `--validate`, checkpoint and evidence (#56, `docs/design-acl-restore.md`). Linux, kernel
+  transport. Not yet qualified on hardware.
+
 ### Changed
 
 - The snapshot runbook and the getting-started guide describe putting back one subtree's ACLs

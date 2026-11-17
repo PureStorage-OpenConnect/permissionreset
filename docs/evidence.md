@@ -29,6 +29,12 @@ The record lines are the per-object lines permissionreset has always written:
 `OK:`, `WOULD:`, `FALLBACK:`, `SKIP:`, `EXCLUDE:` and `ERR:`. Errors also go to
 `--log` when it is set; the evidence holds both kinds in one stream.
 
+A `--restore-from` run writes `OK: restore nfs4_acl TARGET-PATH from REF-PATH`, `SAME: PATH` (byte
+for byte already the reference's), `WOULD: compare …` on a dry run, `MISMATCH: …` under
+`--validate` (also sent to `--log`), `EXCLUDE:`, `ERR:` with the guard or I/O error, and `SKIP:`
+with one of `deleted-since`, `created-since`, `symlink`, `type-changed` or `other-filesystem`. The
+`detailed` profile adds the live ACL before the write to each `OK:` line, as `before=`.
+
 Two profiles, set with `--evidence-profile`:
 
 - **`compact`** (default): the outcome and the path, e.g.

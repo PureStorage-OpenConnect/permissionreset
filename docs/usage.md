@@ -50,6 +50,12 @@ permissionreset --spec permspec.yaml --checkpoint run.ckpt --resume /mnt/fb/data
 permissionreset --partitions examples/partitions/manifest.yaml               # dry run
 permissionreset --partitions examples/partitions/manifest.yaml --apply
 permissionreset --partitions examples/partitions/manifest.yaml --apply --resume
+
+# Put ACLs back from a snapshot, byte for byte, only where they differ (no spec).
+# Not yet hardware-qualified; see "Restore from a reference tree" below.
+permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects /mnt/fb/projects --validate
+permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects /mnt/fb/projects --apply \
+    --checkpoint restore.ckpt --evidence-dir restore-evidence
 ```
 
 ## Compare and validate
@@ -79,6 +85,44 @@ residual reached every partition root. On a 1.1M-object FlashBlade tree, four pa
 same time as one run (41.6 s vs 41.7 s), so splitting buys restart granularity and smaller
 per-partition state, not speed. Details and what path disjointness does not prove:
 [partitions.md](partitions.md).
+
+## Restore from a reference tree
+
+`--restore-from REF TARGET` writes each object's raw `system.nfs4_acl` from `REF` (usually a
+`.snapshot` path) onto the object at the same relative path under `TARGET`. It takes no spec. It
+compares raw bytes and writes only where they differ, so a pair that already matches is never
+rewritten. It never changes file contents, owner, group or mode, never follows a symlink, and never
+creates or deletes an object. Design: [design-acl-restore.md](design-acl-restore.md).
+
+**Status: built, not yet qualified on hardware.** The offline tests pass; the FlashBlade
+qualification in the design (section 8) has not run. Until it has, use it on a canary subtree and
+check the result with `--validate` and from an SMB client.
+
+- **Modes.** Without `--apply` it is a dry run: it reads only the reference (not even that when the
+  reference is writable) and reports `WOULD` per pair. `--validate` and `--apply` first prove the
+  audit bypass on a disposable probe under `TARGET`, then compare every pair. `--validate` writes
+  nothing and exits 1 on any mismatch, naming the first differing ACE (so a missing `0x40` shows).
+- **Pairing.** Both trees are listed together. An object only in the reference (`deleted-since`),
+  only in the target (`created-since`), a symlink on either side, or a changed type is skipped and
+  counted apart. A directory is written after everything under it, and `TARGET` itself last, so a
+  reference ACL that denies the running identity cannot lock the walk out.
+- **Guards**, on objects about to be written: a reference naming nobody or an id at or above
+  1000000000 is refused (the write would replace that SID). An object with audit ACEs on either side
+  needs `--allow-audited-dacl-reset`, as a repair does, and on FlashBlade that flag is expected: the
+  kernel transport cannot tell FlashBlade from FlashArray, where the write marks the SACL and DACL
+  protected. A live ACL with audit ACEs the reference lacks is refused unless `--allow-audit-removal`.
+- **Wrong way round.** `--apply` refuses a reference that accepts writes unless
+  `--allow-writable-reference`; a snapshot does not. The same directory, or one inside the other, is
+  refused outright.
+- **Allowed:** `--apply`, `--validate`, `--exclude` (matched on target paths), `--checkpoint` and
+  `--resume` (with `--apply`), `--evidence-dir`, `--log`, `--json-summary`, `--workers`,
+  `--one-filesystem`. **Refused:** `--spec`, `--sacl`, `--compare`, `--set-owner`, `--partitions`,
+  `--pfind`, and the userspace transport and its flags. Linux, kernel transport only.
+- **Not FlashArray SMB-written data**: an NFS write flattens its inheritance (RISKS.md #11). Use
+  `permissionreset-smb` for those trees.
+- **Same name, new object.** An object deleted and recreated under the same name since the snapshot
+  gets the old object's ACL. Whether FlashBlade keeps file ids in `.snapshot`, which would let the
+  restore detect this, is still open (design section 9).
 
 ## See also
 

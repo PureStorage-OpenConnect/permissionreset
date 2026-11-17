@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-16 |
-| Status | **Proposed.** Nothing is built. Questions 2–4 of section 9 decided 2026-11-16 (maintainer); question 1 waits on a lab read. |
+| Status | **Built, not qualified.** Implemented in `internal/restore` (2026-11-17) without the `replaced_since` check, which waits on question 1 of section 9. Hardware qualification (section 8) is pending. Deviations from this text are listed in section 10. |
 | Issue | [#56](https://github.com/PureStorage-OpenConnect/permissionreset/issues/56) |
 | Scope | A `permissionreset` mode that writes each object's raw `system.nfs4_acl` from a reference tree (a snapshot path, usually) onto the live object at the same relative path. Kernel transport, Linux, FlashBlade first. |
 
@@ -286,3 +286,29 @@ Decided 2026-11-16 by the maintainer, as proposed:
    given. A snapshot is read-only, so the usual restore never needs the flag.
 4. **The command is the `--restore-from` flag** on `permissionreset`, a mode like `--partitions`,
    not a subcommand.
+
+## 10. As built (2026-11-17)
+
+Where the implementation differs from the text above, and why:
+
+- **Guards run only on an object about to be written.** Section 4.2 ran the principal guards
+  before the live read. The build compares first and applies every guard only when the bytes
+  differ, so a pair that already matches is never refused for what it names. Otherwise such a pair
+  would be refused on every run, and its directory would never complete in the checkpoint.
+- **No wide-directory fallback.** Section 4.1 proposed a name → type map with an `lstat` fallback
+  above a cap. Both listings are already sorted by name (the `Transport` contract), so the build
+  merge-joins them and holds no map. One directory pair in flight costs its two listings, as a
+  userspace repair's walk does; the kernel repair's batched listing (PS-11) is not used here.
+- **The driver has its own work stack** rather than a paired variant of `internal/walk`: listing,
+  file pairs and each directory's own write are jobs on one LIFO stack served by `--workers`
+  goroutines, and a directory's write is pushed when its last child finishes.
+- **A failed child does not hold back its parent's write.** A directory whose listing fails is not
+  written and not recorded complete, and nothing under it is touched. Its parent is still written
+  once all its children are handled, failed or not, and is recorded complete in the checkpoint only
+  when every child succeeded, so a resume revisits it.
+- **`ErrAuditVanished` and the restore's `ErrAuditedObject`** live in `internal/restore`, with
+  restore wording. The flag is the repair's `--allow-audited-dacl-reset` (decision 2).
+- **Writable reference** is decided with `access(REF, W_OK)` on the reference root. A dry run does
+  not read a writable reference at all, since without the proof a read of a live tree can empty its
+  inherited auditing.
+- **`replaced_since` is not built** (section 9, question 1 still open).
