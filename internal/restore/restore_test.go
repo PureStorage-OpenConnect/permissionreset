@@ -22,12 +22,11 @@ import (
 // since tmpfs has no system.nfs4_acl. Every ACL call is recorded in order.
 type aclFS struct {
 	*transport.Kernel
-	mu       sync.Mutex
-	acls     map[string][]byte
-	calls    []string // "get PATH" / "set PATH"
-	failSet  map[string]error
-	failGet  map[string]error
-	onGetHit func(path string)
+	mu      sync.Mutex
+	acls    map[string][]byte
+	calls   []string // "get PATH" / "set PATH"
+	failSet map[string]error
+	failGet map[string]error
 }
 
 func newACLFS(t *testing.T, root string) *aclFS {

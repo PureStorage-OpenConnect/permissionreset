@@ -27,7 +27,12 @@ func captureRestoreConfig(t *testing.T) *restore.Config {
 
 func restoreRoots(t *testing.T) (ref, target string) {
 	t.Helper()
-	base := t.TempDir()
+	// Resolved, because the command resolves both roots and on macOS the
+	// temp directory lives behind the /var -> /private/var symlink.
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	ref, target = filepath.Join(base, "snap"), filepath.Join(base, "live")
 	for _, d := range []string{ref, target} {
 		if err := os.Mkdir(d, 0o755); err != nil {
