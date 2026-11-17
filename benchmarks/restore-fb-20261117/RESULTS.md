@@ -6,7 +6,8 @@ issue #56, run on one lab FlashBlade.
 **This qualifies no release.** It is evidence for two candidates. `fdedaf7` ran every scenario that
 could run. `8e7667b` added the `replaced_since` check, so scenarios 1, 2 and 5 were rerun on it
 ([rerun section](#rerun-on-8e7667b)); scenario 3's guards and scenario 6's rate are carried forward
-from `fdedaf7`, because the code they exercise did not change. Scenarios 3a (identity without the
+from `fdedaf7`, because the code they exercise did not change. `cebd265` changed only where
+`replaced-since` paths are printed; scenario 2 was rerun on it ([section](#rerun-on-cebd265)). Scenarios 3a (identity without the
 bypass) and 4 (lockout ordering) were not run, and the SMB view of the restored masks was not
 checked.
 
@@ -148,6 +149,28 @@ objects whose raw ACL changed are exactly the 6 pairs. `--validate`: exit 0.
 records in the killed run's evidence). `--resume`: 330 directories resumed, 71,938 compared,
 65,412 restored, 6,526 same (logged `SAME:`, not rewritten), 0 errors. `--validate`: 127,306 same.
 
+## Rerun on `cebd265`
+
+`cebd265` sends each `SKIP: replaced-since` line to `--log` as well, or without it, the first 20
+to stderr followed by a count, on a cap apart from errors. Nothing else changed. Same array, file
+system, client and identity.
+
+| | |
+|---|---|
+| Candidate | `cebd2659ca820ec4ea9b140227f43b4bf71e328d`, unmodified, built with `make build` in the lab: `permissionreset v0.10.0-rc4-19-gcebd265`, SHA-256 `551655c3ee34501f1baa3470ad41f9abdc7382371a9b318551d18df6148aecde` |
+
+The scenario 2 fixture plus the recreated directory, rebuilt with the same scripts under a new
+snapshot (the `8e7667b` copy was already restored).
+
+| Check | Result |
+|---|---|
+| `--apply`, no `--log` | **PASS**. Exit 0. stderr holds exactly 2 `SKIP: replaced-since` lines (the recreated directory and the recreated file), no other `SKIP:` or `EXCLUDE:` line, nothing for the directory's children, no "more not shown" line. Counts identical to `8e7667b`: 6 compared, 6 restored, deleted since 2, created since 1, symlinks 2, type changed 2, replaced since 2, excluded 1, 0 refused, 0 errors. Raw ACL changed on exactly the 6 pairs; all 5 recreated objects unchanged |
+| `--validate --log FILE` | **PASS**. Exit 0, 6 same, 0 mismatches. FILE holds exactly the 2 lines; stderr has only the audit-bypass NOTE |
+| Evidence | **PASS**. Both runs complete, the same 2 `SKIP: replaced-since` records as on `8e7667b`, none naming a child of the recreated directory |
+| Scenario 1 dry run (644 objects) | **PASS**. Exit 0, 644 would compare, replaced since 0, stderr only the dry-run NOTE |
+
+Not exercised on hardware: the 20-line stderr cap and its count line (unit-tested only).
+
 ## Observations
 
 - **Extra ACEs under an audited directory.** On this file system, a file created over NFS in a
@@ -160,8 +183,8 @@ records in the killed run's evidence). `--resume`: 330 directories resumed, 71,9
 - **Skips are visible only in the evidence.** `SKIP:` lines, `replaced-since` included, and
   `EXCLUDE:` lines go to the evidence records only. The terminal and `--log` show the counts, not
   the paths. An operator who runs without `--evidence-dir` cannot see which objects were replaced.
-  Addressed after `8e7667b`: `SKIP: replaced-since` lines now also go to `--log`, or the first 20
-  to stderr. That change is not covered by these runs.
+  Addressed in `cebd265`: `SKIP: replaced-since` lines now also go to `--log`, or the first 20 to
+  stderr ([rerun](#rerun-on-cebd265)).
 
 ## Not covered
 
