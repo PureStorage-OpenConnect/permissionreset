@@ -327,6 +327,9 @@ Where the implementation differs from the text above, and why:
   snapshots, and a file recreated under the same name gets a new one). The ids come from
   `getdents64` (`transport.InoLister`; `os.ReadDir` does not expose them), so the check costs no
   round trip; a mismatch is confirmed with `lstat` on both sides before the pair is skipped. A
-  replaced directory is not descended. There is no flag to turn it off.
+  replaced directory is not descended. There is no flag to turn it off. Each `SKIP: replaced-since`
+  line also goes to `--log`, or without it, the first 20 to stderr, capped apart from errors: the
+  lab found an operator without `--evidence-dir` could not tell which objects kept their new ACL.
+  The other skips stay evidence-only.
 - **`--allow-high-ids` is refused** with `--restore-from`, not accepted for parity (section 4.4):
   it could lift nothing, and the lab found accepting it misleading.

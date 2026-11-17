@@ -275,6 +275,9 @@ func Run(ctx context.Context, cfg Config, out, errOut io.Writer) (res Result, ru
 	if s := e.suppressed.Load(); s > 0 {
 		fmt.Fprintf(errOut, "... %d more errors not shown; pass --log to keep them all\n", s)
 	}
+	if s := e.replSuppressed.Load(); s > 0 {
+		fmt.Fprintf(errOut, "... %d more replaced-since paths not shown; pass --log to keep them all\n", s)
+	}
 	printSummary(out, e.counts(), e.refusedByCopy(), cfg.Mode, res.Interrupted, e.stopped.Load(), time.Since(start))
 	return res, nil
 }
@@ -324,6 +327,11 @@ type engine struct {
 	logMu      sync.Mutex
 	shown      atomic.Int64
 	suppressed atomic.Int64
+
+	// replaced-since skips are shown like errors, with their own cap, so a
+	// burst of them cannot hide an error and the reverse.
+	replShown      atomic.Int64
+	replSuppressed atomic.Int64
 
 	// The work stack. LIFO, so the walk runs roughly depth first and the
 	// stack holds about one listing per level rather than a whole level.
@@ -603,7 +611,7 @@ func (e *engine) replacedSince(rel, liveDir string, refIno, liveIno uint64, sign
 		return false
 	}
 	e.c.replaced.Add(1)
-	e.audit(fmt.Sprintf("SKIP: replaced-since %s (file id %d, reference %d)", livePath, la.Ino, ra.Ino))
+	e.noticef("SKIP: replaced-since %s (file id %d, reference %d)", livePath, la.Ino, ra.Ino)
 	*signals++
 	if e.cfg.Checkpoint != nil {
 		e.cfg.Checkpoint.EntryDone(liveDir)
@@ -766,15 +774,28 @@ func (e *engine) audit(rec string) {
 // errorf writes an error (or mismatch) record to the evidence and the log. With
 // no log, the first few go to errOut so they are not lost silently.
 func (e *engine) errorf(format string, args ...any) {
-	msg := fmt.Sprintf(format, args...)
+	e.show(fmt.Sprintf(format, args...), &e.shown, &e.suppressed)
+}
+
+// noticef is errorf for a skip the operator must see by path: an object
+// recreated since the reference keeps its new ACL, and may need restoring by
+// hand. The other skips (deleted, created, symlink, type changed, excluded)
+// are expected and stay in the evidence only.
+func (e *engine) noticef(format string, args ...any) {
+	e.show(fmt.Sprintf(format, args...), &e.replShown, &e.replSuppressed)
+}
+
+// show writes msg to the evidence and the log, or with no log, up to
+// errOutLimit of them (counted by shown) to errOut.
+func (e *engine) show(msg string, shown, suppressed *atomic.Int64) {
 	e.audit(msg)
 	if e.cfg.Log == nil {
-		if e.shown.Add(1) <= errOutLimit {
+		if shown.Add(1) <= errOutLimit {
 			e.logMu.Lock()
 			fmt.Fprintln(e.errOut, msg)
 			e.logMu.Unlock()
 		} else {
-			e.suppressed.Add(1)
+			suppressed.Add(1)
 		}
 		return
 	}

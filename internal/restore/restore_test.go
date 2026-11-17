@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"os"
 	"path/filepath"
@@ -637,5 +638,67 @@ func TestRestoreReplacedSkipsCompleteInTheCheckpoint(t *testing.T) {
 	defer c.Close()
 	if !c.DirCompleted(fx.liveRoot) {
 		t.Error("a replaced-since skip kept the tree from completing")
+	}
+}
+
+func TestRestoreReplacedSincePathsReachStderrOrTheLog(t *testing.T) {
+	fx := newFixture(t)
+	fx.file("recreated", true, true)
+	fx.file("gone", true, false) // deleted since: an expected skip
+	fx.live.direntIno[fx.livePath("recreated")] = 7
+	fx.live.statIno[fx.livePath("recreated")] = 7
+	want := "SKIP: replaced-since " + fx.livePath("recreated")
+
+	// No --log: the path is on stderr; the expected skip is not.
+	var out, errOut bytes.Buffer
+	if _, err := Run(context.Background(), fx.config(Apply), &out, &errOut); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errOut.String(), want) {
+		t.Errorf("stderr does not name the replaced path:\n%s", errOut.String())
+	}
+	if strings.Contains(errOut.String(), "gone") {
+		t.Errorf("an expected skip reached stderr:\n%s", errOut.String())
+	}
+
+	// --log: the path is in the log, and not on stderr.
+	var log bytes.Buffer
+	cfg := fx.config(Validate)
+	cfg.Log = &log
+	out.Reset()
+	errOut.Reset()
+	if _, err := Run(context.Background(), cfg, &out, &errOut); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(log.String(), want) || strings.Contains(errOut.String(), want) {
+		t.Errorf("with --log, want the path in the log only\nlog:\n%s\nstderr:\n%s", log.String(), errOut.String())
+	}
+}
+
+func TestRestoreReplacedSinceStderrIsCappedApartFromErrors(t *testing.T) {
+	fx := newFixture(t)
+	n := errOutLimit + 5
+	for i := 0; i < n; i++ {
+		rel := fmt.Sprintf("r%02d", i)
+		fx.file(rel, true, true)
+		fx.live.direntIno[fx.livePath(rel)] = 7
+		fx.live.statIno[fx.livePath(rel)] = 7
+	}
+	var out, errOut bytes.Buffer
+	res, err := Run(context.Background(), fx.config(Apply), &out, &errOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Counts.ReplacedSince != int64(n) {
+		t.Fatalf("counts = %+v, want %d replaced", res.Counts, n)
+	}
+	if got := strings.Count(errOut.String(), "SKIP: replaced-since "); got != errOutLimit {
+		t.Errorf("%d replaced-since lines on stderr, want %d", got, errOutLimit)
+	}
+	if !strings.Contains(errOut.String(), "... 5 more replaced-since paths not shown") {
+		t.Errorf("no suppression line:\n%s", errOut.String())
+	}
+	if strings.Contains(errOut.String(), "more errors not shown") {
+		t.Errorf("replaced-since lines used the error budget:\n%s", errOut.String())
 	}
 }

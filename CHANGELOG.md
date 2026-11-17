@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--restore-from REF TARGET` restores each object's raw NFSv4 ACL from a reference tree (usually a
   snapshot) onto the same relative path, byte for byte and only where it differs, with dry run,
   `--validate`, checkpoint and evidence (#56, `docs/design-acl-restore.md`). Linux, kernel
-  transport. Not yet qualified on hardware.
+  transport. An object recreated under the same name since the reference is skipped and named in
+  `--log` or on stderr. Not yet qualified on hardware.
 
 ### Changed
 

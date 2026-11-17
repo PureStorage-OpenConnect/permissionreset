@@ -160,6 +160,8 @@ records in the killed run's evidence). `--resume`: 330 directories resumed, 71,9
 - **Skips are visible only in the evidence.** `SKIP:` lines, `replaced-since` included, and
   `EXCLUDE:` lines go to the evidence records only. The terminal and `--log` show the counts, not
   the paths. An operator who runs without `--evidence-dir` cannot see which objects were replaced.
+  Addressed after `8e7667b`: `SKIP: replaced-since` lines now also go to `--log`, or the first 20
+  to stderr. That change is not covered by these runs.
 
 ## Not covered
 

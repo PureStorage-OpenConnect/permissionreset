@@ -33,7 +33,8 @@ A `--restore-from` run writes `OK: restore nfs4_acl TARGET-PATH from REF-PATH`, 
 for byte already the reference's), `WOULD: compare …` on a dry run, `MISMATCH: …` under
 `--validate` (also sent to `--log`), `EXCLUDE:`, `ERR:` with the guard or I/O error, and `SKIP:`
 with one of `deleted-since`, `created-since`, `symlink`, `type-changed`, `replaced-since` or
-`other-filesystem`. The
+`other-filesystem`. `SKIP: replaced-since` lines also go to `--log`, or without it, the first 20
+to stderr; the other skips and `EXCLUDE:` are in the evidence only. The
 `detailed` profile adds the live ACL before the write to each `OK:` line, as `before=`.
 
 Two profiles, set with `--evidence-profile`:

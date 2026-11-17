@@ -128,7 +128,10 @@ check the result with `--validate` and from an SMB client.
   has a different file id, so it is skipped and counted as `replaced-since` rather than given the
   old object's ACL. A replaced directory is not descended. The ids come from READDIR, and a
   mismatch is confirmed with `lstat` on both sides before the object is skipped. FlashBlade keeps
-  file ids in `.snapshot` (one lab check, Purity//FB 4.8.7).
+  file ids in `.snapshot` (one lab check, Purity//FB 4.8.7). Each replaced object keeps its new ACL
+  and is named on a `SKIP: replaced-since PATH` line, in `--log` or, without it, on stderr (the
+  first 20, then a count), since it may need restoring by hand. The other skips (deleted, created,
+  symlink, type changed, excluded) are counted on the terminal and named only in the evidence.
 - **Objects created under audited directories may not restore.** On one lab FlashBlade (Purity//FB
   4.8.7), a file created over NFS in a directory whose ACL carries an inheritable audit ACE came back
   with three extra ALLOW entries naming ids that resolve to nothing, two of them at or above

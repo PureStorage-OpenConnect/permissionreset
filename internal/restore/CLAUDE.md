@@ -24,6 +24,8 @@ as-built deviations: `docs/design-acl-restore.md` (section 10).
 - `ReplacedCheck` (always on from the CLI): a same-type pair whose READDIR file ids differ is
   confirmed with `Stat` on both sides, then skipped as `replaced-since` (a directory is not
   descended). Needs `transport.InoLister` on both transports, or Run turns it off with a NOTE.
+  The skip goes through `noticef`: evidence plus `--log`, or the first `errOutLimit` to errOut, on
+  its own cap so it cannot crowd out errors. Every other skip is evidence-only.
 - Compare is raw `bytes.Equal`, never structural: the bytes on both sides came from the array.
 - Guards run only when the bytes differ: `apply.CheckRestorable` on the reference bytes, then
   `ErrAuditVanished` (live has audit, reference none; lifted by `AllowAuditRemoval`), then
