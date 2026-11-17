@@ -1,12 +1,14 @@
-# `--restore-from` on FlashBlade: first lab run (2026-11-17)
+# `--restore-from` on FlashBlade: lab runs (2026-11-17)
 
 The hardware scenarios of [design-acl-restore.md](../../docs/design-acl-restore.md) section 8, for
 issue #56, run on one lab FlashBlade.
 
-**This qualifies no release.** It is evidence for candidate `fdedaf7` only. The next candidate adds
-the `replaced_since` check, which changes pairing, so scenarios 1, 2 and 5 must be rerun on it.
-Scenarios 3 (identity without the bypass) and 4 (lockout ordering) were not run. The SMB view of the
-restored masks was not checked.
+**This qualifies no release.** It is evidence for two candidates. `fdedaf7` ran every scenario that
+could run. `8e7667b` added the `replaced_since` check, so scenarios 1, 2 and 5 were rerun on it
+([rerun section](#rerun-on-8e7667b)); scenario 3's guards and scenario 6's rate are carried forward
+from `fdedaf7`, because the code they exercise did not change. Scenarios 3a (identity without the
+bypass) and 4 (lockout ordering) were not run, and the SMB view of the restored masks was not
+checked.
 
 | | |
 |---|---|
@@ -15,7 +17,7 @@ restored masks was not checked.
 | Client | Linux 6.8.0, 12 vCPU, kernel NFSv4.1 (`sec=sys`, 512 KiB rsize/wsize), `--workers 128` |
 | Identity | An ordinary directory user over AUTH_SYS that holds the array's audit bypass, not root. The identity checklist passed, and the audit-bypass proof passed on every apply and validate |
 | Reference | A FlashBlade snapshot of the fixture, read through `.snapshot`, except where a writable copy is named |
-| Byte check | `getfattr -n system.nfs4_acl --only-values` piped through `sha256sum`, live against reference, per object |
+| Byte check | The raw `system.nfs4_acl` xattr, read directly (Python `os.getxattr`), SHA-256 per object, live against reference |
 
 An earlier candidate, `26a3a38`, found two defects, both fixed in `fdedaf7`: a FlashBlade snapshot
 was judged writable (`access(W_OK)` says yes there, while every write fails EROFS), and flags placed
@@ -44,8 +46,9 @@ So `replaced_since` is built and on by default (design section 9, decision 1).
 
 ## Results
 
-**1. #56 end to end.** 674 objects: 491 files whose ACEs carry `D` (`0x40`), 126 objects with audit
-ACEs. The fixture was snapshotted, then repaired with the candidate.
+**1. #56 end to end.** 674 objects: 491 files, most of them carrying `D` (`0x40`) in their ACEs (the
+count was not taken on this fixture; equivalent fixtures had 410 of 491 and 418 of 501), and 126
+objects with audit ACEs. The fixture was snapshotted, then repaired with the candidate.
 
 - `--validate`: exit 1, 674 mismatches, each naming the differing ACE (the `0x40` shows).
 - `--apply --allow-audited-dacl-reset`, with no `--allow-writable-reference`: exit 0, 674 restored,
@@ -58,8 +61,8 @@ ACEs. The fixture was snapshotted, then repaired with the candidate.
 **2. Pairing.** Exit 0: 7 compared, 7 restored, 0 errors.
 
 - Each case counted on its own line: deleted since 2 (a file and a directory), created since 1,
-  symlinks 2 (one became a symlink, one was one), type changed 2 (file to directory and back),
-  excluded 1.
+  symlinks 2 (one became a symlink, one was one), type changed 2 (two objects: one file that became
+  a directory, one directory that became a file), excluded 1.
 - The objects whose raw ACL changed are exactly the 7 compared pairs. Nothing was written under
   the excluded directory or the type-changed directory, and no created object was written.
 - A file deleted and recreated under the same name got the old object's ACL, as expected for a
@@ -109,6 +112,42 @@ On a 15,913-object subtree, the snapshot runbook's `nfs4_getfacl`/`nfs4_setfacl`
 took 69.4 s (4.36 ms per object). The restore took 0.83 s on the same subtree, about 80 times
 faster.
 
+## Rerun on `8e7667b`
+
+`8e7667b` adds `replaced_since`: file ids from `getdents64`, a mismatch confirmed by `lstat` on both
+sides, the pair skipped and a replaced directory not descended. It also refuses `--allow-high-ids`
+with `--restore-from`. Same array, file system, client and identity as above.
+
+| | |
+|---|---|
+| Candidate | `8e7667b23d13a735aaa3655d2f9fc18489ab52cb`, unmodified, built with `make build` in the lab: `permissionreset v0.10.0-rc4-17-g8e7667b`, SHA-256 `167e3fb26da1b98eb99d9c5a5fb86091fc5803c0926fcdf247fd877fb4d87251` |
+
+| Check | Result |
+|---|---|
+| READDIR `d_ino` equals `lstat` `st_ino` | **PASS**, 33,170 of 33,170 entries, live and snapshot (the scenario 1 fixture and a 15,912-entry subtree of the 127k tree) |
+| 1. #56 end to end, fresh fixture | **PASS** |
+| 2. Pairing, plus a recreated directory | **PASS** |
+| 5. Resume after SIGKILL | **PASS** |
+| `--allow-high-ids` with `--restore-from` | **Refused**, exit 1, as intended |
+
+**1.** A fresh 644-object fixture: 501 files, 418 of them carrying `0x40`; 118 objects with audit
+ACEs. Replaced since 0, so no false positive. `--validate`: exit 1, 644 mismatches. `--apply`
+without `--allow-writable-reference`: exit 0, 644 restored, the probe reported EROFS, evidence
+complete. `--validate` again: exit 0, 644 same. Raw ACLs equal the snapshot's on 644/644, audit
+entries included. The snapshot and file contents were unchanged.
+
+**2.** The scenario 2 fixture plus a directory (containing a file and a subdirectory with a file),
+deleted and recreated under the same names after the snapshot. Dry run and apply: 6 compared and
+6 restored, deleted since 2, created since 1, symlinks 2, type changed 2, replaced since 2 (the
+recreated file and the recreated directory, each counted once), excluded 1, 0 errors, exit 0. The
+recreated directory was not descended: its children are counted nowhere and named in no record. The
+raw ACLs of all 5 recreated objects were unchanged, so the recreated file keeps its new ACL. The
+objects whose raw ACL changed are exactly the 6 pairs. `--validate`: exit 0.
+
+**5.** The 127,306-object tree, replaced since 0. Killed with SIGKILL 1.5 s in (61,639 `OK:`
+records in the killed run's evidence). `--resume`: 330 directories resumed, 71,938 compared,
+65,412 restored, 6,526 same (logged `SAME:`, not rewritten), 0 errors. `--validate`: 127,306 same.
+
 ## Observations
 
 - **Extra ACEs under an audited directory.** On this file system, a file created over NFS in a
@@ -118,10 +157,14 @@ faster.
   correct, so a tree built this way cannot be restored completely (6 of 670 objects on an earlier
   fixture). The array-side cause is an open question.
 
+- **Skips are visible only in the evidence.** `SKIP:` lines, `replaced-since` included, and
+  `EXCLUDE:` lines go to the evidence records only. The terminal and `--log` show the counts, not
+  the paths. An operator who runs without `--evidence-dir` cannot see which objects were replaced.
+
 ## Not covered
 
 - The SMB view of the restored masks (the #56 symptom). The throwaway file system serves NFSv4.1
-  only, and adding SMB and a share is array configuration that was not approved.
+  only, and adding SMB and a share is array configuration, pending the maintainer's decision.
 - FlashArray, the userspace transport, and any other Purity//FB release.
 - Effective access, delivered audit events, and SMB descriptor or inheritance fidelity. This run
   checks stored NFS ACL bytes only.

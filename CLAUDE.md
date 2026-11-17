@@ -68,7 +68,7 @@ No spec; kernel transport on Linux only (`cmdflags.RestoreFrom`). Paired walk wi
 merge-join; directories written after their subtree, root last. Apply and validate prove the audit
 bypass first; dry run reads no ACL on either side. `--apply` probes the reference for EROFS by
 creating and removing a file (`access(W_OK)` says yes on a FlashBlade snapshot). Flags go before TARGET. Guards (`apply.CheckRestorable`, audited object, audit
-vanished) apply only when a write is needed. Built, not release-qualified (one FB lab run on `fdedaf7`,
+vanished) apply only when a write is needed. Built, not release-qualified (FB lab runs on `fdedaf7` and `8e7667b`,
 `benchmarks/restore-fb-20261117/`). `replaced_since` is on: file ids from `getdents64`
 (`transport.InoLister`), confirmed by `lstat` before a skip. `--allow-high-ids` is refused.
 

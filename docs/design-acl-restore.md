@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-16 |
-| Status | **Built, not release-qualified.** Implemented in `internal/restore` (2026-11-17). A FlashBlade lab run on `fdedaf7` passed every scenario it could run (`benchmarks/restore-fb-20261117/`); the `replaced_since` check was added after it, so scenarios 1, 2 and 5 need a rerun, and scenarios 3 (no-bypass identity) and 4 (lockout) were not run. Deviations from this text are listed in section 10. |
+| Status | **Built, not release-qualified.** Implemented in `internal/restore` (2026-11-17). FlashBlade lab runs on `fdedaf7` and `8e7667b` (which adds `replaced_since`) passed every scenario they ran (`benchmarks/restore-fb-20261117/`). Scenarios 3a (no-bypass identity) and 4 (lockout), and the SMB mask check, were not run. Deviations from this text are listed in section 10. |
 | Issue | [#56](https://github.com/PureStorage-OpenConnect/permissionreset/issues/56) |
 | Scope | A `permissionreset` mode that writes each object's raw `system.nfs4_acl` from a reference tree (a snapshot path, usually) onto the live object at the same relative path. Kernel transport, Linux, FlashBlade first. |
 
