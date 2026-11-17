@@ -86,7 +86,10 @@ objects with audit ACEs. The fixture was snapshotted, then repaired with the can
   raw ACLs equal the copy's. No probe file was left in the copy either time. `--validate` against
   the copy ran no writability check.
 - The snapshot as the reference was never refused; the probe reported EROFS.
-- **Not run:** an identity without the audit bypass. The array has none set up.
+- **Not run:** an identity without the audit bypass. Precondition unmet: on this FlashBlade an
+  ordinary non-admin directory user passes the audit-bypass proof, so no identity was available
+  to reach the refusal (retried on `cebd265`, [below](#scenario-3a-on-cebd265)). The refusal path is
+  covered by unit tests only.
 
 **4. Lockout ordering: not run as specified.** The reference directory that denies the running
 identity list and traverse is equally unreadable in the snapshot, so a non-root identity cannot
@@ -170,6 +173,20 @@ snapshot (the `8e7667b` copy was already restored).
 | Scenario 1 dry run (644 objects) | **PASS**. Exit 0, 644 would compare, replaced since 0, stderr only the dry-run NOTE |
 
 Not exercised on hardware: the 20-line stderr cap and its count line (unit-tested only).
+
+### Scenario 3a on `cebd265`
+
+**Not run, precondition unmet.** An ordinary directory user with no administrative groups, over
+AUTH_SYS, ran `--validate` against a 670-object fixture with audit ACEs on a new throwaway file
+system (NFSv4.1 and SMB), with a snapshot as the reference. The audit-bypass proof **passed**: the
+array kept the audit ACE that user wrote to the disposable probe. So this FlashBlade gives an
+ordinary identity what the proof tests for, and the refusal before any read cannot be reached here.
+
+What the run did show: the only ACL write was to the proof's own probe file (`strace`); ACL reads
+came after the proof, as a validate does; raw ACLs and contents on the target were identical before
+and after (670/670); no probe file was left on either side. The fixture's restrictive directories
+denied that user listing in the reference, so the run ended with 2 list errors and exit 1. No apply
+was run as that user, and no array setting was changed to withhold the bypass.
 
 ## Observations
 
