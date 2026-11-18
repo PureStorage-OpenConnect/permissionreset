@@ -8,8 +8,9 @@ could run. `8e7667b` added the `replaced_since` check, so scenarios 1, 2 and 5 w
 ([rerun section](#rerun-on-8e7667b)); scenario 3's guards and scenario 6's rate are carried forward
 from `fdedaf7`, because the code they exercise did not change. `cebd265` changed only where
 `replaced-since` paths are printed; scenario 2 was rerun on it ([section](#rerun-on-cebd265)). Scenarios 3a (identity without the
-bypass) and 4 (lockout ordering) were not run, and the SMB view of the restored masks was not
-checked.
+bypass, precondition unmet) and 4 (lockout ordering) were not run. The SMB view of the restored
+ACLs was checked on `cebd265` and **failed on 1 of 664 objects**: a restore over NFS cannot bring
+back an ACE's SMB INHERITED flag ([section](#smb-view-on-cebd265)).
 
 | | |
 |---|---|
@@ -44,6 +45,7 @@ So `replaced_since` is built and on by default (design section 9, decision 1).
 | 4 | Lockout ordering | **Not run** as specified; fails safe (below) |
 | 5 | Resume after SIGKILL | **PASS** |
 | 6 | Rate | Measured |
+| 1, SMB | #56 symptom read over SMB | `DELETE_CHILD` back on 418/418. **FAIL**: DACL equals baseline on 663/664; the inherited flag is lost (below) |
 
 ## Results
 
@@ -188,6 +190,38 @@ and after (670/670); no probe file was left on either side. The fixture's restri
 denied that user listing in the reference, so the run ended with 2 list errors and exit 1. No apply
 was run as that user, and no array setting was changed to withhold the bypass.
 
+### SMB view on `cebd265`
+
+The #56 symptom is what an SMB client sees, so the masks were also read over SMB from a Windows
+client, on the new NFSv4.1 and SMB throwaway file system (the 670-object fixture of the 3a run).
+Each object's security descriptor was read three times: at baseline, after a repair that drops
+`DELETE_CHILD` (`0x40`) from file ACEs, and after `--restore-from` the snapshot. Pass criteria, set
+before the last read: the 664 restorable objects' DACLs equal baseline, and the 6 objects the
+restore refuses (`synthetic_range_principal`, see Observations) equal their state after the repair.
+
+| Check | Result |
+|---|---|
+| Reads | 670 per point, 0 errors, none missing or extra |
+| `FILE_DELETE_CHILD` | **PASS**. Back on 418/418 restorable files that had it at baseline, added to none |
+| The 6 refused objects | **PASS**. Whole descriptor byte-equal to its state after the repair: the refusal wrote nothing |
+| DACL of the 664 equals baseline | **FAIL**, 663/664 |
+| SACL, P/AI control flags of the 664 | Equal to baseline, 664/664 |
+| Owner and group | Equal to baseline, 670/670 |
+
+**The failure.** One file (the fixture generator's manifest at the root) has the same 4 ACEs in the
+same order, with the same types, masks and principals, but one full-control ACE carried the SMB
+INHERITED flag (`0x10`) at baseline and is explicit after the restore. The NFS ACL bytes of that file
+are identical at baseline, in the snapshot and after the restore, so `--validate` reports it `SAME`.
+The array does not expose the flag over NFS, so there is nothing in the reference bytes for the
+restore to write back. Exactly 7 objects carried an inherited ACE at baseline: this file and the 6
+refused ones. Every restorable object without one came back byte-exact over SMB.
+
+This is the mechanism RISKS.md #11 records on FlashArray, seen here on FlashBlade: an ACL written
+over NFS reads back over SMB with INHERITED cleared. The repair did the same to the 6 refused
+objects' audit ACEs (`0xd3`→`0xc3` on directories, `0xd0`→`0xc0` on files) and marked their DACLs
+protected. No change to the restore can fix it over NFS; it is a limit of restoring an SMB-consumed
+tree through NFS.
+
 ## Observations
 
 - **Extra ACEs under an audited directory.** On this file system, a file created over NFS in a
@@ -205,10 +239,8 @@ was run as that user, and no array setting was changed to withhold the bypass.
 
 ## Not covered
 
-- The SMB view of the restored masks (the #56 symptom). The throwaway file system serves NFSv4.1
-  only, and adding SMB and a share is array configuration, pending the maintainer's decision.
 - FlashArray, the userspace transport, and any other Purity//FB release.
-- Effective access, delivered audit events, and SMB descriptor or inheritance fidelity. This run
-  checks stored NFS ACL bytes only.
+- Effective access and delivered audit events. SMB descriptor fidelity was checked once, on
+  `cebd265` (above); the other runs check stored NFS ACL bytes only.
 
 Raw evidence is kept in the internal lab record.

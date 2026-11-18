@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-16 |
-| Status | **Built, not release-qualified.** Implemented in `internal/restore` (2026-11-17). FlashBlade lab runs on `fdedaf7`, `8e7667b` (which adds `replaced_since`) and `cebd265` (which prints replaced paths) passed every scenario they ran (`benchmarks/restore-fb-20261117/`). Scenarios 3a (no-bypass identity) and 4 (lockout), and the SMB mask check, were not run. Deviations from this text are listed in section 10. |
+| Status | **Built, not release-qualified.** Implemented in `internal/restore` (2026-11-17). FlashBlade lab runs on `fdedaf7`, `8e7667b` (which adds `replaced_since`) and `cebd265` (which prints replaced paths) passed every NFS scenario they ran (`benchmarks/restore-fb-20261117/`). The SMB check found the masks restored but the SMB INHERITED flag lost on written objects, which NFS cannot carry. Scenarios 3a (no-bypass identity; precondition unmet) and 4 (lockout) were not run. Deviations from this text are listed in section 10. |
 | Issue | [#56](https://github.com/PureStorage-OpenConnect/permissionreset/issues/56) |
 | Scope | A `permissionreset` mode that writes each object's raw `system.nfs4_acl` from a reference tree (a snapshot path, usually) onto the live object at the same relative path. Kernel transport, Linux, FlashBlade first. |
 
