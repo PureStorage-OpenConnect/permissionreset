@@ -702,3 +702,17 @@ func TestRestoreReplacedSinceStderrIsCappedApartFromErrors(t *testing.T) {
 		t.Errorf("replaced-since lines used the error budget:\n%s", errOut.String())
 	}
 }
+
+func TestRestoreApplyNotesTheSMBInheritanceLimit(t *testing.T) {
+	for _, mode := range []Mode{Apply, Validate, DryRun} {
+		fx := newFixture(t)
+		fx.file("a.txt", true, true)
+		var out, errOut bytes.Buffer
+		if _, err := Run(context.Background(), fx.config(mode), &out, &errOut); err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Count(errOut.String(), smbInheritanceNote); got != map[Mode]int{Apply: 1}[mode] {
+			t.Errorf("%s: SMB inheritance NOTE printed %d times\n%s", mode, got, errOut.String())
+		}
+	}
+}

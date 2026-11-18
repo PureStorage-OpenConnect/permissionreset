@@ -128,7 +128,8 @@ check the result with `--validate` and from an SMB client.
   SMB INHERITED flag on its ACEs: they read back over SMB as explicit, with the same masks and
   principals. The NFS bytes carry no such flag, so `--validate` reports these objects `SAME`. Objects
   already byte-identical are not written and keep it. One lab check, Purity//FB 4.8.7
-  (`benchmarks/restore-fb-20261117/`).
+  (`benchmarks/restore-fb-20261117/`). This is a documented limit, not a refusal: `--apply` prints
+  a NOTE saying so, once per run.
 - **Same name, new object.** An object deleted and recreated under the same name since the snapshot
   has a different file id, so it is skipped and counted as `replaced-since` rather than given the
   old object's ACL. A replaced directory is not descended. The ids come from READDIR, and a

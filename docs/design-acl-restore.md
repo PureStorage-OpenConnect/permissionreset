@@ -331,5 +331,9 @@ Where the implementation differs from the text above, and why:
   line also goes to `--log`, or without it, the first 20 to stderr, capped apart from errors: the
   lab found an operator without `--evidence-dir` could not tell which objects kept their new ACL.
   The other skips stay evidence-only.
+- **SMB inheritance is a documented limit.** Read over SMB on FlashBlade, a written object's ACEs
+  lose the INHERITED flag; the NFS bytes carry none, so neither the restore nor `--validate` can act
+  on it (`benchmarks/restore-fb-20261117/`, the SMB view on `cebd265`). The maintainer accepted it as
+  a limit, not a blocker: `--apply` prints one NOTE about it, and nothing is refused.
 - **`--allow-high-ids` is refused** with `--restore-from`, not accepted for parity (section 4.4):
   it could lift nothing, and the lab found accepting it misleading.

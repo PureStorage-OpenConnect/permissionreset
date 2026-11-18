@@ -16,7 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   snapshot) onto the same relative path, byte for byte and only where it differs, with dry run,
   `--validate`, checkpoint and evidence (#56, `docs/design-acl-restore.md`). Linux, kernel
   transport. An object recreated under the same name since the reference is skipped and named in
-  `--log` or on stderr. Not yet qualified on hardware.
+  `--log` or on stderr. Known limit, noted on every `--apply`: an object the restore writes reads
+  back over SMB with its ACEs explicit rather than inherited, which NFS cannot carry. Not yet
+  qualified on hardware.
 
 ### Changed
 

@@ -34,6 +34,8 @@ as-built deviations: `docs/design-acl-restore.md` (section 10).
   pairs signal completion; refused and failed ones do not, so their directory is revisited on resume.
   Created-since and excluded children are not counted in `RegisterDir`.
 - A failed evidence or log write stops further writes (`stopped`), as in `internal/run`.
+- Apply prints `smbInheritanceNote` once: a written object's ACEs read back over SMB as explicit,
+  not inherited. A documented limit (the NFS bytes carry no such flag), never a refusal.
 
 ## Tests
 

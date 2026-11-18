@@ -176,6 +176,13 @@ func (r Result) OK() bool {
 
 const errOutLimit = 20
 
+// smbInheritanceNote is printed once per apply. An ACL written over NFS reads
+// back over SMB with each ACE's INHERITED flag cleared, on FlashArray
+// (RISKS.md #11) and FlashBlade (benchmarks/restore-fb-20261117/), and the
+// NFS bytes carry no such flag, so no restore over NFS can put it back and
+// --validate cannot see it. A documented limit, not a refusal.
+const smbInheritanceNote = "NOTE: objects this restore writes go over NFS; read over SMB, their ACEs come back explicit, not inherited (the NFS ACL carries no inherited flag, so --validate cannot see this). Objects already the same are not written"
+
 // Run restores (or compares) Target from Reference. A non-nil error means the
 // run refused to start or could not finish its bookkeeping; per-object failures
 // are counted in the Result instead.
@@ -232,6 +239,9 @@ func Run(ctx context.Context, cfg Config, out, errOut io.Writer) (res Result, ru
 		}
 		res.Proof = proof.String()
 		fmt.Fprintf(errOut, "NOTE: %s (on the live filesystem; the reference is read with the same identity)\n", proof)
+		if cfg.Mode == Apply {
+			fmt.Fprintln(errOut, smbInheritanceNote)
+		}
 	} else {
 		fmt.Fprintln(errOut, "NOTE: dry run: no ACL is read on either side (no audit-bypass proof runs without --apply or --validate), so every pair is reported as WOULD compare; --validate compares them")
 	}
