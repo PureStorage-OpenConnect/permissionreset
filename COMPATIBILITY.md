@@ -16,6 +16,8 @@ may work but carry no guarantee.
 | DACL reset (`acl:`) | FlashBlade | macOS | userspace | One hardware run on 0ed7524, darwin/arm64, Purity//FB version not recorded (section below) |
 | DACL-keeping SACL (`sacl:` only, `--sacl`) | FlashBlade | macOS | userspace | No hardware run recorded; offline tests in CI only |
 | Any repair | FlashArray | macOS | userspace | Refused by design (userspace refuses FlashArray) |
+| ACL restore (`--restore-from`) | FlashBlade | Linux | kernel | Not release-qualified. Lab runs on candidates `fdedaf7`, `8e7667b` and `cebd265`, Purity//FB 4.8.7, 2026-11-17: every NFS scenario run passed (`benchmarks/restore-fb-20261117/`). Over SMB, `DELETE_CHILD` is back on every affected file, but a written object's ACEs lose the INHERITED flag (1 of 664 objects in the check), a documented limit noted on each `--apply`. The no-bypass identity (precondition unmet) and lockout ordering were not run |
+| ACL restore (`--restore-from`) | FlashArray | Linux | kernel | Not qualified and not designed for SMB-written data (RISKS.md #11) |
 | Any repair | either | Windows | — | Does not build |
 | Template capture (`build-spec`) | either | Linux, macOS, Windows | kernel (Linux), userspace | Offline tests in CI; capture on hardware recorded in `benchmarks/` only for Linux |
 

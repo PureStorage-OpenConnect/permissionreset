@@ -158,6 +158,7 @@ func (k *Kernel) Stat(r Ref) (Attr, error) {
 		IsDir:     isDir,
 		IsSymlink: isSymlink,
 		Kind:      kindFromMode(uint32(st.Mode)),
+		Ino:       uint64(st.Ino),
 	}, nil
 }
 

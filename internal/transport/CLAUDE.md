@@ -6,6 +6,7 @@ Filesystem operation abstraction layer. Lets walk and apply work identically on 
 
 - `transport.go` — Transport interface, Ref, Attr, Dirent types
 - `kernel.go` — Kernel implementation (syscalls on mounted paths)
+- `kernel_ino_linux.go` — `Kernel.ReadDirIno`: getdents64 listing with each child's `d_ino` (`InoLister`, used by `--restore-from`'s replaced-since check; `os.ReadDir` hides the id). Linux only; the repair walk does not use it
 
 The userspace implementation lives in `internal/nfs41/client.go` (nfs41.Client implements Transport).
 

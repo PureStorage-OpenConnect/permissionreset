@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-16 |
-| Status | **Proposed.** Nothing is built. Questions 2–4 of section 9 decided 2026-11-16 (maintainer); question 1 waits on a lab read. |
+| Status | **Built, not release-qualified.** Implemented in `internal/restore` (2026-11-17). FlashBlade lab runs on `fdedaf7`, `8e7667b` (which adds `replaced_since`) and `cebd265` (which prints replaced paths) passed every NFS scenario they ran (`benchmarks/restore-fb-20261117/`). The SMB check found the masks restored but the SMB INHERITED flag lost on written objects, which NFS cannot carry. Scenarios 3a (no-bypass identity; precondition unmet) and 4 (lockout) were not run. Deviations from this text are listed in section 10. |
 | Issue | [#56](https://github.com/PureStorage-OpenConnect/permissionreset/issues/56) |
 | Scope | A `permissionreset` mode that writes each object's raw `system.nfs4_acl` from a reference tree (a snapshot path, usually) onto the live object at the same relative path. Kernel transport, Linux, FlashBlade first. |
 
@@ -49,15 +49,15 @@ Non-goals (for the first version):
 
 ```bash
 permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects/target /mnt/fb/projects/target           # dry run
-permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects/target /mnt/fb/projects/target --apply \
-    --checkpoint restore.ckpt --evidence-dir restore-evidence
-permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects/target /mnt/fb/projects/target --validate
+permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects/target --apply \
+    --checkpoint restore.ckpt --evidence-dir restore-evidence /mnt/fb/projects/target
+permissionreset --restore-from /mnt/fb/.snapshot/pre-repair/projects/target --validate /mnt/fb/projects/target
 ```
 
 - `--restore-from REF` replaces `--spec`; the two are mutually exclusive. `REF` and the positional
   root name the same subtree in the reference and in the live tree. Both roots are included.
 - Allowed with it: `--apply`, `--validate`, `--exclude`, `--checkpoint`/`--resume`,
-  `--evidence-dir`, `--workers`, `--one-filesystem`, `--quiet`, `--allow-high-ids`,
+  `--evidence-dir`, `--workers`, `--one-filesystem`, `--quiet`,
   `--allow-audited-dacl-reset` and `--allow-audit-removal` (section 4.4), `--allow-writable-reference`
   (section 7).
 - Refused with it: `--spec`, `--sacl`, `--set-owner`, `--compare` (always on, section 4.3),
@@ -286,3 +286,54 @@ Decided 2026-11-16 by the maintainer, as proposed:
    given. A snapshot is read-only, so the usual restore never needs the flag.
 4. **The command is the `--restore-from` flag** on `permissionreset`, a mode like `--partitions`,
    not a subcommand.
+
+## 10. As built (2026-11-17)
+
+Where the implementation differs from the text above, and why:
+
+- **Guards run only on an object about to be written.** Section 4.2 ran the principal guards
+  before the live read. The build compares first and applies every guard only when the bytes
+  differ, so a pair that already matches is never refused for what it names. Otherwise such a pair
+  would be refused on every run, and its directory would never complete in the checkpoint.
+- **No wide-directory fallback.** Section 4.1 proposed a name → type map with an `lstat` fallback
+  above a cap. Both listings are already sorted by name (the `Transport` contract), so the build
+  merge-joins them and holds no map. One directory pair in flight costs its two listings, as a
+  userspace repair's walk does; the kernel repair's batched listing (PS-11) is not used here.
+- **The driver has its own work stack** rather than a paired variant of `internal/walk`: listing,
+  file pairs and each directory's own write are jobs on one LIFO stack served by `--workers`
+  goroutines, and a directory's write is pushed when its last child finishes.
+- **A failed child does not hold back its parent's write.** A directory whose listing fails is not
+  written and not recorded complete, and nothing under it is touched. Its parent is still written
+  once all its children are handled, failed or not, and is recorded complete in the checkpoint only
+  when every child succeeded, so a resume revisits it.
+- **`ErrAuditVanished` and the restore's `ErrAuditedObject`** live in `internal/restore`, with
+  restore wording. The flag is the repair's `--allow-audited-dacl-reset` (decision 2).
+- **Writable reference** is decided by trying a write, under `--apply` only: create an empty probe
+  file in the reference root and remove it. Only EROFS counts as read-only; any other failure is
+  treated as writable. The first build used `access(REF, W_OK)`, and the lab found it wrong on
+  FlashBlade (Purity//FB 4.8.7, 2026-11-17): NFS ACCESS is answered from the ACL, so `access(2)`
+  says a snapshot is writable, and each snapshot is its own read-write submount (`ST_RDONLY` clear),
+  yet `touch` and `setxattr` on it fail EROFS. A same-bytes ACL write was rejected as the probe:
+  on a reference that is in fact writable, and on FlashArray, it would flatten SMB inheritance.
+- **A dry run reads no ACL on either side** (section 4.7 had it read the reference). It runs no
+  proof, and it no longer probes the reference, so it cannot know the reference is a snapshot that
+  is safe to read without one. It pairs the trees and reports `WOULD` per pair; `--validate` is the
+  read-only comparison.
+- **Flags go before TARGET.** Go's flag parsing stops at the first positional argument, so
+  `--restore-from REF TARGET --validate` is refused with a message naming the stray flag. The
+  examples in section 3 were corrected.
+- **`replaced_since` is built and on** (section 9, question 1 answered yes on a lab FlashBlade,
+  Purity//FB 4.8.7: unchanged objects keep their file id in `.snapshot`, 13/13 across two
+  snapshots, and a file recreated under the same name gets a new one). The ids come from
+  `getdents64` (`transport.InoLister`; `os.ReadDir` does not expose them), so the check costs no
+  round trip; a mismatch is confirmed with `lstat` on both sides before the pair is skipped. A
+  replaced directory is not descended. There is no flag to turn it off. Each `SKIP: replaced-since`
+  line also goes to `--log`, or without it, the first 20 to stderr, capped apart from errors: the
+  lab found an operator without `--evidence-dir` could not tell which objects kept their new ACL.
+  The other skips stay evidence-only.
+- **SMB inheritance is a documented limit.** Read over SMB on FlashBlade, a written object's ACEs
+  lose the INHERITED flag; the NFS bytes carry none, so neither the restore nor `--validate` can act
+  on it (`benchmarks/restore-fb-20261117/`, the SMB view on `cebd265`). The maintainer accepted it as
+  a limit, not a blocker: `--apply` prints one NOTE about it, and nothing is refused.
+- **`--allow-high-ids` is refused** with `--restore-from`, not accepted for parity (section 4.4):
+  it could lift nothing, and the lab found accepting it misleading.

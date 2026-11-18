@@ -1352,3 +1352,34 @@ func FixDirPerms(t transport.Transport, ref transport.Ref, s *spec.Spec, opts Op
 	}
 	return FixOutcome{OK: true, RealApply: true}
 }
+
+// CheckRestorable runs the principal guards a DACL-keeping write applies to
+// the bytes it writes back, on a whole raw ACL: the DACL region through
+// checkMappedDACL (ErrUnmappedPrincipal, ErrSyntheticRangePrincipal) and the
+// audit region through checkPreservableSACL (ErrUnpreservableAudit).
+// --restore-from calls it on the reference bytes before writing them, because
+// an NFS write of those bytes would replace any SID behind such a who (#56,
+// docs/design-acl-restore.md section 4.4). It also reports how many audit and
+// alarm entries the ACL carries, so the caller need not split it twice.
+func CheckRestorable(raw []byte) (saclCount int, err error) {
+	daclRaw, saclRaw, _, saclCount, err := nfs4acl.SplitRaw(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse ACL: %w", err)
+	}
+	if err := checkMappedDACL(daclRaw); err != nil {
+		return saclCount, err
+	}
+	if saclCount > 0 {
+		if err := checkPreservableSACL(saclRaw); err != nil {
+			return saclCount, err
+		}
+	}
+	return saclCount, nil
+}
+
+// DescribeACLMismatch is describeACLMismatch for callers outside this package:
+// it names the first ACE whose type, flags, mask or (identity-aware) who
+// differs, so a dropped bit such as ACE4_DELETE_CHILD (0x40) is visible.
+func DescribeACLMismatch(got, want []byte, resolver idmap.Resolver) string {
+	return describeACLMismatch(got, want, resolver)
+}

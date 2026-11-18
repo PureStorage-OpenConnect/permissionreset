@@ -1989,7 +1989,8 @@ func TestEveryFlagIsClassified(t *testing.T) {
 		"transport": true,
 	}
 	// gated: refused outright where the capability is absent.
-	gated := map[string]bool{"pfind": true, "no-pfind": true}
+	gated := map[string]bool{"pfind": true, "no-pfind": true,
+		"restore-from": true, "allow-writable-reference": true, "allow-audit-removal": true}
 
 	fs, _ := registerFlags(flag.NewFlagSet("classify", flag.ContinueOnError), io.Discard)
 	fs.VisitAll(func(f *flag.Flag) {

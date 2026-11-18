@@ -146,6 +146,9 @@ type flags struct {
 	allowAudited       *bool
 	partitions         *string
 	partitionOnly      *stringList
+	restoreFrom        *string
+	allowWritableRef   *bool
+	allowAuditRemoval  *bool
 }
 
 type buildSummaryOpts struct {
@@ -273,6 +276,12 @@ func registerFlags(fs *flag.FlagSet, errOut io.Writer) (*flag.FlagSet, *flags) {
 	// unconditionally, so the flag only decides whether the numbers are printed.
 	rpcStats := fs.Bool("rpc-stats", false, "")
 	partitions := fs.String("partitions", "", "run the partition manifest at PATH instead of one TARGET: root, spec, excludes and state directory come from the manifest, and each partition gets its own checkpoint and evidence (docs/partitions.md)")
+	f.restoreFrom = g.String(fs, cmdflags.RestoreFrom(caps), "restore-from", "",
+		"restore mode: write each object's raw NFSv4 ACL from the reference tree REF (usually a snapshot path) onto the object at the same relative path under TARGET, only where the bytes differ. Replaces --spec (docs/design-acl-restore.md)")
+	f.allowWritableRef = g.Bool(fs, cmdflags.RestoreFrom(caps), "allow-writable-reference", false,
+		"with --restore-from --apply, restore from a reference that accepts writes. A snapshot does not; a writable reference is usually the two paths the wrong way round")
+	f.allowAuditRemoval = g.Bool(fs, cmdflags.RestoreFrom(caps), "allow-audit-removal", false,
+		"with --restore-from, write an object whose live ACL has audit ACEs the reference lacks, removing them")
 	fs.Var(f.partitionOnly, "partition", "with --partitions, run only the named partition; repeatable. The others keep their recorded status")
 	fs.Usage = func() {
 		fmt.Fprintln(errOut, "usage: permissionreset [flags] TARGET")
@@ -464,6 +473,38 @@ func postProcessFlags(fs *flag.FlagSet, f *flags, out, errOut io.Writer) (*prefl
 		}()
 	}
 
+	// A restore takes no spec: --restore-from names the reference, and
+	// runRestore refuses the flags that would contradict it.
+	if *f.restoreFrom != "" {
+		if *f.partitions != "" || len(*f.partitionOnly) > 0 {
+			fmt.Fprintln(errOut, "ERROR: --restore-from cannot be used with --partitions")
+			return nil, 1
+		}
+		if fs.NArg() != 1 {
+			if fs.NArg() > 1 && strings.HasPrefix(fs.Arg(1), "-") {
+				fmt.Fprintf(errOut, "ERROR: %s after TARGET is not parsed as a flag; put every flag before TARGET\n", fs.Arg(1))
+			}
+			fmt.Fprintln(errOut, "usage: permissionreset --restore-from REF [flags] TARGET")
+			return nil, 1
+		}
+		for _, p := range excludes {
+			if err := spec.ValidateExcludePattern(p); err != nil {
+				fmt.Fprintf(errOut, "ERROR: --exclude: %v\n", err)
+				return nil, 1
+			}
+		}
+		return &preflightResult{
+			excludes: excludes, explicit: explicit, workersTyped: workersTyped,
+			target: fs.Arg(0), authCred: authCred, profileCleanup: profileCleanup,
+		}, 0
+	}
+	for _, name := range []string{"allow-writable-reference", "allow-audit-removal"} {
+		if explicit[name] {
+			fmt.Fprintf(errOut, "ERROR: --%s requires --restore-from\n", name)
+			return nil, 1
+		}
+	}
+
 	// A partitioned run takes its root and spec from the manifest;
 	// runPartitioned refuses the flags that would contradict it.
 	if *f.partitions != "" {
@@ -531,6 +572,9 @@ func runWithFlagSet(args []string, out, errOut io.Writer) (exitCode int) {
 	}
 	for _, fn := range pf.profileCleanup {
 		defer fn()
+	}
+	if *f.restoreFrom != "" {
+		return runRestore(f, pf, out, errOut)
 	}
 	if *f.partitions != "" {
 		return runPartitioned(fs, f, pf, out, errOut)
