@@ -76,9 +76,10 @@ func TestRestoreFlagSelectsModeAndRoots(t *testing.T) {
 		if cfg.Reference != ref || cfg.Target != target {
 			t.Errorf("roots = %s -> %s", cfg.Reference, cfg.Target)
 		}
-		// The write probe runs only under --apply.
-		if cfg.ReferenceWritable != (tc.want == restore.Apply) {
-			t.Errorf("%v: ReferenceWritable = %v", tc.args, cfg.ReferenceWritable)
+		// With --allow-writable-reference no probe runs, in any mode
+		// (TestRestoreAllowWritableReferenceSkipsTheProbe counts the calls).
+		if cfg.ReferenceWritable {
+			t.Errorf("%v: ReferenceWritable = true without a probe", tc.args)
 		}
 	}
 }
@@ -208,5 +209,19 @@ func TestRestoreFlagsAfterTargetAreNamed(t *testing.T) {
 	code, _, errOut := runArgs(t, "--restore-from", ref, target, "--validate")
 	if code == 0 || !strings.Contains(errOut, "--validate after TARGET") {
 		t.Errorf("exit %d: %q", code, errOut)
+	}
+}
+
+func TestRestoreAllowWritableReferenceSkipsTheProbe(t *testing.T) {
+	cfg := captureRestoreConfig(t)
+	ref, target := restoreRoots(t)
+	old := referenceWritable
+	calls := 0
+	referenceWritable = func(string) (bool, string) { calls++; return true, "writable" }
+	t.Cleanup(func() { referenceWritable = old })
+
+	code, _, errOut := runArgs(t, "--restore-from", ref, "--apply", "--allow-writable-reference", target)
+	if code != 0 || calls != 0 || cfg.ReferenceWritable {
+		t.Fatalf("exit %d, probe calls %d, writable %v: %s", code, calls, cfg.ReferenceWritable, errOut)
 	}
 }

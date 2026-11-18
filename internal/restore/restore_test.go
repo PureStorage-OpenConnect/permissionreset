@@ -495,7 +495,7 @@ func TestRestoreResumeRedoesOnlyIncompleteSubtrees(t *testing.T) {
 	fx.live.failSet[fx.livePath("bad/f")] = errors.New("EIO")
 
 	ckptPath := filepath.Join(t.TempDir(), "restore.ckpt")
-	hash := checkpoint.RestoreHash(fx.refRoot, fx.liveRoot, "test", nil)
+	hash := checkpoint.RestoreHash(fx.refRoot, fx.liveRoot, "test", nil, false)
 	open := func(resume bool) *checkpoint.Checkpoint {
 		c, err := checkpoint.Open(ckptPath, hash, resume)
 		if err != nil {
@@ -625,7 +625,7 @@ func TestRestoreReplacedSkipsCompleteInTheCheckpoint(t *testing.T) {
 	fx.live.direntIno[fx.livePath("d/recreated")] = 7
 	fx.live.statIno[fx.livePath("d/recreated")] = 7
 	ckptPath := filepath.Join(t.TempDir(), "c.ckpt")
-	hash := checkpoint.RestoreHash(fx.refRoot, fx.liveRoot, "test", nil)
+	hash := checkpoint.RestoreHash(fx.refRoot, fx.liveRoot, "test", nil, false)
 	c, err := checkpoint.Open(ckptPath, hash, false)
 	if err != nil {
 		t.Fatal(err)

@@ -66,7 +66,7 @@ writes each object's raw `system.nfs4_acl` from REF onto TARGET at the same rela
 where the bytes differ (#56, `docs/design-acl-restore.md`, section 10 lists as-built deviations).
 No spec; kernel transport on Linux only (`cmdflags.RestoreFrom`). Paired walk with sorted
 merge-join; directories written after their subtree, root last. Apply and validate prove the audit
-bypass first; dry run reads no ACL on either side. `--apply` probes the reference for EROFS by
+bypass first; dry run reads no ACL on either side. `--apply` (without `--allow-writable-reference`) probes the reference for EROFS by
 creating and removing a file (`access(W_OK)` says yes on a FlashBlade snapshot). Flags go before TARGET. Guards (`apply.CheckRestorable`, audited object, audit
 vanished) apply only when a write is needed. Built, not release-qualified (FB lab runs on `fdedaf7`, `8e7667b` and `cebd265`,
 `benchmarks/restore-fb-20261117/`). Apply prints a NOTE that written objects lose SMB INHERITED flags (a documented limit). `replaced_since` is on: file ids from `getdents64`

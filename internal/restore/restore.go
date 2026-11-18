@@ -189,6 +189,20 @@ const smbInheritanceNote = "NOTE: objects this restore writes go over NFS; read 
 func Run(ctx context.Context, cfg Config, out, errOut io.Writer) (res Result, runErr error) {
 	start := time.Now()
 	res = Result{Mode: cfg.Mode.String(), Reference: cfg.Reference, Target: cfg.Target}
+
+	// Normalize cfg before the engine copies it, so there is one config.
+	if cfg.Workers < 1 {
+		cfg.Workers = 1
+	}
+	noInoLister := false
+	if cfg.ReplacedCheck {
+		_, okR := cfg.Ref.(transport.InoLister)
+		_, okL := cfg.Live.(transport.InoLister)
+		if !okR || !okL {
+			cfg.ReplacedCheck = false
+			noInoLister = true
+		}
+	}
 	e := &engine{cfg: cfg, ctx: ctx, errOut: errOut, refusedBy: map[string]int64{}}
 	reachedEnd := false
 	defer func() {
@@ -209,10 +223,6 @@ func Run(ctx context.Context, cfg Config, out, errOut io.Writer) (res Result, ru
 		}
 	}()
 
-	if cfg.Workers < 1 {
-		cfg.Workers = 1
-		e.cfg.Workers = 1
-	}
 	fmt.Fprintf(out, "Restore %s: ACLs from %s\n", cfg.Mode, cfg.Reference)
 	fmt.Fprintf(out, "                 onto %s\n", cfg.Target)
 	if len(cfg.Excludes) > 0 {
@@ -246,13 +256,8 @@ func Run(ctx context.Context, cfg Config, out, errOut io.Writer) (res Result, ru
 		fmt.Fprintln(errOut, "NOTE: dry run: no ACL is read on either side (no audit-bypass proof runs without --apply or --validate), so every pair is reported as WOULD compare; --validate compares them")
 	}
 
-	if cfg.ReplacedCheck {
-		_, okR := cfg.Ref.(transport.InoLister)
-		_, okL := cfg.Live.(transport.InoLister)
-		if !okR || !okL {
-			fmt.Fprintln(errOut, "NOTE: this transport cannot list file ids, so objects recreated since the reference are not detected")
-			e.cfg.ReplacedCheck = false
-		}
+	if noInoLister {
+		fmt.Fprintln(errOut, "NOTE: this transport cannot list file ids, so objects recreated since the reference are not detected")
 	}
 
 	if cfg.OneFilesystem {

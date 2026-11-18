@@ -381,3 +381,9 @@ func TestRunHashBindsExcludePatterns(t *testing.T) {
 		t.Error("RunHash must be stable for the same exclude list")
 	}
 }
+
+func TestRestoreHashBindsOneFilesystem(t *testing.T) {
+	if RestoreHash("/r", "/t", "v", nil, false) == RestoreHash("/r", "/t", "v", nil, true) {
+		t.Error("--one-filesystem does not change the restore checkpoint hash")
+	}
+}

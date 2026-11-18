@@ -6,6 +6,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 
 	"golang.org/x/sys/unix"
 )
@@ -23,7 +24,9 @@ func (k *Kernel) ReadDirIno(r Ref) ([]Dirent, error) {
 	defer unix.Close(fd)
 
 	var out []Dirent
-	buf := make([]byte, 64<<10)
+	bp := direntBufs.Get().(*[]byte)
+	defer direntBufs.Put(bp)
+	buf := *bp
 	for {
 		n, err := unix.Getdents(fd, buf)
 		if err != nil {
@@ -61,6 +64,10 @@ func (k *Kernel) ReadDirIno(r Ref) ([]Dirent, error) {
 	slices.SortFunc(out, func(a, b Dirent) int { return strings.Compare(a.Name, b.Name) })
 	return out, nil
 }
+
+// direntBufs reuses getdents64 buffers across listings: a fresh 64 KiB per
+// directory is measurable GC and RSS load on a tree of many small directories.
+var direntBufs = sync.Pool{New: func() any { b := make([]byte, 64<<10); return &b }}
 
 type rawDirent struct {
 	ino  uint64

@@ -173,7 +173,7 @@ func runRestore(f *flags, pf *preflightResult, out, errOut io.Writer) (exitCode 
 
 	var ckpt *checkpoint.Checkpoint
 	if *f.ckptPath != "" {
-		ckpt, err = checkpoint.Open(*f.ckptPath, checkpoint.RestoreHash(ref, target, version, pf.excludes), *f.resume)
+		ckpt, err = checkpoint.Open(*f.ckptPath, checkpoint.RestoreHash(ref, target, version, pf.excludes, *f.oneFilesystem), *f.resume)
 		if err != nil {
 			if sink != nil {
 				sink.Close(false, "checkpoint open failed")
@@ -183,8 +183,10 @@ func runRestore(f *flags, pf *preflightResult, out, errOut io.Writer) (exitCode 
 		}
 	}
 
+	// With --allow-writable-reference the probe's answer changes nothing, so it
+	// is not run: no file is created in the reference for no reason.
 	writable := false
-	if mode == restore.Apply {
+	if mode == restore.Apply && !*f.allowWritableRef {
 		var how string
 		writable, how = referenceWritable(ref)
 		fmt.Fprintf(errOut, "NOTE: reference write probe: %s\n", how)
