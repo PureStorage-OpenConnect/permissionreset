@@ -92,12 +92,15 @@ per-partition state, not speed. Details and what path disjointness does not prov
 `--restore-from REF TARGET` writes each object's raw `system.nfs4_acl` from `REF` (usually a
 `.snapshot` path) onto the object at the same relative path under `TARGET`. It takes no spec. It
 compares raw bytes and writes only where they differ, so a pair that already matches is never
-rewritten. It never changes file contents, owner, group or mode, never follows a symlink, and never
-creates or deletes an object. Design: [design-acl-restore.md](design-acl-restore.md).
+rewritten. It never changes file contents, owner, group or mode, never follows a symlink, and
+creates no object except two disposable probe files, each removed at once: the audit-bypass proof's
+under `TARGET` (apply and validate), and, on `--apply` without `--allow-writable-reference`, the
+read-only check's in the root of `REF`. Design: [design-acl-restore.md](design-acl-restore.md).
 
-**Status: built, not yet qualified on hardware.** The offline tests pass; the FlashBlade
-qualification in the design (section 8) has not run. Until it has, use it on a canary subtree and
-check the result with `--validate` and from an SMB client.
+**Status: built, not release-qualified.** FlashBlade lab runs passed every NFS scenario they ran
+(`benchmarks/restore-fb-20261117/`); the no-bypass identity and lockout ordering were not run. Until
+it is qualified, use it on a canary subtree and check the result with `--validate` and from an
+SMB client.
 
 - **Modes.** Without `--apply` it is a dry run: it pairs the two trees, reads no ACL on either side,
   and reports `WOULD` per pair with every skip counted. `--validate` and `--apply` first prove the

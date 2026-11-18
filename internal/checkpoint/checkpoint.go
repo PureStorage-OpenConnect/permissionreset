@@ -74,11 +74,16 @@ func RunHash(specPath, target, protocol, toolVersion string, excludes []string) 
 
 // RestoreHash is RunHash for --restore-from, which has no spec file: it binds a
 // checkpoint to the mode, both resolved roots, the tool version and the
-// effective excludes. Swapping the roots, or restoring from a different
-// reference, invalidates it.
-func RestoreHash(reference, target, toolVersion string, excludes []string) [32]byte {
+// effective excludes, and --one-filesystem, which changes what a complete
+// directory means (other-filesystem children count as done unwalked). Swapping
+// the roots, or restoring from a different reference, invalidates it.
+func RestoreHash(reference, target, toolVersion string, excludes []string, oneFilesystem bool) [32]byte {
 	h := sha256.New()
-	for _, f := range []string{"restore", reference, target, toolVersion} {
+	ofs := "all-filesystems"
+	if oneFilesystem {
+		ofs = "one-filesystem"
+	}
+	for _, f := range []string{"restore", reference, target, toolVersion, ofs} {
 		h.Write([]byte(f))
 		h.Write([]byte("\x00"))
 	}
