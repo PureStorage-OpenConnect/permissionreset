@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Text;
 
 namespace PermissionReset.Smb.Core;
@@ -163,6 +164,32 @@ public static class SidFormat
         sb.Append(auth < (1UL << 32) ? auth.ToString() : $"0x{auth:X12}");
         for (int i = 0; i < n; i++) sb.Append('-').Append(BinaryPrimitives.ReadUInt32LittleEndian(b[(8 + 4 * i)..]));
         return sb.ToString();
+    }
+
+    // Encode is Parse's inverse: S-R-I-S... (I decimal, or 0x and 12 hex digits as Parse writes an
+    // authority of 2^32 or more) to the binary SID. Anything else throws FormatException.
+    public static byte[] Encode(string sid)
+    {
+        var p = sid.Split('-');
+        if (p.Length < 3 || p[0] != "S" || !byte.TryParse(p[1], NumberStyles.None, CultureInfo.InvariantCulture, out var rev) || p.Length - 3 > 15)
+            throw new FormatException($"\"{sid}\" is not a SID");
+        ulong auth;
+        bool ok = p[2].StartsWith("0x", StringComparison.Ordinal)
+            ? ulong.TryParse(p[2][2..], NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out auth)
+            : ulong.TryParse(p[2], NumberStyles.None, CultureInfo.InvariantCulture, out auth);
+        if (!ok || auth >= 1UL << 48) throw new FormatException($"\"{sid}\" has a bad identifier authority");
+        int n = p.Length - 3;
+        var b = new byte[8 + 4 * n];
+        b[0] = rev;
+        b[1] = (byte)n;
+        for (int i = 0; i < 6; i++) b[2 + i] = (byte)(auth >> (8 * (5 - i)));
+        for (int i = 0; i < n; i++)
+        {
+            if (!uint.TryParse(p[3 + i], NumberStyles.None, CultureInfo.InvariantCulture, out var sub))
+                throw new FormatException($"\"{sid}\" has a bad subauthority \"{p[3 + i]}\"");
+            BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(8 + 4 * i), sub);
+        }
+        return b;
     }
 }
 

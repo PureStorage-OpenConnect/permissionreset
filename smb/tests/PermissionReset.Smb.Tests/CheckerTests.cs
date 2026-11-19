@@ -4,34 +4,134 @@ namespace PermissionReset.Smb.Tests;
 
 public class CheckerTests
 {
-    const string Users = "S-1-5-21-1-2-3-1001", Admins = "S-1-5-21-1-2-3-1002", Other = "S-1-5-21-1-2-3-1003";
+    internal const string Users = "S-1-5-21-1-2-3-1001", Admins = "S-1-5-21-1-2-3-1002", Other = "S-1-5-21-1-2-3-1003";
     const byte OI = AceFlags.ObjectInherit, CI = AceFlags.ContainerInherit, ID = AceFlags.Inherited;
     const ushort SelfRelative = 0x8000, DaclPresent = 0x0004, DaclProtected = 0x1000;
 
     // ---- fixture: an in-memory tree ------------------------------------------------------------
 
-    internal sealed record Obj(bool IsDir, Ace[] Dacl, bool Protected, string Owner = Admins, bool Reparse = false);
+    internal sealed record Obj(bool IsDir, Ace[] Dacl, bool Protected, string Owner = Admins, bool Reparse = false,
+        Ace[]? Sacl = null, string Group = Admins, ushort ExtraControl = 0);
 
-    internal sealed class FakeTree(Dictionary<string, Obj> objs) : ITree
+    // FakeTree is an in-memory array. Its writes model what FlashArray was measured to do
+    // (smb/DESIGN-write-path.md, section 1): it stores exactly the DACL written (F1), and a DACL
+    // write to a directory re-derives every unprotected descendant whose inherited part matched
+    // what the directory passed down before (F2, F3); one that didn't match is a frozen copy and
+    // keeps its ACEs. ArrayInherit is the array's inheritance function: the tool's by default,
+    // replaceable to model an array that disagrees.
+    internal sealed class FakeTree(Dictionary<string, Obj> objs) : IWritableTree
     {
-        public HashSet<string> ReadFails = [], ListFails = [];
+        public HashSet<string> ReadFails = [], ListFails = [], WriteFails = [], DeleteFails = [], SaclReadFails = [];
+        public Action<string>? BeforeSaclRead;                 // runs before each read with the SACL
+        public readonly List<string> SaclReads = [];
+        public Func<IReadOnlyList<Ace>, bool, List<Ace>> ArrayInherit = Inheritance.Inherit;
+        public bool DropSacl;                                  // accept SACL writes, keep nothing
+        public Action<string>? AfterWrite;                     // runs after each write, to corrupt it
+        public readonly List<(string Rel, uint Info)> Writes = [];
+        public readonly Dictionary<string, ushort> SentControl = [];  // the control word of each object's last write
+        public readonly Dictionary<string, Obj> Objs = objs;
 
         public IReadOnlyList<TreeEntry> List(string rel)
         {
             if (ListFails.Contains(rel)) throw new IOException("Access is denied.");
-            var prefix = rel.Length == 0 ? "" : rel + "/";
-            return objs.Where(kv => kv.Key.Length > prefix.Length && kv.Key.StartsWith(prefix, StringComparison.Ordinal) && !kv.Key[prefix.Length..].Contains('/'))
-                .OrderBy(kv => kv.Key, StringComparer.Ordinal)
-                .Select(kv => new TreeEntry(kv.Key[prefix.Length..], kv.Value.IsDir, kv.Value.Reparse)).ToList();
+            return Children(rel).Select(kv => new TreeEntry(kv.Key[(rel.Length == 0 ? 0 : rel.Length + 1)..], kv.Value.IsDir, kv.Value.Reparse)).ToList();
         }
 
-        public byte[] Read(string rel)
+        List<KeyValuePair<string, Obj>> Children(string rel)
+        {
+            var prefix = rel.Length == 0 ? "" : rel + "/";
+            lock (Objs)
+                return Objs.Where(kv => kv.Key.Length > prefix.Length && kv.Key.StartsWith(prefix, StringComparison.Ordinal) && !kv.Key[prefix.Length..].Contains('/'))
+                    .OrderBy(kv => kv.Key, StringComparer.Ordinal).ToList();
+        }
+
+        public byte[] Read(string rel, bool withSacl)
         {
             if (ReadFails.Contains(rel)) throw new IOException("Access is denied.");
-            var o = objs[rel];
+            if (withSacl)
+            {
+                lock (SaclReads) SaclReads.Add(rel);
+                if (SaclReadFails.Contains(rel)) throw new IOException("A required privilege is not held by the client.");
+                BeforeSaclRead?.Invoke(rel);
+            }
+            Obj o;
+            lock (Objs) o = Objs[rel];
             var dacl = DescriptorTests.Acl(o.Dacl.Select(a => DescriptorTests.Ace((byte)a.Type, a.Flags, a.Mask, Sid(a.Sid))).ToArray());
-            ushort control = (ushort)(SelfRelative | DaclPresent | (o.Protected ? DaclProtected : 0));
-            return DescriptorTests.Sd(control, Sid(o.Owner), Sid(Admins), null, dacl);
+            byte[]? sacl = withSacl && o.Sacl is not null
+                ? DescriptorTests.Acl(o.Sacl.Select(a => DescriptorTests.Ace((byte)a.Type, a.Flags, a.Mask, Sid(a.Sid))).ToArray())
+                : null;
+            ushort control = (ushort)(SelfRelative | DaclPresent | (o.Protected ? DaclProtected : 0) | (sacl is null ? 0 : 0x0010) | o.ExtraControl);
+            return DescriptorTests.Sd(control, Sid(o.Owner), Sid(o.Group), sacl, dacl);
+        }
+
+        public void Write(string rel, uint info, byte[] sd)
+        {
+            if (WriteFails.Contains(rel)) throw new IOException("set security: Access is denied.");
+            var d = Descriptor.Decode(sd);
+            lock (Objs)
+            {
+                Writes.Add((rel, info));
+                SentControl[rel] = d.Control;
+                var o = Objs[rel];
+                if ((info & SecurityInformation.Owner) != 0) o = o with { Owner = d.Owner! };
+                if ((info & SecurityInformation.Group) != 0) o = o with { Group = d.Group! };
+                if ((info & SecurityInformation.Sacl) != 0 && !DropSacl)
+                    o = o with { Sacl = d.Sacl!.Aces.Select(a => Ace.FromView(a)!.Value).ToArray() };
+                if ((info & SecurityInformation.Dacl) != 0)
+                {
+                    var old = o.Dacl.ToList();
+                    o = o with
+                    {
+                        Dacl = d.Dacl!.Aces.Select(a => Ace.FromView(a)!.Value).ToArray(),
+                        Protected = (info & SecurityInformation.ProtectedDacl) != 0,
+                    };
+                    // F5: the array stores D:AI on an unprotected DACL and drops it on a protected
+                    // one, whatever the control word sent says.
+                    o = o with { ExtraControl = (ushort)((o.ExtraControl & ~Control.DaclAutoInherited) | (o.Protected ? 0 : Control.DaclAutoInherited)) };
+                    Objs[rel] = o;
+                    if (o.IsDir) Propagate(rel, old, o.Dacl.ToList());
+                }
+                Objs[rel] = o;
+            }
+            AfterWrite?.Invoke(rel);
+        }
+
+        void Propagate(string dir, List<Ace> oldAcl, List<Ace> newAcl)
+        {
+            foreach (var (rel, c) in Children(dir))
+            {
+                if (c.Protected || c.Reparse) continue;
+                var id = c.Dacl.Where(a => a.Inherited).ToList();
+                if (!id.SequenceEqual(ArrayInherit(oldAcl, c.IsDir))) continue;   // a frozen copy (F2)
+                var updated = c with { Dacl = c.Dacl.Where(a => !a.Inherited).Concat(ArrayInherit(newAcl, c.IsDir)).ToArray() };
+                Objs[rel] = updated;
+                if (c.IsDir) Propagate(rel, c.Dacl.ToList(), updated.Dacl.ToList());
+            }
+        }
+
+        public void CreateDirectory(string rel) => Create(rel, true);
+        public void CreateFile(string rel) => Create(rel, false);
+
+        void Create(string rel, bool isDir)
+        {
+            lock (Objs)
+            {
+                var parent = rel.Contains('/') ? rel[..rel.LastIndexOf('/')] : "";
+                if (!Objs.TryGetValue(parent, out var p) || !p.IsDir) throw new IOException("create: The system cannot find the path specified.");
+                if (Objs.ContainsKey(rel)) throw new IOException("create: Cannot create a file when that file already exists.");
+                Objs[rel] = new Obj(isDir, ArrayInherit(p.Dacl, isDir).ToArray(), false, Owner: Users);
+            }
+        }
+
+        public void Delete(string rel, bool isDir)
+        {
+            if (DeleteFails.Contains(rel)) throw new IOException("delete: Access is denied.");
+            lock (Objs)
+            {
+                if (!Objs.ContainsKey(rel)) throw new FileNotFoundException("delete: not found", rel);
+                if (Children(rel).Count > 0) throw new IOException("delete: The directory is not empty.");
+                Objs.Remove(rel);
+            }
         }
     }
 
@@ -49,13 +149,13 @@ public class CheckerTests
     internal static readonly Ace[] DirInherited = [A(ID | OI | CI, Users), A(ID | OI | CI, Admins, 0x1f01ff)];
     internal static readonly Ace[] FileInherited = [A(ID, Users), A(ID, Admins, 0x1f01ff)];
 
-    static PlanAce PA(Ace a, string principal = "") =>
+    internal static PlanAce PA(Ace a, string principal = "") =>
         new("line", 0, 0, a.Type, a.Flags, a.Mask, principal, false, principal.Length > 0 ? "" : a.Sid, "");
 
-    static PlanRule Rule(string label, string type, string pattern, Ace[]? dacl, string owner = "") =>
+    internal static PlanRule Rule(string label, string type, string pattern, Ace[]? dacl, string owner = "") =>
         new(label, new PlanMatch(type, pattern), false, false, dacl is not null, false, false, owner, "", [], dacl?.Select(a => PA(a)).ToList());
 
-    static Plan MakePlan(params PlanRule[] rules) =>
+    internal static Plan MakePlan(params PlanRule[] rules) =>
         new(Plan.SmbSchema, "t.yaml", "nfsv4", new PlanExclude(["skip"], ["skip"], []),
             Rule("default", "", "", FileWant), rules);
 
