@@ -7,24 +7,27 @@
   `--smb-plan` JSON, schema 2, or `--sacl-plan`, schema 1; strict), `RuleSelector` (permissionreset's rule and exclude
   semantics), `GoGlob` (Go `path.Match`), `Descriptor` (managed MS-DTYP decoder), `Inheritance` and
   `Desired` (the inheritance function and three-form classifier, design 2.1 and 2.4), `Checker`
-  (the read-only top-down walk behind `check`, over an `ITree`).
+  (the top-down walk behind `check` and `apply`, over an `ITree`/`IWritableTree`, with guards G1
+  and G2), `DescriptorBuilder` (the descriptor encoder a write sends), `Preflight` (apply's
+  disposable probe), `FileCheckpoint` and `Evidence`.
 - `src/PermissionReset.Smb/` — the `permissionreset-smb` CLI, `Win32Security` (handle-based
   descriptor reads and directory listing with backup intent, privilege enabling) and `Win32Tree`
-  (the Windows `ITree`, and principal lookup). Windows-only paths are guarded with
+  (the Windows `IWritableTree`, and principal lookup). Windows-only paths are guarded with
   `OperatingSystem.IsWindows()` and `[SupportedOSPlatform("windows")]`.
 - `release/pack.ps1` — builds, packs and smoke-checks the release zip and `SHA256SUMS`; run by the
   `smb-windows` CI job and by `.github/workflows/release-smb.yml` on `smb-v*` tags (draft only).
 - `tests/PermissionReset.Smb.Tests/` — xUnit; runs on Linux too (`dotnet test`). The CLI's records
   and exit codes are tested through a fake `IDescriptorReader`; the Win32 reads are checked on
-  hardware only.
+  hardware only. `CheckerTests.FakeTree` is writable and models the array's measured inheritance
+  (F1-F3: an inherited part follows its parent only while it matches what the parent passed down);
+  keep it in step with what hardware shows.
 
 Rules:
-- The tool writes nothing yet. Phase 1 of `DESIGN-write-path.md` (plan schema 2, `Inheritance`,
-  `Desired`, `check`) is built and qualified read-only at `700630b`
-  (`benchmarks/qual-smb-check-700630b-20261116/`). Q-INH, Q-EXP and Q-PROT are answered on FlashArray
-  (its section 7), so phase 2 (writes) is no longer blocked by them, but needs its own hardware
-  qualification on its candidate. Do not write before the phase that allows it, and never without G1
-  and G2 (its section 5).
+- Phase 1 (`check`) is qualified read-only at `700630b` (`benchmarks/qual-smb-check-700630b-20261116/`).
+  Phase 2 (`apply`, DACL writes, `DESIGN-write-path.md` section 10) is built and **not qualified**:
+  it needs a hardware run on its exact candidate (section 8, phase 2) before any `smb-v*` tag. Every
+  write goes through G1 and G2 (section 5); never add a path that writes without them, and never add
+  an override for either. SACL writes are phase 3: `apply` refuses plans with `sacl:` until then.
 - `Inheritance.Inherit`'s table test is the prediction the Q-INH hardware run checks. If the array
   disagrees, change the function and the table together, and record why.
 - Never parse YAML here. Spec meaning lives in Go (`internal/saclplan`); extend the plan schema

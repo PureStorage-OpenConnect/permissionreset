@@ -112,7 +112,8 @@ and neither is one whose audit ACEs name nobody or an id >= 1e9 (`ErrUnpreservab
 ## permissionreset-smb
 
 `smb/` holds `permissionreset-smb`, the SMB-native .NET 8 tool for FlashArray
-(`docs/decision-flasharray-smb-20261107.md`). It is read-only for now. Build, test and layout
+(`docs/decision-flasharray-smb-20261107.md`). `check` is qualified read-only; `apply` (DACL writes,
+phase 2) is built but not hardware-qualified, and SACL writes are not built. Build, test and layout
 live in `smb/CLAUDE.md`.
 
 ## Tuning sweeper

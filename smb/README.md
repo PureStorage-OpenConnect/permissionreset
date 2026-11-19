@@ -5,9 +5,12 @@ array's own model over SMB: SIDs without id mapping, inherited flags as stored, 
 `SeSecurityPrivilege`. Why it exists, and what is still open before it can write anything, is in
 [the decision record](../docs/decision-flasharray-smb-20261107.md).
 
-**Status: pre-release. It writes nothing.** It reads and decodes descriptors, validates plans,
-and checks a tree against a plan (`check`, phase 1 of [the write-path design](DESIGN-write-path.md)).
-The write itself (phase 2) is not built. Nothing here is qualified beyond `inspect`'s reads.
+**Status: pre-release.** It reads and decodes descriptors, validates plans, checks a tree against
+a plan (`check`, phase 1 of [the write-path design](DESIGN-write-path.md)) and, since phase 2,
+resets DACLs (`apply`). **`apply` is built but not qualified on hardware**: do not run it on data
+you care about until a qualification on its exact candidate is recorded, and there is no `smb-v*`
+release. `inspect` and `check` are qualified read-only at `700630b`. SACL writes (phase 3) are not
+built.
 
 | Platform | Tool |
 |---|---|
@@ -23,6 +26,7 @@ permissionreset-smb inspect --no-sacl \\array\share\dept                  # with
 permissionreset-smb plan audit-plan.json                                  # validate and summarize a plan
 permissionreset-smb check plan.json \\array\share\dept                   # dry run: what a reset would write
 permissionreset-smb check --validate plan.json \\array\share\dept        # exit 1 unless every object is right
+permissionreset-smb apply --evidence-dir ev plan.json \\array\share\dept  # write what differs, read every write back
 permissionreset-smb version
 ```
 
@@ -52,6 +56,36 @@ It reads no SACL. Every principal the plan names is resolved to a SID on this ho
 check is refused if one doesn't resolve. `--workers N` (default 16) sets the parallelism. Exit 0
 when every object was checked (with `--validate`: and every one is `ok`), 1 otherwise, 2 on a
 usage error.
+
+`apply` takes the same schema 2 plan and walks the same way, but writes. Each object whose DACL
+differs from its desired form gets one `SetKernelObjectSecurity` with only the parts that differ
+(`DACL_SECURITY_INFORMATION` plus `PROTECTED_`/`UNPROTECTED_DACL_SECURITY_INFORMATION`; owner or
+group when the rule names them), and is read back. A directory is finished before its children are
+read, so objects that only inherit are found right once their parent is, and are not written. Before
+anything in the tree is written it runs a **preflight**: a disposable probe directory (under ROOT, or
+under `--probe-dir DIR`, which must exist) with one subdirectory and one file gets the root's DACL and
+an audit ACE; it must read back exactly, keep the audit ACE (SeSecurityPrivilege and, on FlashArray,
+the audit bypass) and pass down exactly what the tool computes. The probe is removed; a refused
+preflight writes nothing in the tree. During the walk two guards stop the run, with no override:
+
+- **G1**: an object whose stored DACL has the dynamic shape (unprotected, right explicit part, the
+  rest inherited) but whose inherited part is not what its parent passes down. Either the inheritance
+  function disagrees with the array, or the object holds a frozen copy; writing it would freeze it.
+- **G2**: a write whose read-back differs: the DACL or its protection, owner or group, the SACL, or
+  either auto-inherited bit, or a read-back that fails.
+
+After a stop no new write or directory starts; the run reports `stopped` and not-processed counts
+and exits 1. A plan whose rules set `sacl:` is refused (SACL writes are phase 3; use Set-SaclOnly).
+`--root-protected` (on `check` too) makes the root **Protected**, for a root whose inherited ACEs may
+be a frozen copy. `--checkpoint FILE` records complete directories (a directory and all its files
+right); `--resume` skips their files on the next run, and refuses a checkpoint from another plan or
+root. `--evidence-dir DIR` (new or empty) writes `shard-000001.log` (one line per object: `OK: set
+dacl PATH (form)` with the raw descriptor `before=` and `after=` in base64, `SAME:`, `SKIP:`,
+`EXCLUDE:`, `ERR:`) and `manifest.json` (complete or incomplete and why, the shard's SHA-256, the
+principal table, privileges, preflight result and counts). `apply` needs SeBackupPrivilege and
+SeSecurityPrivilege; SeRestorePrivilege is enabled only when the plan names an owner or group and is
+turned off otherwise, so writing a DACL needs `WRITE_DAC` from the object's DACL or ownership. Exit 0
+when the preflight passed and every object is right, 1 otherwise, 2 on a usage error.
 
 ## Build and test
 

@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-15 |
-| Status | **Draft for review.** The three-form model (section 2.1) was chosen by the maintainer on 2026-11-15, over writing every object explicit and protected. Phase 1 (section 8) is built: plan schema 2 (`build-spec --smb-plan`), `Inheritance`, `Desired` and `check`, and was qualified read-only at `700630b` on FlashArray (2026-11-16, `benchmarks/qual-smb-check-700630b-20261116/`). The same run answered Q-INH (matches), Q-EXP (no) and Q-PROT (yes) (section 7). No write code exists. No release is qualified. |
+| Status | **Draft for review.** The three-form model (section 2.1) was chosen by the maintainer on 2026-11-15, over writing every object explicit and protected. Phase 1 (section 8) is built: plan schema 2 (`build-spec --smb-plan`), `Inheritance`, `Desired` and `check`, and was qualified read-only at `700630b` on FlashArray (2026-11-16, `benchmarks/qual-smb-check-700630b-20261116/`). The same run answered Q-INH (matches), Q-EXP (no) and Q-PROT (yes) (section 7). Phase 2 (DACL apply) is built (2026-11-19, section 10) and **not yet qualified on hardware**. No release is qualified. |
 | Builds on | `docs/decision-flasharray-smb-20261107.md` (sections 4–8), and the read-only scaffold in this directory |
 
 This is how `permissionreset-smb` will reset DACLs and SACLs on FlashArray over SMB. It takes the
@@ -258,7 +258,8 @@ unwritten children). Q-OWN and Q2 remain open.
 2. **DACL apply.** Writes, preflight with probe, G1, G2, checkpoint, evidence. Needed Q-INH, Q-EXP
    and Q-PROT answered first (done on FlashArray, 2026-11-16), then a hardware qualification on the exact candidate (raw before/after
    on a fixture covering every case, an NFS-flattened tree, an audited subtree, a protected
-   subtree, and a deny-only directory under backup intent).
+   subtree, and a deny-only directory under backup intent). **Built 2026-11-19** (section 10);
+   the hardware qualification is pending.
 3. **SACL**, first with Set-SaclOnly's behavior and its strict checks (a parity run against
    Set-SaclOnly on the same fixture), then computed SACL inheritance. Set-SaclOnly is retired only
    after a release is qualified for SACL writes on FlashArray and on FlashBlade (decision record,
@@ -276,3 +277,70 @@ unwritten children). Q-OWN and Q2 remain open.
   their design comes with phase 3.
 - `CREATOR OWNER` and `CREATOR GROUP` placeholders, object-type ACEs, and conditional ACEs: refused
   if the plan names them, and preserved byte for byte only where the tool does not write.
+
+## 10. Phase 2 as built (2026-11-19)
+
+`permissionreset-smb apply PLAN.json ROOT` (`Checker` with `WalkOptions.Apply`, `Preflight`,
+`FileCheckpoint`, `Evidence`, `DescriptorBuilder` in Core; `Win32Security.WriteDescriptor` and the
+probe's create/delete calls in the CLI). Offline tests run it against `CheckerTests.FakeTree`, which
+models F1-F3. Where it departs from or settles the text above:
+
+- **Modes.** The dry run and `--validate` stay `check` (3.3); writing is a separate command,
+  `apply`, rather than a flag. `--root-protected` (2.2) is on both.
+- **The write call (3.1).** One `SetKernelObjectSecurity` per written object, on a handle opened
+  with backup intent, no reparse following, and only the access the parts need (`WRITE_DAC`,
+  `WRITE_OWNER`). It is the handle form of the `SetFileSecurityW` the section 7 runs used; nothing
+  goes through `SetSecurityInfo`, which would do inheritance work on the client. The protection is
+  stated twice: `PROTECTED_`/`UNPROTECTED_DACL_SECURITY_INFORMATION` and `SE_DACL_PROTECTED` in the
+  control word. The object's stored `SE_DACL_AUTO_INHERITED` is copied into the written control word,
+  so only the ACEs and `P` change. The read that decides and the write are separate opens, so an
+  object that is already right never needs `WRITE_DAC`.
+- **Privileges (4).** SeBackupPrivilege and SeSecurityPrivilege always (every read in `apply`
+  includes the SACL, for G2); SeRestorePrivilege only when a rule names an owner or group, and
+  explicitly disabled otherwise. A DACL write therefore needs `WRITE_DAC` from the object's own DACL
+  or from owning it. The probe, which the identity creates and owns, does not prove that for live
+  objects; a live object that refuses it is an `ERR:` (`write dacl: open for write: …`), not a stop.
+- **Preflight (4, step 2).** The probe directory gets the root's desired ACEs (ID cleared) as a
+  protected DACL, and one placeholder audit ACE (Everyone, success and failure, `FILE_READ_DATA`) as
+  a protected SACL. It must read back exactly, owner and group unchanged, and keep the audit ACE; its
+  subdirectory and file, created before the write, must hold exactly `inh(…)` as their inherited
+  part. If the root's DACL passes nothing down, that last check only shows nothing was inherited, and
+  the preflight line says so. Before removal the probe's DACL is rewritten to `OWNER RIGHTS` full
+  control, inheritable, so the creating identity can delete it whatever the root's ACEs grant. A
+  probe that cannot be removed fails the preflight. `--probe-dir` must already exist.
+- **G1 (5.1)** is checked where the run would otherwise write: an object of form **Inherits** or
+  **Explicit + inherits** whose stored DACL is unprotected, has the right explicit part, and is
+  inherited after it, but whose inherited part differs from `inh(desired(parent))`. In `apply` the
+  parent is already right when the child is read, so in a tree the array keeps dynamic this is
+  exactly the disagreement G1 exists for. **It also fires on a frozen copy (F2) that predates the
+  run**, which one read cannot tell apart; `check` reports those as `write … (a frozen copy)`, and
+  `apply` stops on them with no override, as the text says. **Open for the maintainer:** whether a
+  frozen copy found under a parent the run did not write should be rewritten instead (the probe
+  having already checked `inh` against this array), and what evidence would justify it.
+- **G2 (5.2)** reads back through a fresh open and compares, raw: the DACL and its protection with
+  the desired form; owner and group with what was written or, if not written, the read before; the
+  SACL ACE for ACE; and `DaclAutoInherited`, `SaclAutoInherited`, `SaclProtected`, `SaclPresent`
+  with the read before.
+- **Stopping.** On the first G1 or G2 failure no new write or directory listing starts. A write
+  already past its check finishes and is read back. Objects that needed a write after the stop are
+  `stopped`; unreached directories count as not processed. Exit 1.
+- **Not built from 5.3:** a file or directory whose type changed between listing and open is not
+  detected; it is read and judged as the type the listing gave.
+- **SACLs.** A plan whose rules set `sacl:` is refused by `apply` rather than applied without its
+  audit ACEs (phase 3). `build-spec --smb-plan`'s golden plan has such rules, so qualification needs a
+  DACL-only spec.
+- **Checkpoint (3.4).** `--checkpoint FILE`: a header naming the plan's SHA-256, the root and
+  `--root-protected`, then one JSON string per complete directory (the directory and every file in
+  it right). `--resume` requires the header to match; without it an existing file is refused. A
+  complete directory is still read and listed (its children need its desired DACL, and its
+  subdirectories are not covered), but its files are skipped.
+- **Evidence (6).** `--evidence-dir` (new or empty) holds one uncompressed `shard-000001.log` and
+  `manifest.json`, in docs/evidence.md's shape (status and reasons, shard name, SHA-256, size and
+  record count), plus run id, version, root, plan path and SHA-256, the principal table, privileges,
+  the preflight line, and counts per outcome and form. There is one profile: every `OK:` (written)
+  line and every `ERR:` after a write carries `before=` and `after=`, the raw descriptors in base64.
+  No `--json-summary`; the manifest carries the summary, and stderr prints it. Stdout keeps
+  `check`'s JSON lines (outcomes `written` and `stopped` added, raw descriptors left out).
+- **Ordering of refusals.** The plan is parsed and resolved, privileges are enabled, the evidence
+  directory is checked, the checkpoint opened, and only then are evidence files created, so a refusal
+  at any of those steps leaves no checkpoint or evidence behind.
