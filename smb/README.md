@@ -7,9 +7,9 @@ array's own model over SMB: SIDs without id mapping, inherited flags as stored, 
 
 **Status: pre-release.** It reads and decodes descriptors, validates plans, checks a tree against
 a plan (`check`, phase 1 of [the write-path design](DESIGN-write-path.md)) and, since phase 2,
-resets DACLs (`apply`). **`apply` is built but not qualified on hardware**: do not run it on data
-you care about until a qualification on its exact candidate is recorded, and there is no `smb-v*`
-release. `inspect` and `check` are qualified read-only at `700630b`. SACL writes (phase 3) are not
+resets DACLs (`apply`). `apply` is qualified on FlashArray at `e834ac8`
+([record](../benchmarks/qual-smb-apply-e834ac8-20261119/RESULTS.md)); there is no `smb-v*` release yet, and a release is
+qualified on its own assets. `inspect` and `check` are qualified read-only at `700630b`. SACL writes (phase 3) are not
 built.
 
 | Platform | Tool |
@@ -84,7 +84,8 @@ dacl PATH (form)` with the raw descriptor `before=` and `after=` in base64, `SAM
 `EXCLUDE:`, `ERR:`) and `manifest.json` (complete or incomplete and why, the shard's SHA-256, the
 principal table, privileges, preflight result and counts). `apply` needs SeBackupPrivilege and
 SeSecurityPrivilege; SeRestorePrivilege is enabled only when the plan names an owner or group and is
-turned off otherwise, so writing a DACL needs `WRITE_DAC` from the object's DACL or ownership. Exit 0
+turned off otherwise. Under Windows rules a DACL write then needs `WRITE_DAC` from the object's
+DACL or ownership; FlashArray did not require it in qualification. Exit 0
 when the preflight passed and every object is right, 1 otherwise, 2 on a usage error.
 
 ## Build and test

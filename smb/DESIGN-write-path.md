@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-15 |
-| Status | **Draft for review.** The three-form model (section 2.1) was chosen by the maintainer on 2026-11-15, over writing every object explicit and protected. Phase 1 (section 8) is built: plan schema 2 (`build-spec --smb-plan`), `Inheritance`, `Desired` and `check`, and was qualified read-only at `700630b` on FlashArray (2026-11-16, `benchmarks/qual-smb-check-700630b-20261116/`). The same run answered Q-INH (matches), Q-EXP (no) and Q-PROT (yes) (section 7). Phase 2 (DACL apply) is built (2026-11-19, section 10) and **not yet qualified on hardware**. No release is qualified. |
+| Status | **Draft for review.** The three-form model (section 2.1) was chosen by the maintainer on 2026-11-15, over writing every object explicit and protected. Phase 1 (section 8) is built: plan schema 2 (`build-spec --smb-plan`), `Inheritance`, `Desired` and `check`, and was qualified read-only at `700630b` on FlashArray (2026-11-16, `benchmarks/qual-smb-check-700630b-20261116/`). The same run answered Q-INH (matches), Q-EXP (no) and Q-PROT (yes) (section 7). Phase 2 (DACL apply) is built (2026-11-19, section 10) and qualified on FlashArray at `e834ac8` (2026-11-19, `benchmarks/qual-smb-apply-e834ac8-20261119/`). No release is qualified. |
 | Builds on | `docs/decision-flasharray-smb-20261107.md` (sections 4–8), and the read-only scaffold in this directory |
 
 This is how `permissionreset-smb` will reset DACLs and SACLs on FlashArray over SMB. It takes the
@@ -265,7 +265,7 @@ unwritten children). Q-OWN and Q2 remain open.
    and Q-PROT answered first (done on FlashArray, 2026-11-16), then a hardware qualification on the exact candidate (raw before/after
    on a fixture covering every case, an NFS-flattened tree, an audited subtree, a protected
    subtree, and a deny-only directory under backup intent). **Built 2026-11-19** (section 10);
-   the hardware qualification is pending.
+   **qualified** on FlashArray at `e834ac8` (2026-11-19, `benchmarks/qual-smb-apply-e834ac8-20261119/`).
 3. **SACL**, first with Set-SaclOnly's behavior and its strict checks (a parity run against
    Set-SaclOnly on the same fixture), then computed SACL inheritance. Set-SaclOnly is retired only
    after a release is qualified for SACL writes on FlashArray and on FlashBlade (decision record,
@@ -304,9 +304,13 @@ models F1-F3. Where it departs from or settles the text above:
 - **Privileges (4).** SeBackupPrivilege and SeSecurityPrivilege always (an object that needs a
   write is read again with its SACL just before the write, as G2's before-image, and read back with
   it; the compare itself reads the DACL only); SeRestorePrivilege only when a rule names an owner or group, and
-  explicitly disabled otherwise. A DACL write therefore needs `WRITE_DAC` from the object's own DACL
-  or from owning it. The probe, which the identity creates and owns, does not prove that for live
-  objects; a live object that refuses it is an `ERR:` (`write dacl: open for write: …`), not a stop.
+  explicitly disabled otherwise. Under Windows semantics a DACL write then needs `WRITE_DAC` from the
+  object's own DACL or from owning it. **FlashArray does not require that** (Q7, phase 2
+  qualification run on `e834ac8`, 2026-11-19): a DACL-only `apply` with SeBackupPrivilege and
+  SeSecurityPrivilege only wrote a directory owned by another principal whose DACL gave the operator
+  no `WRITE_DAC`, and G2 passed. Why the array allows it is not visible from the client. A server
+  that does refuse shows it as an `ERR:` (`write dacl: open for write: …`), not a stop; the probe,
+  which the identity creates and owns, cannot tell in advance.
 - **Preflight (4, step 2).** The probe directory gets the root's desired ACEs (ID cleared) as a
   protected DACL, and one placeholder audit ACE (Everyone, success and failure, `FILE_READ_DATA`) as
   a protected SACL. It must read back exactly, owner and group unchanged, and keep the audit ACE; its
@@ -354,6 +358,17 @@ models F1-F3. Where it departs from or settles the text above:
   line and every `ERR:` after a write carries `before=` and `after=`, the raw descriptors in base64.
   No `--json-summary`; the manifest carries the summary, and stderr prints it. Stdout keeps
   `check`'s JSON lines (outcomes `written` and `stopped` added, raw descriptors left out).
+  **Accepted limit: a hard kill can lose the last records.** Records go to the shard through the
+  `FileStream`'s 4 KiB write buffer, which is flushed when it fills and at `Close`, and a record is
+  written only after its write is read back. A process killed mid-run therefore loses every record
+  still in the buffer (an `OK:` line carries two base64 descriptors, so a few writes' worth) plus any
+  write in flight, with their raw before-images. The count depends on line sizes, not on `--workers`:
+  the phase 2 qualification runs, both at `--workers 1`, lost 1 record (`e834ac8`, 9 writes, 8
+  records) and 5 (`8eeda02`). The killed run has no manifest, so its shard is never mistaken for a
+  complete record. Resume finds those objects right and records them `SAME:`, and `check --validate`
+  evidences the end state, so the final tree is evidenced even though those before-images are not.
+  Flushing each record, or an intent record before each write, would narrow or close the gap at the
+  cost of a flushed line per write; neither is built.
 - **Ordering of refusals.** The plan is parsed and resolved, privileges are enabled, the evidence
   directory is checked, the checkpoint opened, and only then are evidence files created, so a refusal
   at any of those steps leaves no checkpoint or evidence behind.
