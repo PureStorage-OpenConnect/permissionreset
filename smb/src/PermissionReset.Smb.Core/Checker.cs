@@ -280,7 +280,9 @@ public sealed class Checker
         }
 
         Descriptor stored;
-        try { stored = Descriptor.Decode(tree.Read(rel, withSacl: opt.Apply)); }
+        // A DACL-only read for the compare, in apply too: most objects need no write, and the SACL
+        // (G2's before-image) is read only for those that do, just before the write (Write).
+        try { stored = Descriptor.Decode(tree.Read(rel, withSacl: false)); }
         catch (Exception e)
         {
             return Fail(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Error, $"read: {e.Message}"));
@@ -355,10 +357,10 @@ public sealed class Checker
             if (w.Error is not null)
             {
                 if (w.Guard) Stop(summary, w.Error);
-                return Fail(new CheckRecord(rel, isDir, rule.Label, desired.Form, Outcome.Error, w.Error, w.Parts, stored.Raw, w.After));
+                return Fail(new CheckRecord(rel, isDir, rule.Label, desired.Form, Outcome.Error, w.Error, w.Parts, w.Before, w.After));
             }
             outcome = Outcome.Written;
-            (parts, before, after) = (w.Parts, stored.Raw, w.After);
+            (parts, before, after) = (w.Parts, w.Before, w.After);
         }
         emit(new CheckRecord(rel, isDir, rule.Label, desired.Form, outcome, diff, parts, before, after));
         done?.Invoke(outcome is Outcome.Ok or Outcome.Written);
@@ -367,7 +369,7 @@ public sealed class Checker
 
     static string Show(string rel) => rel.Length == 0 ? "the root" : rel;
 
-    readonly record struct WriteResult(string? Parts, string? After, string? Error, bool Guard);
+    readonly record struct WriteResult(string? Parts, string? Before, string? After, string? Error, bool Guard);
 
     // Write sets what differs, then reads the object back raw (G2, design 5.2). The DACL is written
     // with DACL_SECURITY_INFORMATION and its protection stated both in the control word and as
@@ -375,8 +377,23 @@ public sealed class Checker
     // only the ACEs and P change. Owner and group go in the same call when the rule names them and
     // they differ. G2 then checks the written parts are what was wanted and every other part (the
     // other of owner/group, the SACL, both AI bits, S:P) is what it was before.
-    WriteResult Write(string rel, PlanRule rule, Desired desired, Descriptor before, bool dacl)
+    //
+    // seen is the DACL-only read the compare used. Write first reads the object again with its SACL,
+    // as G2's before-image, and writes nothing if the DACL, owner, group or DACL control bits moved
+    // between the two reads, since the decision to write was made on the first.
+    WriteResult Write(string rel, PlanRule rule, Desired desired, Descriptor seen, bool dacl)
     {
+        Descriptor before;
+        try { before = Descriptor.Decode(tree.Read(rel, withSacl: true)); }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            return new WriteResult(null, null, null, $"read with SACL before writing: {e.Message}; nothing was written", false);
+        }
+        const ushort daclControl = Control.DaclProtected | Control.DaclAutoInherited;
+        if (AclKey(before.Dacl) != AclKey(seen.Dacl) || before.Owner != seen.Owner || before.Group != seen.Group
+            || (before.Control & daclControl) != (seen.Control & daclControl))
+            return new WriteResult(null, before.Raw, null, $"{Show(rel)} changed between the compare and the write; nothing was written, rerun to pick it up", false);
+
         var (wantOwner, wantGroup) = ownerGroup[rule];
         bool owner = wantOwner is not null && wantOwner != before.Owner;
         bool group = wantGroup is not null && wantGroup != before.Group;
@@ -395,21 +412,21 @@ public sealed class Checker
         // 64 KiB ACL limit fails this object and writes nothing.
         byte[] sd;
         try { sd = DescriptorBuilder.Build(control, owner ? wantOwner : null, group ? wantGroup : null, null, dacl ? desired.Aces : null); }
-        catch (Exception e) when (e is not OutOfMemoryException) { return new WriteResult(partList, null, $"encode {partList}: {e.Message}; nothing was written", false); }
+        catch (Exception e) when (e is not OutOfMemoryException) { return new WriteResult(partList, before.Raw, null, $"encode {partList}: {e.Message}; nothing was written", false); }
 
         try { ((IWritableTree)tree).Write(rel, info, sd); }
-        catch (Exception e) { return new WriteResult(partList, null, $"write {partList}: {e.Message}", false); }
+        catch (Exception e) { return new WriteResult(partList, before.Raw, null, $"write {partList}: {e.Message}", false); }
 
         Descriptor after;
         try { after = Descriptor.Decode(tree.Read(rel, withSacl: true)); }
         catch (Exception e)
         {
-            return new WriteResult(partList, null, $"G2: {Show(rel)}: written ({partList}) but could not be read back: {e.Message}. No further writes were started.", true);
+            return new WriteResult(partList, before.Raw, null, $"G2: {Show(rel)}: written ({partList}) but could not be read back: {e.Message}. No further writes were started.", true);
         }
         var g2 = ReadbackDiff(desired, before, after, owner ? wantOwner : before.Owner, group ? wantGroup : before.Group);
         if (g2 is not null)
-            return new WriteResult(partList, after.Raw, $"G2: {Show(rel)}: after writing {partList}, {g2}. No further writes were started.", true);
-        return new WriteResult(partList, after.Raw, null, false);
+            return new WriteResult(partList, before.Raw, after.Raw, $"G2: {Show(rel)}: after writing {partList}, {g2}. No further writes were started.", true);
+        return new WriteResult(partList, before.Raw, after.Raw, null, false);
     }
 
     const ushort KeptControl = Control.DaclAutoInherited | Control.SaclAutoInherited | Control.SaclProtected | Control.SaclPresent;

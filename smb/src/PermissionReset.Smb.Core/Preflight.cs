@@ -93,15 +93,22 @@ public static class Preflight
     }
 
     // Remove makes the probe deletable by its owner, then deletes children first. Null when the
-    // probe is gone, else what was left behind.
+    // probe is gone, else what was left behind. The cleanup DACL is read back like every other
+    // write (G2 on the probe); if it failed or did not read back, the deletes are still tried, and
+    // when they leave something, the report leads with the cleanup write, since that is the likely
+    // cause. A probe that is gone passes whatever the cleanup write did.
     static string? Remove(IWritableTree t, string dir, string sub, string file)
     {
+        string? cleanup = null;
         try
         {
             t.Write(dir, SecurityInformation.Dacl | SecurityInformation.ProtectedDacl,
                 DescriptorBuilder.Build(Control.DaclProtected, null, null, null, [OwnerFull]));
+            var back = Descriptor.Decode(t.Read(dir, withSacl: false));
+            var d = new Desired(Form.Protected, [OwnerFull], true).Matches(back.Dacl, (back.Control & Control.DaclProtected) != 0);
+            if (d is not null) cleanup = $"the cleanup DACL on {dir} read back differently: {d}";
         }
-        catch { /* the deletes below say whether it mattered */ }
+        catch (Exception e) when (e is not OutOfMemoryException) { cleanup = $"the cleanup DACL on {dir} failed: {e.Message}"; }
         var left = new List<string>();
         foreach (var (rel, isDir) in new[] { (file, false), (sub, true), (dir, true) })
         {
@@ -109,6 +116,8 @@ public static class Preflight
             catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { }
             catch (Exception e) { left.Add($"{rel} ({e.Message})"); }
         }
-        return left.Count == 0 ? null : $"the probe could not be removed: {string.Join(", ", left)}";
+        if (left.Count == 0) return null;
+        var why = $"the probe could not be removed: {string.Join(", ", left)}";
+        return cleanup is null ? why : $"{cleanup}; {why}";
     }
 }

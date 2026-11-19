@@ -300,6 +300,49 @@ public class ApplyTests
         Assert.False(s.Complete);
     }
 
+    [Fact]
+    public void OnlyObjectsThatNeedAWriteHaveTheirSaclRead()
+    {
+        var tree = Flattened();
+        tree.SaclReadFails.Add("h.txt");                               // right already: its SACL is never needed
+        var (recs, s) = Apply(Usual, tree);
+        Assert.True(s.Complete);
+        Assert.Equal(Outcome.Ok, At(recs, "h.txt").Outcome);
+        // Each written object is read with its SACL twice: the before-image, and G2's read-back.
+        Assert.Equal(["a", "a", "a/b", "a/b", "a/b/g.txt", "a/b/g.txt", "a/f.txt", "a/f.txt"], tree.SaclReads.Order(StringComparer.Ordinal));
+        Assert.NotNull(At(recs, "a").Before);
+    }
+
+    [Fact]
+    public void ASaclReadFailureBeforeAWriteFailsThatObjectAndWritesNothing()
+    {
+        var tree = Flattened();
+        tree.SaclReadFails.Add("a/f.txt");
+        var (recs, s) = Apply(Usual, tree);
+        var f = At(recs, "a/f.txt");
+        Assert.Equal(Outcome.Error, f.Outcome);
+        Assert.StartsWith("read with SACL before writing:", f.Detail);
+        Assert.DoesNotContain(tree.Writes, w => w.Rel == "a/f.txt");
+        Assert.Null(s.Stop);
+        Assert.False(s.Complete);
+    }
+
+    [Fact]
+    public void AnObjectThatChangesBetweenTheCompareAndTheWriteIsNotWritten()
+    {
+        var tree = Flattened();
+        tree.BeforeSaclRead = rel =>
+        {
+            if (rel == "a/f.txt") lock (tree.Objs) tree.Objs[rel] = tree.Objs[rel] with { Dacl = [A(0, Other)] };
+        };
+        var (recs, s) = Apply(Usual, tree);
+        var f = At(recs, "a/f.txt");
+        Assert.Equal(Outcome.Error, f.Outcome);
+        Assert.Contains("changed between the compare and the write", f.Detail);
+        Assert.DoesNotContain(tree.Writes, w => w.Rel == "a/f.txt");
+        Assert.Null(s.Stop);
+    }
+
     // ---- checkpoint -------------------------------------------------------------------------------
 
     sealed class MemCheckpoint(params string[] done) : ICheckpoint
@@ -441,6 +484,38 @@ public class ApplyTests
         var r = Preflight.Run(t, "", DirWant, name: "p");
         Assert.False(r.Passed);
         Assert.Contains("could not be removed: p/d", r.Detail);
+    }
+
+    // The probe's third write to its directory is the cleanup DACL (after the DACL and SACL writes).
+    static FakeTree CleanupCorrupted()
+    {
+        var t = ProbeTree();
+        int n = 0;
+        t.AfterWrite = rel =>
+        {
+            if (rel == "p" && ++n == 3) t.Objs["p"] = t.Objs["p"] with { Dacl = [] };
+        };
+        return t;
+    }
+
+    [Fact]
+    public void ThePreflightReadsBackItsCleanupDaclAndLeadsWithItWhenTheProbeStays()
+    {
+        var t = CleanupCorrupted();
+        t.DeleteFails.Add("p");
+        var r = Preflight.Run(t, "", DirWant, name: "p");
+        Assert.False(r.Passed);
+        Assert.StartsWith("the cleanup DACL on p read back differently:", r.Detail);
+        Assert.Contains("could not be removed: p", r.Detail);
+    }
+
+    [Fact]
+    public void ACleanupDaclThatDoesNotReadBackStillPassesWhenTheProbeIsGone()
+    {
+        var t = CleanupCorrupted();
+        var r = Preflight.Run(t, "", DirWant, name: "p");
+        Assert.True(r.Passed, r.Detail);
+        NoProbeLeft(t);
     }
 
     [Fact]

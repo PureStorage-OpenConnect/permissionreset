@@ -21,7 +21,9 @@ public class CheckerTests
     // replaceable to model an array that disagrees.
     internal sealed class FakeTree(Dictionary<string, Obj> objs) : IWritableTree
     {
-        public HashSet<string> ReadFails = [], ListFails = [], WriteFails = [], DeleteFails = [];
+        public HashSet<string> ReadFails = [], ListFails = [], WriteFails = [], DeleteFails = [], SaclReadFails = [];
+        public Action<string>? BeforeSaclRead;                 // runs before each read with the SACL
+        public readonly List<string> SaclReads = [];
         public Func<IReadOnlyList<Ace>, bool, List<Ace>> ArrayInherit = Inheritance.Inherit;
         public bool DropSacl;                                  // accept SACL writes, keep nothing
         public Action<string>? AfterWrite;                     // runs after each write, to corrupt it
@@ -45,6 +47,12 @@ public class CheckerTests
         public byte[] Read(string rel, bool withSacl)
         {
             if (ReadFails.Contains(rel)) throw new IOException("Access is denied.");
+            if (withSacl)
+            {
+                lock (SaclReads) SaclReads.Add(rel);
+                if (SaclReadFails.Contains(rel)) throw new IOException("A required privilege is not held by the client.");
+                BeforeSaclRead?.Invoke(rel);
+            }
             Obj o;
             lock (Objs) o = Objs[rel];
             var dacl = DescriptorTests.Acl(o.Dacl.Select(a => DescriptorTests.Ace((byte)a.Type, a.Flags, a.Mask, Sid(a.Sid))).ToArray());
