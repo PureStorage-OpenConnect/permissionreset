@@ -20,8 +20,11 @@
 
 Rules:
 - The tool writes nothing yet. Phase 1 of `DESIGN-write-path.md` (plan schema 2, `Inheritance`,
-  `Desired`, `check`) is built; phase 2 (writes) waits on Q-INH, Q-EXP and Q-PROT. Do not write
-  before the phase that allows it, and never without G1 and G2 (its section 5).
+  `Desired`, `check`) is built and qualified read-only at `700630b`
+  (`benchmarks/qual-smb-check-700630b-20261116/`). Q-INH, Q-EXP and Q-PROT are answered on FlashArray
+  (its section 7), so phase 2 (writes) is no longer blocked by them, but needs its own hardware
+  qualification on its candidate. Do not write before the phase that allows it, and never without G1
+  and G2 (its section 5).
 - `Inheritance.Inherit`'s table test is the prediction the Q-INH hardware run checks. If the array
   disagrees, change the function and the table together, and record why.
 - Never parse YAML here. Spec meaning lives in Go (`internal/saclplan`); extend the plan schema
