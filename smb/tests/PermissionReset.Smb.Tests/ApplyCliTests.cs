@@ -125,6 +125,36 @@ public sealed class ApplyCliTests : IDisposable
     }
 
     [Fact]
+    public void ARefusedPreflightLeavesNoCheckpointSoTheSameCommandCanBeRerun()
+    {
+        var tree = Flattened();
+        tree.DropSacl = true;
+        var cp = Temp("cp");
+        var plan = PlanFile(Usual);
+        var r = Run(tree, "apply", "--checkpoint", cp, plan, "R");
+        Assert.Equal(1, r.Code);
+        Assert.Contains("preflight refused", r.Err);
+        Assert.False(File.Exists(cp));
+
+        tree.DropSacl = false;                                         // the operator fixes the array
+        r = Run(tree, "apply", "--checkpoint", cp, plan, "R");
+        Assert.Equal(0, r.Code);
+        Assert.Contains("apply: complete", r.Err);
+        Assert.StartsWith("permissionreset-smb checkpoint v1 ", File.ReadLines(cp).First());
+    }
+
+    [Fact]
+    public void APlanWithAByteOrderMarkAppliesAsItChecks()
+    {
+        var plan = PlanFile(Usual);
+        File.WriteAllText(plan, File.ReadAllText(plan), new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        Assert.Equal(0xEF, File.ReadAllBytes(plan)[0]);
+        var r = Run(Flattened(), "apply", plan, "R");
+        Assert.Equal(0, r.Code);
+        Assert.Contains("apply: complete", r.Err);
+    }
+
+    [Fact]
     public void AMissingSecurityPrivilegeWritesNothing()
     {
         var tree = Flattened();

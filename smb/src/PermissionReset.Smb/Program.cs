@@ -163,10 +163,11 @@ static class Cli
         var summary = checker.Run(r => stdout.WriteLine(JsonSerializer.Serialize(r with { Path = FullPath(pos[1], r.Path) }, Json)), workers);
 
         PrintSummary(stderr, "check", summary);
+        if (summary.Stop is not null) stderr.WriteLine($"check: stopped: {summary.Stop}");
         if (summary.NotProcessed > 0) stderr.WriteLine($"check: {summary.NotProcessed} director(ies) could not be listed; the check is incomplete");
         stderr.WriteLine(validate ? "check: validate; nothing was written" : "check: dry run; nothing was written");
 
-        bool failed = summary.Count(Outcome.Error) > 0 || summary.NotProcessed > 0;
+        bool failed = summary.Count(Outcome.Error) > 0 || summary.NotProcessed > 0 || summary.Stop is not null;
         bool differs = summary.Count(Outcome.Write) + summary.Count(Outcome.Follows) > 0;
         return failed || (validate && differs) ? 1 : 0;
     }
@@ -224,7 +225,7 @@ static class Cli
         string planPath = pos[0], root = pos[1];
         var planBytes = File.ReadAllBytes(planPath);
         var planSha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(planBytes)).ToLowerInvariant();
-        var plan = Plan.Parse(System.Text.Encoding.UTF8.GetString(planBytes));
+        var plan = Plan.Parse(planBytes);
 
         // Phase 2 writes DACLs (and named owners/groups) only. A rule with sacl: would have its audit
         // ACEs silently not applied, so the plan is refused (design 8, phase 3).
@@ -249,7 +250,9 @@ static class Cli
 
         // Only once the plan has resolved and the privileges are held, so a refusal leaves no
         // evidence or checkpoint behind. The evidence dir is checked first and created last, so a
-        // refused checkpoint leaves no evidence, and a refused evidence dir no checkpoint.
+        // refused checkpoint leaves no evidence, and a refused evidence dir no checkpoint. The
+        // checkpoint is only checked (and, with --resume, loaded) here; its file is written once the
+        // preflight passes, so a refused preflight leaves none and the same command can be rerun.
         if (evidenceDir is not null) Evidence.CheckDir(evidenceDir);
         using var checkpoint = checkpointPath is null ? null : new FileCheckpoint(checkpointPath, $"plan={planSha} root={root} root-protected={rootProtected}", resume);
         using var evidence = evidenceDir is null ? null : new Evidence(evidenceDir);
@@ -278,6 +281,14 @@ static class Cli
             return 1;
         }
         stderr.WriteLine($"apply: {probe.Detail}");
+        try { checkpoint?.Start(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            var why = $"checkpoint {checkpointPath}: {e.Message}";
+            stderr.WriteLine($"apply: {why}; nothing in the tree was written");
+            evidence?.Close(Manifest(probe.Detail, new CheckSummary(), [why]));
+            return 1;
+        }
 
         var summary = checker.Run(r =>
         {

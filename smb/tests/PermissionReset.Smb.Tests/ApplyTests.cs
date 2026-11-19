@@ -269,6 +269,37 @@ public class ApplyTests
         Assert.False(s.Complete);
     }
 
+    [Fact]
+    public void ADescriptorThatCannotBeEncodedFailsTheObjectNotTheRun()
+    {
+        // Plan does not check SID syntax; the encoder is the first to see a malformed one.
+        var bad = new[] { A(0, "S-1-5-21-x") };
+        var plan = MakePlan(Rule("rule[0]", "directory", "", DirWant), Rule("rule[1]", "file", "", bad));
+        var tree = Flattened();
+        var (recs, s) = Apply(plan, tree);
+        var f = At(recs, "a/f.txt");
+        Assert.Equal(Outcome.Error, f.Outcome);
+        Assert.StartsWith("encode dacl:", f.Detail);
+        Assert.DoesNotContain(tree.Writes, w => w.Rel == "a/f.txt");
+        Assert.Equal(Outcome.Written, At(recs, "a/b").Outcome);         // the rest of the walk goes on
+        Assert.Null(s.Stop);
+        Assert.False(s.Complete);
+    }
+
+    [Fact]
+    public void ARecordThatCannotBeWrittenStopsTheRunInsteadOfEscaping()
+    {
+        var tree = Flattened();
+        int n = 0;
+        var s = new Checker(Usual, tree, _ => null, new WalkOptions(Apply: true)).Run(r =>
+        {
+            if (++n == 2) throw new IOException("There is not enough space on the disk.");
+        }, workers: 4);
+        Assert.Contains("could not record", s.Stop);
+        Assert.Contains("not enough space", s.Stop);
+        Assert.False(s.Complete);
+    }
+
     // ---- checkpoint -------------------------------------------------------------------------------
 
     sealed class MemCheckpoint(params string[] done) : ICheckpoint
@@ -308,15 +339,59 @@ public class ApplyTests
         try
         {
             Assert.Throws<PlanException>(() => new FileCheckpoint(f, "id", resume: true));
-            using (var cp = new FileCheckpoint(f, "id", resume: false)) { cp.Done("a"); cp.Done("a/b c"); }
+            using (var cp = new FileCheckpoint(f, "id", resume: false))
+            {
+                Assert.False(File.Exists(f));                            // nothing is written before Start
+                Assert.Throws<InvalidOperationException>(() => cp.Done("x"));
+                cp.Start();
+                cp.Done("a");
+                cp.Done("a/b c");
+            }
             File.AppendAllText(f, "\"a/tor");
             Assert.Throws<PlanException>(() => new FileCheckpoint(f, "id", resume: false));
             Assert.Throws<PlanException>(() => new FileCheckpoint(f, "other", resume: true));
-            using var again = new FileCheckpoint(f, "id", resume: true);
-            Assert.Equal(2, again.Loaded);
-            Assert.True(again.IsDone("a/b c"));
+            using (var again = new FileCheckpoint(f, "id", resume: true))
+            {
+                Assert.Equal(2, again.Loaded);
+                Assert.True(again.IsDone("a/b c"));
+                again.Start();
+                again.Done("c/d");                                       // must not be glued onto the torn line
+            }
+            using var third = new FileCheckpoint(f, "id", resume: true);
+            Assert.Equal(3, third.Loaded);
+            Assert.True(third.IsDone("c/d"));
         }
         finally { File.Delete(f); }
+    }
+
+    [Fact]
+    public void AFileCheckpointThatAppearsAfterTheCheckIsNotOverwritten()
+    {
+        var f = Path.Combine(Path.GetTempPath(), $"smbcp-{Guid.NewGuid():N}");
+        try
+        {
+            using var cp = new FileCheckpoint(f, "id", resume: false);
+            File.WriteAllText(f, "someone else's\n");
+            Assert.Throws<IOException>(cp.Start);
+            Assert.Equal("someone else's\n", File.ReadAllText(f));
+        }
+        finally { File.Delete(f); }
+    }
+
+    sealed class FailingCheckpoint : ICheckpoint
+    {
+        public bool IsDone(string rel) => false;
+        public void Done(string rel) => throw new IOException("There is not enough space on the disk.");
+    }
+
+    [Fact]
+    public void ACheckpointThatCannotBeWrittenStopsTheRun()
+    {
+        var tree = Flattened();
+        var (_, s) = Apply(Usual, tree, cp: new FailingCheckpoint());
+        Assert.Contains("checkpoint", s.Stop);
+        Assert.Contains("not enough space", s.Stop);
+        Assert.False(s.Complete);
     }
 
     // ---- preflight --------------------------------------------------------------------------------

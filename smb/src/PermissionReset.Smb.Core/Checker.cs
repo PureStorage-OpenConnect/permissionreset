@@ -157,7 +157,10 @@ public sealed class Checker
     }
 
     // Run walks the tree. emit is called once per object, from worker threads, under a lock.
-    // checkpoint is used only by apply.
+    // checkpoint is used only by apply. Nothing thrown inside the walk escapes Run: a record or
+    // checkpoint line that cannot be written (a full evidence volume, a closed stdout), or any
+    // unexpected failure, stops the run the way a guard does, so the caller still gets a summary
+    // and can close its evidence with the reason.
     public CheckSummary Run(Action<CheckRecord> emit, int workers = 1, ICheckpoint? checkpoint = null)
     {
         var summary = new CheckSummary();
@@ -165,10 +168,23 @@ public sealed class Checker
         void Emit(CheckRecord r)
         {
             summary.Add(r);
-            lock (gate) emit(r);
+            try { lock (gate) emit(r); }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                Stop(summary, $"could not record {Show(r.Path)} ({r.Outcome.ToString().ToLowerInvariant()}): {e.Message}. No further writes were started.");
+            }
+        }
+        void Unexpected(string rel, Exception e)
+        {
+            var why = $"{Show(rel)}: unexpected failure: {e.GetType().Name}: {e.Message}. No further writes were started.";
+            Stop(summary, why);
+            Emit(new CheckRecord(rel, true, null, null, Outcome.Error, why));
+            Interlocked.Increment(ref summary.NotProcessed);
         }
 
-        var root = Visit("", isDir: true, parent: null, Emit, summary);
+        Node? root;
+        try { root = Visit("", isDir: true, parent: null, Emit, summary); }
+        catch (Exception e) when (e is not OutOfMemoryException) { Unexpected("", e); return summary; }
         if (root is null) return summary;
 
         var queue = new BlockingCollection<Node>();
@@ -205,8 +221,16 @@ public sealed class Checker
                             queue.Add(child);
                         }
                     }
-                    if (opt.Apply && filesRight && !resumed && !Stopped) checkpoint?.Done(n.Rel);
+                    if (opt.Apply && filesRight && !resumed && !Stopped)
+                    {
+                        try { checkpoint?.Done(n.Rel); }
+                        catch (Exception e) when (e is not OutOfMemoryException)
+                        {
+                            Stop(summary, $"could not record {Show(n.Rel)} as complete in the checkpoint: {e.Message}. No further writes were started.");
+                        }
+                    }
                 }
+                catch (Exception e) when (e is not OutOfMemoryException) { Unexpected(n.Rel, e); }
                 finally
                 {
                     if (Interlocked.Decrement(ref pending) == 0) queue.CompleteAdding();
@@ -367,7 +391,11 @@ public sealed class Checker
         if (group) { info |= SecurityInformation.Group; parts.Add("group"); }
         var partList = string.Join(",", parts);
         ushort control = (ushort)((desired.Protected ? Control.DaclProtected : 0) | (before.Control & Control.DaclAutoInherited));
-        var sd = DescriptorBuilder.Build(control, owner ? wantOwner : null, group ? wantGroup : null, null, dacl ? desired.Aces : null);
+        // Encoding happens before anything is sent, so a SID it cannot encode or a DACL past the
+        // 64 KiB ACL limit fails this object and writes nothing.
+        byte[] sd;
+        try { sd = DescriptorBuilder.Build(control, owner ? wantOwner : null, group ? wantGroup : null, null, dacl ? desired.Aces : null); }
+        catch (Exception e) when (e is not OutOfMemoryException) { return new WriteResult(partList, null, $"encode {partList}: {e.Message}; nothing was written", false); }
 
         try { ((IWritableTree)tree).Write(rel, info, sd); }
         catch (Exception e) { return new WriteResult(partList, null, $"write {partList}: {e.Message}", false); }
