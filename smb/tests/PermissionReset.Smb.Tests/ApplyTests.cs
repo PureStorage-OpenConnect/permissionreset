@@ -508,6 +508,45 @@ public class ApplyTests
     }
 
     [Fact]
+    public void ThePreflightProbesAnUnprotectedWriteWithInheritedAces()
+    {
+        var t = ProbeTree();
+        var r = Preflight.Run(t, "", DirWant, name: "p");
+        Assert.True(r.Passed, r.Detail);
+        Assert.Contains(t.Writes, w => w.Rel == "p/d" && w.Info == (SecurityInformation.Dacl | SecurityInformation.UnprotectedDacl));
+        Assert.Equal(Control.DaclAutoInherited, t.SentControl["p/d"] & (Control.DaclAutoInherited | Control.DaclProtected));
+        Assert.Contains("unprotected explicit+inherited write read back exactly", r.Detail);
+    }
+
+    [Fact]
+    public void ThePreflightRefusesAnArrayThatReordersAnUnprotectedWrite()
+    {
+        var t = ProbeTree();
+        t.AfterWrite = rel =>
+        {
+            if (rel == "p/d") t.Objs[rel] = t.Objs[rel] with { Dacl = [.. t.Objs[rel].Dacl.Reverse()] };
+        };
+        var r = Preflight.Run(t, "", DirWant, name: "p");
+        Assert.False(r.Passed);
+        Assert.StartsWith("probe child p/d, written unprotected with explicit and inherited ACEs: the DACL read back differs", r.Detail);
+        NoProbeLeft(t);
+    }
+
+    [Fact]
+    public void ThePreflightRefusesAnArrayThatLeavesAutoInheritClearOnAnUnprotectedWrite()
+    {
+        var t = ProbeTree();
+        t.AfterWrite = rel =>
+        {
+            if (rel == "p/d") t.Objs[rel] = t.Objs[rel] with { ExtraControl = 0 };
+        };
+        var r = Preflight.Run(t, "", DirWant, name: "p");
+        Assert.False(r.Passed);
+        Assert.Contains("DaclAutoInherited is clear after an unprotected DACL write", r.Detail);
+        NoProbeLeft(t);
+    }
+
+    [Fact]
     public void ThePreflightRefusesAnArrayThatInheritsDifferently()
     {
         var t = ProbeTree();

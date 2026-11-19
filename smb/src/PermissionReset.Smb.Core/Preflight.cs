@@ -12,7 +12,9 @@ public sealed record ProbeResult(bool Passed, string Detail, string Probe);
 //   - the SACL was kept: the identity can read and write audit ACEs on this array (on FlashArray,
 //     the audit bypass), which every G2 read in the walk needs;
 //   - its two children, created before the write, now hold exactly Inheritance.Inherit of those
-//     ACEs as their inherited part (G1 on known data, and F3's propagation).
+//     ACEs as their inherited part (G1 on known data, and F3's propagation);
+//   - an unprotected write to the subdirectory, one explicit ACE followed by its inherited part,
+//     reads back exactly and with D:AI set (G2 on the write most of the walk makes, F5).
 // The probe is removed whatever happened; a probe that cannot be removed fails the preflight.
 public static class Preflight
 {
@@ -25,6 +27,10 @@ public static class Preflight
     // Cleanup's DACL: OWNER RIGHTS full control, inherited by the children, so the identity that
     // created the probe can delete it whatever the root's ACEs grant.
     static readonly Ace OwnerFull = new(AceTypes.Allow, AceFlags.ObjectInherit | AceFlags.ContainerInherit, 0x1f01ff, "S-1-3-4");
+
+    // The explicit part of the unprotected probe write: OWNER RIGHTS read and execute, inheritable.
+    // It grants the probe's creator nothing it lacks, and the probe is removed before the walk.
+    static readonly Ace UnprotectedExplicit = new(AceTypes.Allow, AceFlags.ObjectInherit | AceFlags.ContainerInherit, 0x1200a9, "S-1-3-4");
 
     // Run probes under parent ("" is the probe tree's root). rootAces is the root's desired DACL;
     // its ID flags are cleared, since the probe holds them as its own explicit ACEs.
@@ -58,7 +64,7 @@ public static class Preflight
             ? " (the root's DACL passes nothing down, so the children's check was only that nothing was inherited)"
             : "";
         return new ProbeResult(true,
-            $"preflight passed: probe {dir} took the root's DACL and an audit ACE, read back exactly, its children inherited what the walk computes{note}, and the probe was removed",
+            $"preflight passed: probe {dir} took the root's DACL and an audit ACE, read back exactly, its children inherited what the walk computes{note}, an unprotected explicit+inherited write read back exactly, and the probe was removed",
             dir);
     }
 
@@ -89,7 +95,23 @@ public static class Preflight
                 return $"probe child {rel} inherited [{string.Join(", ", got.Select(a => a?.ToString() ?? "unmodelled"))}], " +
                     $"the walk computes [{string.Join(", ", wantInh)}]: the inheritance function disagrees with this array";
         }
-        return null;
+        return CheckUnprotected(t, sub, aces);
+    }
+
+    // CheckUnprotected is the write most of the walk makes, on known data: an unprotected DACL with
+    // an explicit part and an ID part, written to the probe's subdirectory the way Checker.Write
+    // writes it (UNPROTECTED_DACL_SECURITY_INFORMATION, D:AI per F5) and read back with G2's own
+    // comparison. An array that drops, reorders or re-derives the ID ACEs of such a write, or
+    // handles D:AI differently, refuses the preflight before anything in the tree is written.
+    static string? CheckUnprotected(IWritableTree t, string sub, List<Ace> aces)
+    {
+        var want = new Desired(Form.ExplicitPlusInherits, [UnprotectedExplicit, .. Inheritance.Inherit(aces, true)], false);
+        var before = Descriptor.Decode(t.Read(sub, withSacl: true));
+        t.Write(sub, SecurityInformation.Dacl | SecurityInformation.UnprotectedDacl,
+            DescriptorBuilder.Build(Control.DaclAutoInherited, null, null, null, want.Aces));
+        var after = Descriptor.Decode(t.Read(sub, withSacl: true));
+        var d = Checker.ReadbackDiff(want, before, after, before.Owner, before.Group, daclWritten: true);
+        return d is null ? null : $"probe child {sub}, written unprotected with explicit and inherited ACEs: {d}";
     }
 
     // Remove makes the probe deletable by its owner, then deletes children first. Null when the

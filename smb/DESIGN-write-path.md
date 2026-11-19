@@ -312,7 +312,11 @@ models F1-F3. Where it departs from or settles the text above:
   a protected SACL. It must read back exactly, owner and group unchanged, and keep the audit ACE; its
   subdirectory and file, created before the write, must hold exactly `inh(…)` as their inherited
   part. If the root's DACL passes nothing down, that last check only shows nothing was inherited, and
-  the preflight line says so. Before removal the probe's DACL is rewritten to `OWNER RIGHTS` full
+  the preflight line says so. The subdirectory then takes the write most of the walk makes, an
+  unprotected DACL (one explicit `OWNER RIGHTS` read-and-execute ACE, then its inherited part, `D:AI`
+  set per F5), and must pass G2's own read-back comparison, so an array that drops, reorders or
+  re-derives such a write, or handles `D:AI` differently, refuses the preflight before the root is
+  written. Before removal the probe's DACL is rewritten to `OWNER RIGHTS` full
   control, inheritable, so the creating identity can delete it whatever the root's ACEs grant. A
   probe that cannot be removed fails the preflight. `--probe-dir` must already exist.
 - **G1 (5.1)** is checked where the run would otherwise write: an object of form **Inherits** or
