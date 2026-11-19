@@ -21,8 +21,14 @@ Section 8 of the decision record answered questions 1 and 3 on one lab FlashArra
   didn't match, they become a frozen copy that looks normal in a raw read.
 - **F3.** A DACL write to a directory changes every unprotected descendant that only inherits. It is
   one synchronous call (3–4 ms on 51,100 objects). No later read saw the old DACL.
-- **F4.** A DACL-only write (`DACL_SECURITY_INFORMATION`) leaves `S:AI`, `D:AI`, the SACL bytes,
-  owner and group as they were.
+- **F4.** A DACL-only write (`DACL_SECURITY_INFORMATION`) leaves `S:AI`, the SACL bytes, owner and
+  group as they were. (It was first recorded as leaving `D:AI` too; F5 corrects that.)
+- **F5.** The array decides `D:AI` itself on a DACL write (phase 2 qualification run on `7ac90d8`,
+  2026-11-19, which stopped on G2 because of it). An unprotected DACL write is stored with `D:AI`
+  even when the control word sent has it clear, and a protected one is stored without it (a `D:PAI`
+  written over SMB reads back as `D:P`), so no protected object on the array carries `D:AI`. The
+  first Protected → Inherits or Explicit + inherits conversion therefore changes `D:AI` on every
+  real tree, not only on NFS-flattened ones.
 
 So:
 
@@ -292,11 +298,12 @@ models F1-F3. Where it departs from or settles the text above:
   `WRITE_OWNER`). It is the handle form of the `SetFileSecurityW` the section 7 runs used; nothing
   goes through `SetSecurityInfo`, which would do inheritance work on the client. The protection is
   stated twice: `PROTECTED_`/`UNPROTECTED_DACL_SECURITY_INFORMATION` and `SE_DACL_PROTECTED` in the
-  control word. The object's stored `SE_DACL_AUTO_INHERITED` is copied into the written control word,
-  so only the ACEs and `P` change. The read that decides and the write are separate opens, so an
+  control word. `SE_DACL_AUTO_INHERITED` is sent as the array stores it (F5): set on an unprotected
+  DACL, clear on a protected one. Before F5 the stored bit was copied, which the array overrode. The read that decides and the write are separate opens, so an
   object that is already right never needs `WRITE_DAC`.
-- **Privileges (4).** SeBackupPrivilege and SeSecurityPrivilege always (every read in `apply`
-  includes the SACL, for G2); SeRestorePrivilege only when a rule names an owner or group, and
+- **Privileges (4).** SeBackupPrivilege and SeSecurityPrivilege always (an object that needs a
+  write is read again with its SACL just before the write, as G2's before-image, and read back with
+  it; the compare itself reads the DACL only); SeRestorePrivilege only when a rule names an owner or group, and
   explicitly disabled otherwise. A DACL write therefore needs `WRITE_DAC` from the object's own DACL
   or from owning it. The probe, which the identity creates and owns, does not prove that for live
   objects; a live object that refuses it is an `ERR:` (`write dacl: open for write: …`), not a stop.
@@ -319,8 +326,10 @@ models F1-F3. Where it departs from or settles the text above:
   having already checked `inh` against this array), and what evidence would justify it.
 - **G2 (5.2)** reads back through a fresh open and compares, raw: the DACL and its protection with
   the desired form; owner and group with what was written or, if not written, the read before; the
-  SACL ACE for ACE; and `DaclAutoInherited`, `SaclAutoInherited`, `SaclProtected`, `SaclPresent`
-  with the read before.
+  SACL ACE for ACE; `SaclAutoInherited`, `SaclProtected` and `SaclPresent` with the read before; and
+  `DaclAutoInherited` with F5's measured value after a DACL write (set when unprotected, clear when
+  protected) or, when only owner or group was written, with the read before. G2 still stops on any
+  other `D:AI` result, so an array that handles it differently is caught rather than accepted.
 - **Stopping.** On the first G1 or G2 failure no new write or directory listing starts. A write
   already past its check finishes and is read back. Objects that needed a write after the stop are
   `stopped`; unreached directories count as not processed. Exit 1.

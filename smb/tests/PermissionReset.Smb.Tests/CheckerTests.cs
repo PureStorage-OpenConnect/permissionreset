@@ -28,6 +28,7 @@ public class CheckerTests
         public bool DropSacl;                                  // accept SACL writes, keep nothing
         public Action<string>? AfterWrite;                     // runs after each write, to corrupt it
         public readonly List<(string Rel, uint Info)> Writes = [];
+        public readonly Dictionary<string, ushort> SentControl = [];  // the control word of each object's last write
         public readonly Dictionary<string, Obj> Objs = objs;
 
         public IReadOnlyList<TreeEntry> List(string rel)
@@ -70,6 +71,7 @@ public class CheckerTests
             lock (Objs)
             {
                 Writes.Add((rel, info));
+                SentControl[rel] = d.Control;
                 var o = Objs[rel];
                 if ((info & SecurityInformation.Owner) != 0) o = o with { Owner = d.Owner! };
                 if ((info & SecurityInformation.Group) != 0) o = o with { Group = d.Group! };
@@ -83,6 +85,9 @@ public class CheckerTests
                         Dacl = d.Dacl!.Aces.Select(a => Ace.FromView(a)!.Value).ToArray(),
                         Protected = (info & SecurityInformation.ProtectedDacl) != 0,
                     };
+                    // F5: the array stores D:AI on an unprotected DACL and drops it on a protected
+                    // one, whatever the control word sent says.
+                    o = o with { ExtraControl = (ushort)((o.ExtraControl & ~Control.DaclAutoInherited) | (o.Protected ? 0 : Control.DaclAutoInherited)) };
                     Objs[rel] = o;
                     if (o.IsDir) Propagate(rel, old, o.Dacl.ToList());
                 }

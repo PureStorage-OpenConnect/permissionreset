@@ -19,7 +19,8 @@
 - `tests/PermissionReset.Smb.Tests/` — xUnit; runs on Linux too (`dotnet test`). The CLI's records
   and exit codes are tested through a fake `IDescriptorReader`; the Win32 reads are checked on
   hardware only. `CheckerTests.FakeTree` is writable and models the array's measured inheritance
-  (F1-F3: an inherited part follows its parent only while it matches what the parent passed down);
+  (F1-F3: an inherited part follows its parent only while it matches what the parent passed down;
+  F5: a DACL write stores `D:AI` set when unprotected, clear when protected);
   keep it in step with what hardware shows.
 
 Rules:

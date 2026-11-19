@@ -373,10 +373,10 @@ public sealed class Checker
 
     // Write sets what differs, then reads the object back raw (G2, design 5.2). The DACL is written
     // with DACL_SECURITY_INFORMATION and its protection stated both in the control word and as
-    // (UN)PROTECTED_DACL_SECURITY_INFORMATION; the stored DaclAutoInherited bit is carried over, so
-    // only the ACEs and P change. Owner and group go in the same call when the rule names them and
-    // they differ. G2 then checks the written parts are what was wanted and every other part (the
-    // other of owner/group, the SACL, both AI bits, S:P) is what it was before.
+    // (UN)PROTECTED_DACL_SECURITY_INFORMATION, and D:AI sent as FlashArray stores it (F5). Owner and
+    // group go in the same call when the rule names them and they differ. G2 then checks the written
+    // parts are what was wanted, D:AI is what F5 says, and every other part (the other of
+    // owner/group, the SACL, S:AI, S:P) is what it was before.
     //
     // seen is the DACL-only read the compare used. Write first reads the object again with its SACL,
     // as G2's before-image, and writes nothing if the DACL, owner, group or DACL control bits moved
@@ -407,7 +407,10 @@ public sealed class Checker
         if (owner) { info |= SecurityInformation.Owner; parts.Add("owner"); }
         if (group) { info |= SecurityInformation.Group; parts.Add("group"); }
         var partList = string.Join(",", parts);
-        ushort control = (ushort)((desired.Protected ? Control.DaclProtected : 0) | (before.Control & Control.DaclAutoInherited));
+        // The control word states what the array stores (F5): an unprotected DACL with D:AI, a
+        // protected one without it. When only owner or group is written, the control word is
+        // ignored and the stored DACL bits are expected unchanged.
+        ushort control = desired.Protected ? Control.DaclProtected : Control.DaclAutoInherited;
         // Encoding happens before anything is sent, so a SID it cannot encode or a DACL past the
         // 64 KiB ACL limit fails this object and writes nothing.
         byte[] sd;
@@ -423,18 +426,20 @@ public sealed class Checker
         {
             return new WriteResult(partList, before.Raw, null, $"G2: {Show(rel)}: written ({partList}) but could not be read back: {e.Message}. No further writes were started.", true);
         }
-        var g2 = ReadbackDiff(desired, before, after, owner ? wantOwner : before.Owner, group ? wantGroup : before.Group);
+        var g2 = ReadbackDiff(desired, before, after, owner ? wantOwner : before.Owner, group ? wantGroup : before.Group, dacl);
         if (g2 is not null)
             return new WriteResult(partList, before.Raw, after.Raw, $"G2: {Show(rel)}: after writing {partList}, {g2}. No further writes were started.", true);
         return new WriteResult(partList, before.Raw, after.Raw, null, false);
     }
 
-    const ushort KeptControl = Control.DaclAutoInherited | Control.SaclAutoInherited | Control.SaclProtected | Control.SaclPresent;
+    const ushort KeptControl = Control.SaclAutoInherited | Control.SaclProtected | Control.SaclPresent;
 
     // ReadbackDiff compares a read after a write with what it should hold, raw (3.2): the desired
-    // DACL and protection, the expected owner and group, and the SACL and kept control bits
-    // unchanged from the read before. Null when everything agrees.
-    public static string? ReadbackDiff(Desired desired, Descriptor before, Descriptor after, string? owner, string? group)
+    // DACL and protection, the expected owner and group, the SACL and its control bits unchanged
+    // from the read before, and D:AI. After a DACL write, D:AI is what FlashArray was measured to
+    // store (F5): set on an unprotected DACL, clear on a protected one, whatever it was before.
+    // Without a DACL write it is unchanged. Null when everything agrees.
+    public static string? ReadbackDiff(Desired desired, Descriptor before, Descriptor after, string? owner, string? group, bool daclWritten)
     {
         var d = desired.Matches(after.Dacl, IsProtected(after));
         if (d is not null) return $"the DACL read back differs: {d}";
@@ -442,6 +447,12 @@ public sealed class Checker
         if (after.Group != group) return $"group read back is {after.Group ?? "absent"}, want {group ?? "absent"}";
         if ((after.Control & KeptControl) != (before.Control & KeptControl))
             return $"control changed from {string.Join("|", Descriptor.DescribeControl((ushort)(before.Control & KeptControl)))} to {string.Join("|", Descriptor.DescribeControl((ushort)(after.Control & KeptControl)))}";
+        bool wantAI = daclWritten ? !desired.Protected : (before.Control & Control.DaclAutoInherited) != 0;
+        bool gotAI = (after.Control & Control.DaclAutoInherited) != 0;
+        if (gotAI != wantAI)
+            return daclWritten
+                ? $"DaclAutoInherited is {(gotAI ? "set" : "clear")} after {(desired.Protected ? "a protected" : "an unprotected")} DACL write; this array was measured to store it {(wantAI ? "set" : "clear")} (F5)"
+                : $"DaclAutoInherited changed from {(wantAI ? "set" : "clear")} to {(gotAI ? "set" : "clear")} across a write that did not set the DACL";
         if (AclKey(after.Sacl) != AclKey(before.Sacl)) return "the SACL changed";
         return null;
     }

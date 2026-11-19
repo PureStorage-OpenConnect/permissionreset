@@ -221,7 +221,7 @@ public class ApplyTests
     }
 
     [Fact]
-    public void G2StopsWhenAnAutoInheritBitChanges()
+    public void G2StopsWhenTheArrayDoesNotSetAutoInheritOnAnUnprotectedWrite()
     {
         var tree = new FakeTree(new()
         {
@@ -229,6 +229,59 @@ public class ApplyTests
             ["a"] = new(true, DirWant, true, ExtraControl: Control.DaclAutoInherited),
         });
         tree.AfterWrite = rel => tree.Objs[rel] = tree.Objs[rel] with { ExtraControl = 0 };
+        var s = Apply(Usual, tree).Summary;
+        Assert.StartsWith("G2:", s.Stop);
+        Assert.Contains("DaclAutoInherited is clear after an unprotected DACL write", s.Stop);
+    }
+
+    [Fact]
+    public void AProtectedObjectWithoutAutoInheritBecomesUnprotectedWithIt()
+    {
+        // The FlashArray qualification case (F5): every protected object there lacks D:AI, and an
+        // unprotected write gets D:AI set by the array whatever the control word says.
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["a"] = new(true, DirWant, true),
+            ["a/f.txt"] = new(false, FileWant, true),
+        });
+        var (recs, s) = Apply(Usual, tree);
+        Assert.True(s.Complete, s.Stop);
+        Assert.Equal(Outcome.Written, At(recs, "a").Outcome);
+        Assert.Equal(Control.DaclAutoInherited, tree.SentControl["a"] & (Control.DaclAutoInherited | Control.DaclProtected));
+        Assert.NotEqual(0, tree.Objs["a"].ExtraControl & Control.DaclAutoInherited);
+    }
+
+    [Fact]
+    public void AProtectedWriteDropsAutoInherit()
+    {
+        var tree = new FakeTree(new() { [""] = new(true, DirInherited, false, ExtraControl: Control.DaclAutoInherited) });
+        var (recs, s) = Apply(Usual, tree, rootProtected: true);
+        Assert.True(s.Complete, s.Stop);
+        Assert.Equal(Outcome.Written, At(recs, "").Outcome);
+        Assert.Equal(Control.DaclProtected, tree.SentControl[""] & (Control.DaclAutoInherited | Control.DaclProtected));
+        Assert.Equal(0, tree.Objs[""].ExtraControl & Control.DaclAutoInherited);
+    }
+
+    [Fact]
+    public void G2StopsWhenAutoInheritSurvivesAProtectedWrite()
+    {
+        var tree = new FakeTree(new() { [""] = new(true, DirInherited, false, ExtraControl: Control.DaclAutoInherited) });
+        tree.AfterWrite = rel => tree.Objs[rel] = tree.Objs[rel] with { ExtraControl = Control.DaclAutoInherited };
+        var s = Apply(Usual, tree, rootProtected: true).Summary;
+        Assert.StartsWith("G2:", s.Stop);
+        Assert.Contains("DaclAutoInherited is set after a protected DACL write", s.Stop);
+    }
+
+    [Fact]
+    public void G2StopsWhenASaclControlBitChanges()
+    {
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["a"] = new(true, DirWant, true, Sacl: [Audit], ExtraControl: Control.SaclAutoInherited),
+        });
+        tree.AfterWrite = rel => tree.Objs[rel] = tree.Objs[rel] with { ExtraControl = (ushort)(tree.Objs[rel].ExtraControl & ~Control.SaclAutoInherited) };
         var s = Apply(Usual, tree).Summary;
         Assert.StartsWith("G2:", s.Stop);
         Assert.Contains("control changed", s.Stop);
