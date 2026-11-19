@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-15 |
-| Status | **Draft for review.** The three-form model (section 2.1) was chosen by the maintainer on 2026-11-15, over writing every object explicit and protected. Phase 1 (section 8) is built: plan schema 2 (`build-spec --smb-plan`), `Inheritance`, `Desired` and `check`. No write code exists. Nothing here is qualified. |
+| Status | **Draft for review.** The three-form model (section 2.1) was chosen by the maintainer on 2026-11-15, over writing every object explicit and protected. Phase 1 (section 8) is built: plan schema 2 (`build-spec --smb-plan`), `Inheritance`, `Desired` and `check`, and was qualified read-only at `700630b` on FlashArray (2026-11-16, `benchmarks/qual-smb-check-700630b-20261116/`). The same run answered Q-INH (matches), Q-EXP (no) and Q-PROT (yes) (section 7). No write code exists. No release is qualified. |
 | Builds on | `docs/decision-flasharray-smb-20261107.md` (sections 4–8), and the read-only scaffold in this directory |
 
 This is how `permissionreset-smb` will reset DACLs and SACLs on FlashArray over SMB. It takes the
@@ -60,8 +60,10 @@ comparing type, flags without `ID`, mask and SID.
 | **Protected** | anything else | `want(o)`, every ACE explicit | `D:P` |
 
 When the parent passes nothing down, the object is **Protected**, not **Explicit + inherits** with
-an empty inherited part. The rule's ACL is complete, and an unprotected explicit-only ACL would take
-on whatever the parent passes down later (hardware question Q-EXP).
+an empty inherited part. The rule's ACL is complete, and **Protected** says so in the descriptor.
+(This was first argued from the risk that an unprotected explicit-only ACL would take on whatever
+the parent passes down later. Q-EXP found that FlashArray does not do that, but the choice stands:
+it doesn't depend on that behavior.)
 
 `desired(parent)` is the parent's desired DACL from this table, not its stored one, so the result
 depends only on the spec and the tree shape. The run is deterministic and a rerun writes nothing.
@@ -241,13 +243,20 @@ offered in phase 1.
 Q-PROT matters most in practice: trees that were reset over NFS are `D:P` with explicit ACEs on
 every object (RISKS.md #11), and converting them back to dynamic inheritance is the main use.
 
+**Answered on FlashArray (Purity//FA 6.10.7, 2026-11-16,
+[benchmarks/qual-smb-check-700630b-20261116](../benchmarks/qual-smb-check-700630b-20261116/RESULTS.md)):**
+Q-INH **matches** (all 11 rows, allow, deny and audit, 280 objects, 0 differences). Q-EXP **no**
+(an unprotected explicit-only object ignores later parent changes; one object). Q-PROT **yes** (a
+`D:P` object rewritten with `ID` ACEs and `D:P` cleared follows later parent changes, and so do its
+unwritten children). Q-OWN and Q2 remain open.
+
 ## 8. Phases
 
 1. **DACL, read-compare, dry run and validate.** Plan schema 2 in `build-spec` and `Plan.cs`,
    `inh` and the case function in Core with table tests, the walk, `--validate`. No writes. Can be
    qualified for read accuracy and case classification against `inspect`.
-2. **DACL apply.** Writes, preflight with probe, G1, G2, checkpoint, evidence. Needs Q-INH, Q-EXP
-   and Q-PROT answered first, then a hardware qualification on the exact candidate (raw before/after
+2. **DACL apply.** Writes, preflight with probe, G1, G2, checkpoint, evidence. Needed Q-INH, Q-EXP
+   and Q-PROT answered first (done on FlashArray, 2026-11-16), then a hardware qualification on the exact candidate (raw before/after
    on a fixture covering every case, an NFS-flattened tree, an audited subtree, a protected
    subtree, and a deny-only directory under backup intent).
 3. **SACL**, first with Set-SaclOnly's behavior and its strict checks (a parity run against

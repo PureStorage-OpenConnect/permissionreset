@@ -106,7 +106,7 @@ builds on this.
 - None of this qualifies `permissionreset-smb`'s own write path, which has to be qualified on its
   exact candidate (decision record, question 3).
 - The later inheritance questions (Q-INH, Q-EXP, Q-PROT in `smb/DESIGN-write-path.md`) are a separate
-  run and not summarized here.
+  run: [qual-smb-check-700630b-20261116](../qual-smb-check-700630b-20261116/RESULTS.md).
 
 Evidence (kept in the private lab repository): the brief, the harness scripts, per-case raw
 descriptor captures, and the per-run results files.

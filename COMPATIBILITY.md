@@ -19,6 +19,7 @@ may work but carry no guarantee.
 | ACL restore (`--restore-from`) | FlashBlade | Linux | kernel | Not release-qualified. Lab runs on candidates `fdedaf7`, `8e7667b` and `cebd265`, Purity//FB 4.8.7, 2026-11-17: every NFS scenario run passed (`benchmarks/restore-fb-20261117/`). Over SMB, `DELETE_CHILD` is back on every affected file, but a written object's ACEs lose the INHERITED flag (1 of 664 objects in the check), a documented limit noted on each `--apply`. The no-bypass identity (precondition unmet) and lockout ordering were not run |
 | ACL restore (`--restore-from`) | FlashArray | Linux | kernel | Not qualified and not designed for SMB-written data (RISKS.md #11) |
 | Any repair | either | Windows | — | Does not build |
+| SMB read-compare (`permissionreset-smb inspect`, `check`) | FlashArray | Windows | SMB | Not released (no `smb-v*` tag). Read-only phase 1 lab qualification on candidate `700630b`, Purity//FA 6.10.7, Windows Server 2022, 2026-11-16: `inspect` failure handling 3/3, `check` classification 81/81 against an independent reader (`benchmarks/qual-smb-check-700630b-20261116/`). No write path exists |
 | Template capture (`build-spec`) | either | Linux, macOS, Windows | kernel (Linux), userspace | Offline tests in CI; capture on hardware recorded in `benchmarks/` only for Linux |
 
 Offline CI tests, compiling for a platform, a historical hardware run and verification of the current
