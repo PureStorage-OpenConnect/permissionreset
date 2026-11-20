@@ -18,13 +18,17 @@ func main() {
 		"", "*", "**x", "?", "??", "a*", "*.tmp", "*.TMP", "a*b", "a*b*c", "*x*", "a?c", "audit*",
 		".snapshot", ".*", "[abc]", "[a-c]x", "[^a-c]x", "[]]", "[a-]", `[\]]`, `[\-]`, `\*`, `a\?`,
 		`x\`, "[", "[a", "[a-", "[]", "[^]", "a[", "logs/*.gz", "logs/*", "*/b", "a/*/c", "*/*",
-		"日本*", "?本", "[日-語]", "\U0001F600*", "?",
+		"日本*", "?本", "[日-語]", "[^日-語]", "\U0001F600*", "?",
+		// Star backtracks by byte, not by rune (*?? matches 3-byte 本: '?' takes one
+		// rune, the next byte decodes alone as RuneError, width 1). These exercise it.
+		"*?", "*??", "*???", "a*??", "*?本",
 	}
 	names := []string{
 		"", "a", "b", "x", "ab", "abc", "abbc", "abxbc", "ac", "a.tmp", "A.TMP", "a.tmpx", ".tmp",
 		"audit", "audit-2026", "Audit", ".snapshot", "snapshot", ".hidden", "ax", "bx", "dx", "]", "-",
 		"*", "a?", "a", "logs/old.gz", "logs/a/old.gz", "logs/", "a/b", "a/b/c", "a/x/c", "x/b",
 		"日本語", "本", "語x", "\U0001F600.txt", "\U0001F600", "a/",
+		"é", "aé", "éé", "x本", "é本", "a\U0001F600",
 	}
 	type vec struct {
 		Pattern string `json:"pattern"`
