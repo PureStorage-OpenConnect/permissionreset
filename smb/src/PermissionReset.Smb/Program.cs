@@ -108,7 +108,11 @@ static class Cli
         {
             InspectLine line;
             try { line = new InspectLine(p, Descriptor.Decode(reader.Read(p, withSacl)), withSacl, null, null); }
-            catch (Exception e) when (e is Win32Exception or DescriptorFormatException)
+            // A path the reader can't name (Path.GetFullPath or the long-path prefix rejects it:
+            // illegal characters, unsupported form, too long) is that path's failure, not the run's.
+            // Anything else is a bug and still escapes.
+            catch (Exception e) when (e is Win32Exception or DescriptorFormatException or ArgumentException
+                                          or NotSupportedException or IOException)
             {
                 failed++;
                 // No descriptor came back, so nothing was read: sacl_read is left out.
@@ -149,19 +153,31 @@ static class Cli
         var plan = Plan.Load(pos[0]);
         try { deps.EnablePrivilege("SeBackupPrivilege"); }
         catch (Win32Exception e) { return Fail(stderr, $"check: {e.Message} (Win32 error {e.NativeErrorCode})", 1); }
-        var checker = new Checker(plan, deps.Tree(pos[1]), deps.Resolve);
+        var root = pos[1];
+        var checker = new Checker(plan, deps.Tree(root), RuleSelector.RootName(root), deps.Resolve);
 
-        var summary = checker.Run(r =>
+        // Records name objects in the root's own separator style, so \\array\share\dept gives
+        // \\array\share\dept\a\f.txt, not \\array\share\dept\a/f.txt.
+        char sep = root.Contains('\\') ? '\\' : root.Contains('/') ? '/' : Path.DirectorySeparatorChar;
+        string Full(string rel)
         {
-            var path = r.Path.Length == 0 ? pos[1] : Path.Join(pos[1], r.Path);
-            stdout.WriteLine(JsonSerializer.Serialize(r with { Path = path }, Json));
-        }, workers);
+            if (rel.Length == 0) return root;
+            var r = sep == '/' ? rel : rel.Replace('/', sep);
+            return root.EndsWith('\\') || root.EndsWith('/') ? root + r : root + sep + r;
+        }
+
+        CheckSummary summary;
+        try
+        {
+            summary = checker.Run(r => stdout.WriteLine(JsonSerializer.Serialize(r with { Path = Full(r.Path) }, Json)), workers);
+        }
+        catch (CheckFaultException e) { return Fail(stderr, $"check: {e.Message}; the check is incomplete", 1); }
 
         var outcomes = string.Join(", ", Enum.GetValues<Outcome>().Select(o => $"{o.ToString().ToLowerInvariant()} {summary.Count(o)}"));
         var forms = $"inherits {summary.Count(Form.Inherits)}, explicit+inherits {summary.Count(Form.ExplicitPlusInherits)}, protected {summary.Count(Form.Protected)}";
         stderr.WriteLine($"check: {outcomes}");
         stderr.WriteLine($"check: forms: {forms}");
-        if (summary.NotProcessed > 0) stderr.WriteLine($"check: {summary.NotProcessed} director(ies) could not be listed; the check is incomplete");
+        if (summary.NotProcessed > 0) stderr.WriteLine($"check: {summary.NotProcessed} director(ies) could not be read, listed or classified, so what is below them was not checked; the check is incomplete");
         stderr.WriteLine(validate ? "check: validate; nothing was written" : "check: dry run; nothing was written");
 
         bool failed = summary.Count(Outcome.Error) > 0 || summary.NotProcessed > 0;

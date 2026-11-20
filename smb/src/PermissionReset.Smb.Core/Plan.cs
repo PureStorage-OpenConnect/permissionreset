@@ -34,14 +34,60 @@ public sealed record Plan(
             throw new PlanException($"plan schema {p.Schema} is not supported (this build reads schemas {SaclSchema} and {SmbSchema}); use a matching build-spec");
         if (p.Protocol != "nfsv4")
             throw new PlanException($"plan protocol \"{p.Protocol}\" is not supported; only nfsv4 specs translate to SMB");
-        if (p.Default is null) throw new PlanException("plan has no default rule");
-        foreach (var r in (p.Rules ?? []).Prepend(p.Default))
+        CheckPresent(p);
+        foreach (var r in p.Rules.Prepend(p.Default))
         {
             if (r.Match.Type is not ("" or "file" or "directory"))
                 throw new PlanException($"plan rule {r.Label}: unknown match type \"{r.Match.Type}\"");
             CheckAces(p.Schema, r);
         }
-        return p with { Rules = p.Rules ?? [], Exclude = p.Exclude ?? new PlanExclude([], [], []) };
+        return p;
+    }
+
+    // CheckPresent refuses a plan in which a field this tool reads is missing or null.
+    // System.Text.Json leaves an absent field null even where the type says it can't be, and
+    // internal/saclplan always writes every one of these (only dacl is omitempty), so an absent one
+    // is a malformed plan: refused here, not defaulted or left to fail later as a null dereference.
+    static void CheckPresent(Plan p)
+    {
+        if (p.Source is null) throw new PlanException("plan has no source");
+        if (p.Exclude is null) throw new PlanException("plan has no exclude");
+        foreach (var (name, list) in new[] { ("patterns", p.Exclude.Patterns), ("base", p.Exclude.Base), ("path", p.Exclude.Path) })
+        {
+            if (list is null) throw new PlanException($"plan exclude has no {name}");
+            if (list.Any(x => x is null)) throw new PlanException($"plan exclude {name} has a null entry");
+        }
+        if (p.Default is null) throw new PlanException("plan has no default rule");
+        if (p.Rules is null) throw new PlanException("plan has no rules");
+        CheckRulePresent(p.Default, "default");
+        for (int i = 0; i < p.Rules.Count; i++)
+        {
+            if (p.Rules[i] is null) throw new PlanException($"plan rule[{i}] is null");
+            CheckRulePresent(p.Rules[i], $"rule[{i}]");
+        }
+    }
+
+    // where names the rule by its place in the plan, since a rule with no label has nothing else.
+    static void CheckRulePresent(PlanRule r, string where)
+    {
+        if (r.Label is null) throw new PlanException($"plan {where} has no label");
+        var name = $"plan rule {r.Label}";
+        if (r.Match is null) throw new PlanException($"{name}: has no match");
+        if (r.Match.Type is null) throw new PlanException($"{name}: match has no type");
+        if (r.Match.Pattern is null) throw new PlanException($"{name}: match has no pattern");
+        if (r.Owner is null) throw new PlanException($"{name}: has no owner");
+        if (r.Group is null) throw new PlanException($"{name}: has no group");
+        foreach (var (field, aces) in new[] { ("sacl", r.Sacl), ("dacl", r.Dacl) })
+        {
+            if (aces is null) continue;
+            for (int j = 0; j < aces.Count; j++)
+            {
+                var a = aces[j];
+                if (a is null) throw new PlanException($"{name}: {field}[{j}] is null");
+                foreach (var (f, v) in new[] { ("line", a.Line), ("principal", a.Principal), ("sid", a.Sid), ("sddl", a.Sddl) })
+                    if (v is null) throw new PlanException($"{name}: {field}[{j}] has no {f}");
+            }
+        }
     }
 
     // CheckAces refuses a rule whose ACEs don't fit its schema. build-spec never writes such a plan;
@@ -71,7 +117,21 @@ public sealed record Plan(
         }
     }
 
-    public static Plan Load(string path) => Parse(File.ReadAllText(path));
+    // Load reads and parses the plan at path. A file that can't be read is a PlanException naming
+    // the path, so the CLI reports it as a message rather than a stack trace.
+    public static Plan Load(string path)
+    {
+        string json;
+        try
+        {
+            json = File.ReadAllText(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Security.SecurityException)
+        {
+            throw new PlanException($"cannot read plan {path}: {e.Message}", e);
+        }
+        return Parse(json);
+    }
 
     // Unknown fields are refused: a field this build does not know means a plan it would misread.
     static readonly JsonSerializerOptions Options = new()

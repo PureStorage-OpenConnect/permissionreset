@@ -118,19 +118,7 @@ static partial class Win32Security
                     if (err == ERROR_NO_MORE_FILES) break;
                     throw Error(err, "list");
                 }
-                int off = 0;
-                while (true)
-                {
-                    // FILE_FULL_DIR_INFO: NextEntryOffset @0, FileAttributes @56,
-                    // FileNameLength (bytes) @60, FileName @68.
-                    int next = BitConverter.ToInt32(buf, off);
-                    uint attrs = BitConverter.ToUInt32(buf, off + 56);
-                    int nameLen = BitConverter.ToInt32(buf, off + 60);
-                    string name = System.Text.Encoding.Unicode.GetString(buf, off + 68, nameLen);
-                    if (name is not ("." or "..")) list.Add((name, attrs));
-                    if (next == 0) break;
-                    off += next;
-                }
+                DirInfo.Parse(buf, buf.Length, list);
             }
         }
         finally { CloseHandle(h); }
@@ -151,4 +139,46 @@ static partial class Win32Security
         var full = Path.GetFullPath(p);
         return full.StartsWith(@"\\", StringComparison.Ordinal) ? @"\\?\UNC\" + full[2..] : @"\\?\" + full;
     }
+}
+
+// DirInfo parses one GetFileInformationByHandleEx(FileFullDirectoryInfo) buffer. It is portable
+// (no Win32) so the bounds checks are tested on Linux. The offsets and lengths come from the
+// server, so each is checked before it is used: a malformed entry throws InvalidDataException
+// naming the step, never an out-of-range read or an endless loop.
+static class DirInfo
+{
+    // FILE_FULL_DIR_INFO: NextEntryOffset @0, FileAttributes @56, FileNameLength (bytes) @60,
+    // FileName @68.
+    public const int HeaderSize = 68;
+    const int AttributesAt = 56, NameLengthAt = 60;
+
+    // Parse appends each entry in buf[0..valid) to list, leaving out "." and "..". The entries are
+    // a chain from offset 0: each NextEntryOffset must move past its own header and name, and not so
+    // far that the next header would not fit in the buffer; 0 ends the chain.
+    public static void Parse(byte[] buf, int valid, List<(string Name, uint Attributes)> list)
+    {
+        if (valid < 0 || valid > buf.Length)
+            throw new InvalidDataException($"list: buffer length {valid} is outside 0..{buf.Length}");
+        int off = 0;
+        while (true)
+        {
+            if (valid - off < HeaderSize)
+                throw Malformed(off, $"its header needs {HeaderSize} bytes, {valid - off} remain");
+            int next = BitConverter.ToInt32(buf, off);
+            uint attrs = BitConverter.ToUInt32(buf, off + AttributesAt);
+            int nameLen = BitConverter.ToInt32(buf, off + NameLengthAt);
+            if (nameLen < 0 || nameLen % 2 != 0)
+                throw Malformed(off, $"name length {nameLen} is not a non-negative even byte count");
+            if (nameLen > valid - off - HeaderSize)
+                throw Malformed(off, $"name length {nameLen} runs past the {valid}-byte buffer");
+            if (next != 0 && (next < HeaderSize + nameLen || next > valid - off - HeaderSize))
+                throw Malformed(off, $"next entry offset {next} does not move past this entry to a whole header inside the {valid}-byte buffer");
+            string name = System.Text.Encoding.Unicode.GetString(buf, off + HeaderSize, nameLen);
+            if (name is not ("." or "..")) list.Add((name, attrs));
+            if (next == 0) return;
+            off += next;
+        }
+    }
+
+    static InvalidDataException Malformed(int off, string why) => new($"list: malformed directory entry at offset {off}: {why}");
 }

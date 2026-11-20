@@ -64,6 +64,61 @@ public class PlanTests
     [Fact]
     public void RefusesNotJson() => Assert.Throws<PlanException>(() => Plan.Parse("schema: 1"));
 
+    // internal/saclplan writes every field but dacl, so a missing or null one is a malformed plan:
+    // refused by name, not defaulted or left to throw NullReferenceException downstream.
+    [Theory]
+    [InlineData("missing match", "plan rule rule[0]: has no match")]
+    [InlineData("null rule", "plan rule[1] is null")]
+    [InlineData("missing pattern", "plan rule rule[0]: match has no pattern")]
+    [InlineData("missing type", "plan rule default: match has no type")]
+    [InlineData("missing label", "plan rule[0] has no label")]
+    [InlineData("null owner", "plan rule default: has no owner")]
+    [InlineData("missing group", "plan rule rule[1]: has no group")]
+    [InlineData("missing sid", "plan rule default: dacl[0] has no sid")]
+    [InlineData("null principal", "plan rule default: dacl[1] has no principal")]
+    [InlineData("null ace", "plan rule rule[0]: sacl[0] is null")]
+    [InlineData("missing rules", "plan has no rules")]
+    [InlineData("missing exclude", "plan has no exclude")]
+    [InlineData("missing exclude base", "plan exclude has no base")]
+    [InlineData("null exclude pattern", "plan exclude patterns has a null entry")]
+    [InlineData("missing source", "plan has no source")]
+    public void RefusesAMissingField(string what, string want)
+    {
+        var root = System.Text.Json.Nodes.JsonNode.Parse(SmbGolden)!.AsObject();
+        var rules = root["rules"]!.AsArray();
+        var def = root["default"]!.AsObject();
+        switch (what)
+        {
+            case "missing match": rules[0]!.AsObject().Remove("match"); break;
+            case "null rule": rules[1] = null; break;
+            case "missing pattern": rules[0]!["match"]!.AsObject().Remove("pattern"); break;
+            case "missing type": def["match"]!.AsObject().Remove("type"); break;
+            case "missing label": rules[0]!.AsObject().Remove("label"); break;
+            case "null owner": def["owner"] = null; break;
+            case "missing group": rules[1]!.AsObject().Remove("group"); break;
+            case "missing sid": def["dacl"]![0]!.AsObject().Remove("sid"); break;
+            case "null principal": def["dacl"]![1]!["principal"] = null; break;
+            case "null ace": rules[0]!["sacl"]![0] = null; break;
+            case "missing rules": root.Remove("rules"); break;
+            case "missing exclude": root.Remove("exclude"); break;
+            case "missing exclude base": root["exclude"]!.AsObject().Remove("base"); break;
+            case "null exclude pattern": root["exclude"]!["patterns"]!.AsArray().Add(null); break;
+            case "missing source": root.Remove("source"); break;
+            default: throw new ArgumentException(what);
+        }
+        var e = Assert.Throws<PlanException>(() => Plan.Parse(root.ToJsonString()));
+        Assert.Equal(want, e.Message);
+    }
+
+    [Fact]
+    public void LoadOfAMissingFileNamesThePath()
+    {
+        var missing = Path.Combine(Path.GetTempPath(), $"smbplan-missing-{Guid.NewGuid():N}.json");
+        var e = Assert.Throws<PlanException>(() => Plan.Load(missing));
+        Assert.StartsWith($"cannot read plan {missing}: ", e.Message);
+        Assert.IsType<FileNotFoundException>(e.InnerException);
+    }
+
     static string ReplaceFirst(string s, string from, string to)
     {
         int i = s.IndexOf(from, StringComparison.Ordinal);
