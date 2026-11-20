@@ -148,6 +148,48 @@ public sealed class CheckCliTests : IDisposable
     }
 
     [Fact]
+    public void AKeepOwnerDifferenceFailsValidateButNotADryRun()
+    {
+        // The keep* rule has no acl: but names an owner; ownership is checked independently of the
+        // kept DACL, so --validate must exit 1 on the difference.
+        var plan = Usual with { Rules = [new PlanRule("rule[0]", new PlanMatch("directory", "keep*"),
+            false, false, false, false, false, "owner@example.net", "", [], null), .. Usual.Rules] };
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["keepme"] = new(true, [A(AceFlags.ObjectInherit | AceFlags.ContainerInherit, "S-1-5-21-1-2-3-1003")], true, Owner: "S-1-5-21-1-2-3-1001"),
+        });
+        var deps = new CheckDeps(_ => { }, _ => tree, n => n == "owner@example.net" ? "S-1-5-21-1-2-3-1002" : null);
+        var o = new StringWriter();
+        var e = new StringWriter();
+        Assert.Equal(0, Cli.Run(["check", PlanFile(plan), "R"], o, e, check: deps));
+        o = new StringWriter();
+        e = new StringWriter();
+        Assert.Equal(1, Cli.Run(["check", "--validate", PlanFile(plan), "R"], o, e, check: deps));
+        Assert.Contains("\"outcome\":\"write\"", o.ToString());
+    }
+
+    [Fact]
+    public void AThrownPrincipalLookupIsAPreflightRefusalExitOne()
+    {
+        // NTAccount.Translate throws more than IdentityNotMappedException (domain and trust
+        // errors). A thrown lookup is still a refusal naming the principal, before any tree read.
+        var plan = Usual with { Default = Usual.Default with { Owner = "owner@example.net" } };
+        var tree = RightTree();
+        tree.ReadFails.Add("");
+        tree.ReadFails.Add("f.txt");   // a read attempted anyway would be an error record, not silent
+        var deps = new CheckDeps(_ => { }, _ => tree,
+            _ => throw new SystemException("The trust relationship between this workstation and the primary domain failed."));
+        var o = new StringWriter();
+        var e = new StringWriter();
+        var code = Cli.Run(["check", PlanFile(plan), "R"], o, e, check: deps);
+        Assert.Equal(1, code);
+        Assert.Empty(o.ToString());
+        Assert.Contains("owner@example.net", e.ToString());
+        Assert.Contains("do not resolve", e.ToString());
+    }
+
+    [Fact]
     public void MissingBackupPrivilegeReadsNothing()
     {
         var (code, o, e) = Run(RightTree(), "SeBackupPrivilege", "check", PlanFile(Usual), "R");

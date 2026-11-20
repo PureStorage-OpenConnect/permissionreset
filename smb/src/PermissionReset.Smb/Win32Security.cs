@@ -11,7 +11,7 @@ namespace PermissionReset.Smb;
 static partial class Win32Security
 {
     const uint OWNER = 1, GROUP = 2, DACL = 4, SACL = 8;
-    const uint READ_CONTROL = 0x00020000, ACCESS_SYSTEM_SECURITY = 0x01000000;
+    const uint READ_CONTROL = 0x00020000, ACCESS_SYSTEM_SECURITY = 0x01000000, FILE_READ_ATTRIBUTES = 0x0080;
     const uint SHARE_ALL = 7, OPEN_EXISTING = 3;
     const uint FILE_FLAG_BACKUP_SEMANTICS = 0x02000000, FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000;
     const int ERROR_INSUFFICIENT_BUFFER = 122;
@@ -68,24 +68,40 @@ static partial class Win32Security
         finally { CloseHandle(token); }
     }
 
+    // DescriptorRead is one open's result: the self-relative descriptor and the FILE_ATTRIBUTE_*
+    // bits of the object the handle actually opened. The attributes come from the same handle, so
+    // a caller can tell that an object listed as a file has since become a directory or a reparse
+    // point (smb/DESIGN-write-path.md, 5.3).
+    public readonly record struct DescriptorRead(byte[] Descriptor, uint Attributes);
+
+    // FILE_ATTRIBUTE_TAG_INFO, GetFileInformationByHandleEx class: FileAttributes, ReparseTag.
+    const int FileAttributeTagInfo = 9;
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct AttributeTag { public uint FileAttributes; public uint ReparseTag; }
+
     // ReadDescriptor returns the object's self-relative descriptor: owner, group, DACL and, when
-    // withSacl, the SACL (which needs SeSecurityPrivilege enabled).
-    public static byte[] ReadDescriptor(string path, bool withSacl)
+    // withSacl, the SACL (which needs SeSecurityPrivilege enabled), plus the opened attributes.
+    public static DescriptorRead ReadDescriptor(string path, bool withSacl)
     {
-        uint access = READ_CONTROL | (withSacl ? ACCESS_SYSTEM_SECURITY : 0);
+        // FILE_READ_ATTRIBUTES is for the FileAttributeTagInfo query below; READ_CONTROL alone does
+        // not grant it. Both are read-only rights.
+        uint access = READ_CONTROL | FILE_READ_ATTRIBUTES | (withSacl ? ACCESS_SYSTEM_SECURITY : 0);
         uint info = OWNER | GROUP | DACL | (withSacl ? SACL : 0);
         IntPtr h = CreateFile(LongPath(path), access, SHARE_ALL, IntPtr.Zero, OPEN_EXISTING,
             FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, IntPtr.Zero);
         if (h == new IntPtr(-1)) throw LastError("open");
         try
         {
+            if (!GetFileInformationByHandleEx(h, FileAttributeTagInfo, out AttributeTag tag, (uint)Marshal.SizeOf<AttributeTag>()))
+                throw LastError("query attributes");
             GetKernelObjectSecurity(h, info, null, 0, out uint needed);
             int err = Marshal.GetLastPInvokeError();
             if (err != ERROR_INSUFFICIENT_BUFFER) throw Error(err, "size descriptor");
             var sd = new byte[needed];
             if (!GetKernelObjectSecurity(h, info, sd, needed, out _))
                 throw LastError("read descriptor");
-            return sd;
+            return new DescriptorRead(sd, tag.FileAttributes);
         }
         finally { CloseHandle(h); }
     }
@@ -93,6 +109,10 @@ static partial class Win32Security
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool GetFileInformationByHandleEx(IntPtr h, int cls, byte[] buf, uint len);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetFileInformationByHandleEx(IntPtr h, int cls, out AttributeTag info, uint len);
 
     public const uint AttrDirectory = 0x10, AttrReparsePoint = 0x400;
 
