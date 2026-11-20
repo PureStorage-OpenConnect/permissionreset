@@ -9,17 +9,24 @@ namespace PermissionReset.Smb.Core;
 public interface ITree
 {
     IReadOnlyList<TreeEntry> List(string rel);
-    byte[] Read(string rel);
+    TreeObject Read(string rel);
 }
 
 public readonly record struct TreeEntry(string Name, bool IsDir, bool IsReparse);
+
+// TreeObject is one Read's result: the raw descriptor and the attributes of the object the open
+// handle actually refers to. The attributes matter because the object may have changed between
+// the listing and the open (smb/DESIGN-write-path.md, 5.3): a file that became a directory would
+// otherwise leave a new subtree unwalked and still be reported on.
+public readonly record struct TreeObject(byte[] Descriptor, bool IsDir, bool IsReparse);
 
 // Outcome of checking one object (smb/DESIGN-write-path.md, 3.3):
 //   Ok        stored DACL is the desired one;
 //   Write     the object itself needs a write;
 //   Follows   it differs now, but only because an ancestor will be written: once that ancestor is
 //             right, the array re-derives this object's inherited part and it is right too;
-//   Keep      the rule has no acl:, so the DACL is not the reset's to change;
+//   Keep      the rule has no acl:, so the DACL is not the reset's to change (a named owner or
+//             group that differs is still a Write);
 //   Excluded, Reparse (skipped, never followed), Error.
 public enum Outcome { Ok, Write, Follows, Keep, Excluded, Reparse, Error }
 
@@ -68,7 +75,11 @@ public sealed class Checker
         string? Sid(string principal, string planSid)
         {
             if (planSid.Length > 0) return planSid;
-            var s = resolve(principal);
+            // A lookup that throws (a domain or trust failure, not just an unknown name) is an
+            // unresolved principal too: refused here, named in the message below, before any read.
+            string? s;
+            try { s = resolve(principal); }
+            catch { s = null; }
             if (s is null) unresolved.Add(principal);
             return s;
         }
@@ -82,8 +93,9 @@ public sealed class Checker
     }
 
     // Node is a directory waiting to be listed, with what its children need from it: its desired
-    // DACL (the input to their inheritance) and whether it or an ancestor will be written.
-    sealed record Node(string Rel, List<Ace> Acl, bool AncestorWrites);
+    // DACL (the input to their inheritance after the run's writes), its stored DACL (the input to
+    // their dynamic-tracking evidence), and whether it or an ancestor will be written.
+    sealed record Node(string Rel, List<Ace> Acl, List<Ace> StoredAcl, bool AncestorWrites);
 
     // Run walks the tree. emit is called once per object, from worker threads, under a lock.
     //
@@ -173,17 +185,32 @@ public sealed class Checker
             emit(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Error, detail));
             return null;
         }
+        TreeObject read;
         Descriptor stored;
-        try { stored = Descriptor.Decode(tree.Read(rel)); }
+        try { read = tree.Read(rel); stored = Descriptor.Decode(read.Descriptor); }
         catch (Exception e) { return Dropped($"read: {e.Message}"); }
+        // The open handle says what the object is now. An object whose type changed between the
+        // listing and the open, or that became a reparse point, is skipped and counted (design
+        // 5.3): what listed as a file may be a new directory whose subtree was never walked.
+        if (read.IsReparse || read.IsDir != isDir)
+        {
+            var became = read.IsReparse ? "a reparse point" : read.IsDir ? "a directory" : "a file";
+            if (read.IsDir) Interlocked.Increment(ref summary.NotProcessed);
+            return Dropped($"its type changed between listing and open: it is now {became}; it was not checked");
+        }
         bool storedProtected = (stored.Control & 0x1000) != 0;
         var storedAces = (stored.Dacl?.Aces ?? []).Select(Ace.FromView).ToList();
+        var storedAcl = storedAces.Where(a => a is not null).Select(a => a!.Value).ToList();
 
-        // What this object would inherit: from its parent's desired DACL, or for the root, what the
-        // array says it inherits now (its stored ID ACEs; design 2.2).
+        // What the stored parent currently passes down (the dynamic-tracking evidence of F2), and
+        // what this object would inherit once the run's parents are written: from its parent's
+        // desired DACL, or for the root, what the array says it inherits now (its stored ID ACEs;
+        // design 2.2).
+        List<Ace>? parentPropagates = null;
         List<Ace> inherited;
         try
         {
+            if (parent is not null) parentPropagates = Inheritance.Inherit(parent.StoredAcl, isDir);
             inherited = parent is null
                 ? storedAces.Where(a => a is { Inherited: true }).Select(a => a!.Value).ToList()
                 : Inheritance.Inherit(parent.Acl, isDir);
@@ -191,54 +218,79 @@ public sealed class Checker
         catch (NotSupportedException e) { return Dropped(e.Message); }
         bool ancestorWrites = parent?.AncestorWrites ?? false;
 
+        var og = OwnerGroupDiff(rule, stored);
         var wanted = want[rule];
         if (wanted is null)
         {
-            // No acl: here. The DACL is left alone, but its children still inherit from it: from
-            // its stored ACEs, with the inherited part re-derived if it is unprotected (F3).
-            emit(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Keep, null));
+            // No acl: here. The DACL is left alone, but a named owner or group is still the
+            // reset's to check, independently of the DACL (a rule can name owner:/group: alone).
+            emit(new CheckRecord(rel, isDir, rule.Label, null, og is null ? Outcome.Keep : Outcome.Write, og));
             if (!isDir) return null;
             // An absent DACL (everyone full control) is not an empty one: there is nothing for the
             // children to inherit from that a reset models.
             if (stored.Dacl is null) return Dropped("its DACL is absent, so its children cannot be classified");
             if (storedAces.Any(a => a is null))
                 return Dropped("its DACL holds an ACE type a reset does not model, so its children cannot be classified");
+            // The children inherit what is actually stored. The inherited part is substituted for
+            // the re-derived one only when this directory provably tracks its parent and an
+            // ancestor will be written (F2, F3); otherwise nothing above changes it.
             var acl = storedAces.Select(a => a!.Value).ToList();
-            if (!storedProtected) acl = acl.Where(a => !a.Inherited).Concat(inherited).ToList();
-            return new Node(rel, acl, ancestorWrites);
+            if (!storedProtected && ancestorWrites && Tracks(acl, parentPropagates))
+                acl = acl.Where(a => !a.Inherited).Concat(inherited).ToList();
+            return new Node(rel, acl, storedAcl, ancestorWrites);
         }
 
         var desired = Desired.Classify(wanted, inherited);
         var daclDiff = desired.Matches(stored.Dacl, storedProtected);
-        var diff = daclDiff ?? OwnerGroupDiff(rule, stored);
+        var diff = daclDiff ?? og;
         // An absent DACL never follows: the array has no inherited part to re-derive.
-        bool follows = stored.Dacl is not null && Follows(desired, storedAces, storedProtected);
+        bool follows = stored.Dacl is not null && Follows(desired, storedAces, storedProtected, parentPropagates);
         Outcome outcome;
         if (diff is null) outcome = Outcome.Ok;
-        else if (ancestorWrites && follows && OwnerGroupDiff(rule, stored) is null) outcome = Outcome.Follows;
+        else if (ancestorWrites && follows && og is null) outcome = Outcome.Follows;
         else
         {
             outcome = Outcome.Write;
             // The frozen-copy note explains a DACL difference; it says nothing about an owner or
             // group difference on a DACL that matched.
-            if (daclDiff is not null && desired.Form != Form.Protected && follows)
+            if (daclDiff is not null && desired.Form != Form.Protected && TrackableShape(desired, storedAces, storedProtected))
                 diff += "; its inherited part does not follow its parent (a frozen copy)";
         }
         emit(new CheckRecord(rel, isDir, rule.Label, desired.Form, outcome, diff));
-        return isDir ? new Node(rel, desired.Aces.ToList(), ancestorWrites || outcome == Outcome.Write) : null;
+        return isDir ? new Node(rel, desired.Aces.ToList(), storedAcl, ancestorWrites || outcome == Outcome.Write) : null;
     }
 
-    // Follows reports whether the stored DACL has the shape that the array re-derives when an
-    // ancestor changes: unprotected, its explicit part exactly the desired explicit part, and
-    // everything after it inherited.
-    static bool Follows(Desired d, List<Ace?> stored, bool storedProtected)
+    // TrackableShape reports whether the stored DACL has the shape the array re-derives when a
+    // parent changes: unprotected, its explicit part exactly the desired explicit part, and a
+    // non-empty remainder that is all inherited. An explicit-only remainder is empty, and Q-EXP
+    // found that explicit-only objects do not pick up parent changes, so it does not count.
+    static bool TrackableShape(Desired d, List<Ace?> stored, bool storedProtected)
     {
         if (storedProtected || d.Protected || stored.Any(a => a is null)) return false;
         var explicitWant = d.Aces.Where(a => !a.Inherited).ToList();
-        if (stored.Count < explicitWant.Count) return false;
+        if (stored.Count <= explicitWant.Count) return false;
         for (int i = 0; i < explicitWant.Count; i++)
             if (stored[i]!.Value != explicitWant[i]) return false;
         return stored.Skip(explicitWant.Count).All(a => a!.Value.Inherited);
+    }
+
+    // Follows is TrackableShape plus the evidence the object is dynamically tracking its parent
+    // (F2): the inherited remainder equals what the stored parent currently passes down. A frozen
+    // copy looks inherited but no longer follows the parent, so it predicts a write of its own.
+    static bool Follows(Desired d, List<Ace?> stored, bool storedProtected, List<Ace>? parentPropagates)
+    {
+        if (parentPropagates is not { Count: > 0 } || !TrackableShape(d, stored, storedProtected)) return false;
+        var explicitCount = d.Aces.Count(a => !a.Inherited);
+        return stored.Skip(explicitCount).Select(a => a!.Value).SequenceEqual(parentPropagates);
+    }
+
+    // Tracks is the same evidence for a directory whose own DACL is kept: its stored inherited
+    // part equals what its stored parent currently passes down.
+    static bool Tracks(List<Ace> acl, List<Ace>? parentPropagates)
+    {
+        if (parentPropagates is null || parentPropagates.Count == 0) return false;
+        var inheritedPart = acl.Where(a => a.Inherited).ToList();
+        return inheritedPart.Count > 0 && inheritedPart.SequenceEqual(parentPropagates);
     }
 
     string? OwnerGroupDiff(PlanRule rule, Descriptor stored)

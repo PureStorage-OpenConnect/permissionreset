@@ -15,5 +15,5 @@ interface IDescriptorReader
 sealed class Win32DescriptorReader : IDescriptorReader
 {
     public void EnablePrivilege(string name) => Win32Security.EnablePrivilege(name);
-    public byte[] Read(string path, bool withSacl) => Win32Security.ReadDescriptor(path, withSacl);
+    public byte[] Read(string path, bool withSacl) => Win32Security.ReadDescriptor(path, withSacl).Descriptor;
 }
