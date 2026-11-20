@@ -7,7 +7,10 @@ array's own model over SMB: SIDs without id mapping, inherited flags as stored, 
 
 **Status: pre-release. It writes nothing.** It reads and decodes descriptors, validates plans,
 and checks a tree against a plan (`check`, phase 1 of [the write-path design](DESIGN-write-path.md)).
-The write itself (phase 2) is not built. Nothing here is qualified beyond `inspect`'s reads.
+The write itself (phase 2) is not built. Phase 1 evidence for the read-only `inspect` and `check`
+was recorded on hardware at the exact candidate `700630b`
+([results](../benchmarks/qual-smb-check-700630b-20261116/RESULTS.md)). It covers that candidate
+only and qualifies no release; requalifying the current candidate is pending (#75).
 
 | Platform | Tool |
 |---|---|
