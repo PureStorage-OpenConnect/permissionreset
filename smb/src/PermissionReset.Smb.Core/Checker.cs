@@ -55,14 +55,15 @@ public sealed class Checker
 
     // resolve maps a principal the plan names without a SID (name@domain, DOMAIN\name) to its SID,
     // or null when it does not resolve. Every principal is resolved here, before any read, and an
-    // unresolved one refuses the whole check.
-    public Checker(Plan plan, ITree tree, Func<string, string?> resolve)
+    // unresolved one refuses the whole check. rootName is the root's own base name
+    // (RuleSelector.RootName of the ROOT argument), which the rules match the root by.
+    public Checker(Plan plan, ITree tree, string rootName, Func<string, string?> resolve)
     {
         if (plan.Schema != Plan.SmbSchema)
             throw new PlanException($"check needs a schema {Plan.SmbSchema} plan (build-spec --smb-plan); this one is schema {plan.Schema}");
         this.plan = plan;
         this.tree = tree;
-        rules = new RuleSelector(plan);
+        rules = new RuleSelector(plan, rootName);
         var unresolved = new SortedSet<string>(StringComparer.Ordinal);
         string? Sid(string principal, string planSid)
         {
@@ -85,6 +86,11 @@ public sealed class Checker
     sealed record Node(string Rel, List<Ace> Acl, bool AncestorWrites);
 
     // Run walks the tree. emit is called once per object, from worker threads, under a lock.
+    //
+    // A directory whose subtree is not walked (it could not be read, listed or classified) counts
+    // in NotProcessed. Anything that escapes a worker (emit threw, or a bug) stops the whole run:
+    // the other workers stop taking directories, and Run throws CheckFaultException once they have
+    // all returned, rather than finish a walk whose output is already incomplete.
     public CheckSummary Run(Action<CheckRecord> emit, int workers = 1)
     {
         var summary = new CheckSummary();
@@ -95,63 +101,81 @@ public sealed class Checker
             lock (gate) emit(r);
         }
 
-        var root = Visit("", isDir: true, parent: null, Emit);
+        Node? root;
+        try { root = Visit("", isDir: true, parent: null, Emit, summary); }
+        catch (Exception e) { throw new CheckFaultException(e); }
         if (root is null) return summary;
 
         var queue = new BlockingCollection<Node>();
+        using var stop = new CancellationTokenSource();
+        Exception? fault = null;
         int pending = 1;
         queue.Add(root);
         void Work()
         {
-            foreach (var n in queue.GetConsumingEnumerable())
+            try
             {
-                try
+                foreach (var n in queue.GetConsumingEnumerable(stop.Token))
                 {
-                    IReadOnlyList<TreeEntry> entries;
-                    try { entries = tree.List(n.Rel); }
-                    catch (Exception e)
+                    try
                     {
-                        Emit(new CheckRecord(n.Rel, true, null, null, Outcome.Error, $"list: {e.Message}"));
-                        Interlocked.Increment(ref summary.NotProcessed);
-                        continue;
-                    }
-                    foreach (var e in entries)
-                    {
-                        var rel = n.Rel.Length == 0 ? e.Name : n.Rel + "/" + e.Name;
-                        if (e.IsReparse) { Emit(new CheckRecord(rel, e.IsDir, null, null, Outcome.Reparse, null)); continue; }
-                        if (rules.IsExcluded(rel)) { Emit(new CheckRecord(rel, e.IsDir, null, null, Outcome.Excluded, null)); continue; }
-                        var child = Visit(rel, e.IsDir, n, Emit);
-                        if (child is not null)
+                        IReadOnlyList<TreeEntry> entries;
+                        try { entries = tree.List(n.Rel); }
+                        catch (Exception e)
                         {
-                            Interlocked.Increment(ref pending);
-                            queue.Add(child);
+                            Interlocked.Increment(ref summary.NotProcessed);
+                            Emit(new CheckRecord(n.Rel, true, null, null, Outcome.Error, $"list: {e.Message}"));
+                            continue;
+                        }
+                        foreach (var e in entries)
+                        {
+                            if (stop.IsCancellationRequested) break;
+                            var rel = n.Rel.Length == 0 ? e.Name : n.Rel + "/" + e.Name;
+                            if (e.IsReparse) { Emit(new CheckRecord(rel, e.IsDir, null, null, Outcome.Reparse, null)); continue; }
+                            if (rules.IsExcluded(rel)) { Emit(new CheckRecord(rel, e.IsDir, null, null, Outcome.Excluded, null)); continue; }
+                            var child = Visit(rel, e.IsDir, n, Emit, summary);
+                            if (child is not null)
+                            {
+                                Interlocked.Increment(ref pending);
+                                queue.Add(child);
+                            }
                         }
                     }
+                    finally
+                    {
+                        if (Interlocked.Decrement(ref pending) == 0) queue.CompleteAdding();
+                    }
                 }
-                finally
-                {
-                    if (Interlocked.Decrement(ref pending) == 0) queue.CompleteAdding();
-                }
+            }
+            catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+            catch (Exception e)
+            {
+                Interlocked.CompareExchange(ref fault, e, null);
+                stop.Cancel();
             }
         }
         var threads = Enumerable.Range(0, Math.Max(1, workers)).Select(_ => Task.Run(Work)).ToArray();
         Task.WaitAll(threads);
+        if (fault is not null) throw new CheckFaultException(fault);
         return summary;
     }
 
     // Visit checks one object and, for a directory, returns the node its children need (null when
-    // it is not a directory or its children cannot be classified).
-    Node? Visit(string rel, bool isDir, Node? parent, Action<CheckRecord> emit)
+    // it is not a directory or its children cannot be classified; a directory dropped that way
+    // counts in summary.NotProcessed, since its subtree is not walked).
+    Node? Visit(string rel, bool isDir, Node? parent, Action<CheckRecord> emit, CheckSummary summary)
     {
         var sel = rules.Select(rel, isDir);
         var rule = sel.Rule!;
-        Descriptor stored;
-        try { stored = Descriptor.Decode(tree.Read(rel)); }
-        catch (Exception e)
+        Node? Dropped(string detail)
         {
-            emit(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Error, $"read: {e.Message}"));
+            if (isDir) Interlocked.Increment(ref summary.NotProcessed);
+            emit(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Error, detail));
             return null;
         }
+        Descriptor stored;
+        try { stored = Descriptor.Decode(tree.Read(rel)); }
+        catch (Exception e) { return Dropped($"read: {e.Message}"); }
         bool storedProtected = (stored.Control & 0x1000) != 0;
         var storedAces = (stored.Dacl?.Aces ?? []).Select(Ace.FromView).ToList();
 
@@ -164,11 +188,7 @@ public sealed class Checker
                 ? storedAces.Where(a => a is { Inherited: true }).Select(a => a!.Value).ToList()
                 : Inheritance.Inherit(parent.Acl, isDir);
         }
-        catch (NotSupportedException e)
-        {
-            emit(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Error, e.Message));
-            return null;
-        }
+        catch (NotSupportedException e) { return Dropped(e.Message); }
         bool ancestorWrites = parent?.AncestorWrites ?? false;
 
         var wanted = want[rule];
@@ -178,26 +198,30 @@ public sealed class Checker
             // its stored ACEs, with the inherited part re-derived if it is unprotected (F3).
             emit(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Keep, null));
             if (!isDir) return null;
+            // An absent DACL (everyone full control) is not an empty one: there is nothing for the
+            // children to inherit from that a reset models.
+            if (stored.Dacl is null) return Dropped("its DACL is absent, so its children cannot be classified");
             if (storedAces.Any(a => a is null))
-            {
-                emit(new CheckRecord(rel, true, rule.Label, null, Outcome.Error, "its DACL holds an ACE type a reset does not model, so its children cannot be classified"));
-                return null;
-            }
+                return Dropped("its DACL holds an ACE type a reset does not model, so its children cannot be classified");
             var acl = storedAces.Select(a => a!.Value).ToList();
             if (!storedProtected) acl = acl.Where(a => !a.Inherited).Concat(inherited).ToList();
             return new Node(rel, acl, ancestorWrites);
         }
 
         var desired = Desired.Classify(wanted, inherited);
-        var diff = desired.Matches(stored.Dacl, storedProtected);
-        diff ??= OwnerGroupDiff(rule, stored);
+        var daclDiff = desired.Matches(stored.Dacl, storedProtected);
+        var diff = daclDiff ?? OwnerGroupDiff(rule, stored);
+        // An absent DACL never follows: the array has no inherited part to re-derive.
+        bool follows = stored.Dacl is not null && Follows(desired, storedAces, storedProtected);
         Outcome outcome;
         if (diff is null) outcome = Outcome.Ok;
-        else if (ancestorWrites && Follows(desired, storedAces, storedProtected) && OwnerGroupDiff(rule, stored) is null) outcome = Outcome.Follows;
+        else if (ancestorWrites && follows && OwnerGroupDiff(rule, stored) is null) outcome = Outcome.Follows;
         else
         {
             outcome = Outcome.Write;
-            if (desired.Form != Form.Protected && Follows(desired, storedAces, storedProtected))
+            // The frozen-copy note explains a DACL difference; it says nothing about an owner or
+            // group difference on a DACL that matched.
+            if (daclDiff is not null && desired.Form != Form.Protected && follows)
                 diff += "; its inherited part does not follow its parent (a frozen copy)";
         }
         emit(new CheckRecord(rel, isDir, rule.Label, desired.Form, outcome, diff));
@@ -225,3 +249,8 @@ public sealed class Checker
         return null;
     }
 }
+
+// CheckFaultException is what Checker.Run throws when something escapes the walk itself (the emit
+// callback threw, or a bug): the run was stopped and its records are incomplete.
+public sealed class CheckFaultException(Exception inner)
+    : Exception($"check stopped: {inner.Message}", inner);

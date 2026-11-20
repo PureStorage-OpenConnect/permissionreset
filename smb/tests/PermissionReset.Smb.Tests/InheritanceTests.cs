@@ -137,7 +137,22 @@ public class InheritanceTests
         Assert.Contains("want unprotected", d.Matches(View(Allow(ID)), storedProtected: true));
         Assert.Contains("ACE 0", d.Matches(View(Allow(0)), storedProtected: false));          // explicit, not ID
         Assert.Contains("2 ACE(s)", d.Matches(View(Allow(ID), Allow(ID)), storedProtected: false));
-        Assert.Contains("0 ACE(s)", d.Matches(null, storedProtected: false));
+        Assert.Contains("no DACL", d.Matches(null, storedProtected: false));
+    }
+
+    // No DACL (everyone has full control) is not an empty DACL (nobody has access): a desired empty
+    // protected ACL must not match a stored descriptor with no DACL, nor may anything else.
+    [Fact]
+    public void AnAbsentStoredDaclNeverMatches()
+    {
+        var empty = new Desired(Form.Protected, [], true);
+        Assert.Null(empty.Matches(View(), storedProtected: true));
+        Assert.Equal("stored descriptor has no DACL (everyone has full control)", empty.Matches(null, storedProtected: true));
+        Assert.Contains("no DACL", empty.Matches(null, storedProtected: false));
+
+        var some = new Desired(Form.Protected, [Allow(0)], true);
+        Assert.Contains("no DACL", some.Matches(null, storedProtected: true));
+        Assert.Contains("no DACL", some.Matches(null, storedProtected: false));
     }
 
     [Fact]

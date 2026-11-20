@@ -103,11 +103,14 @@ public sealed record Desired(Form Form, IReadOnlyList<Ace> Aces, bool Protected)
     // Matches compares a stored ACL with this desired one, raw: ACE count, order, type, flags
     // (ID included), mask and SID, and the protected bit (3.2). It returns null when they match,
     // else the first difference. A stored ACE this code does not model is always a difference.
+    // A null stored ACL (no DACL: everyone has full control) is always a difference, never an
+    // empty ACL (which denies everyone): a reset always writes a DACL.
     public string? Matches(AclView? stored, bool storedProtected)
     {
+        if (stored is null) return "stored descriptor has no DACL (everyone has full control)";
         if (storedProtected != Protected)
             return storedProtected ? "stored ACL is protected, want unprotected" : "stored ACL is unprotected, want protected";
-        var s = stored?.Aces ?? [];
+        var s = stored.Aces;
         if (s.Count != Aces.Count) return $"stored ACL has {s.Count} ACE(s), want {Aces.Count}";
         for (int i = 0; i < s.Count; i++)
         {

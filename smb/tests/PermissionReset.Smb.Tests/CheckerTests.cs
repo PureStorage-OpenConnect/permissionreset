@@ -10,7 +10,8 @@ public class CheckerTests
 
     // ---- fixture: an in-memory tree ------------------------------------------------------------
 
-    internal sealed record Obj(bool IsDir, Ace[] Dacl, bool Protected, string Owner = Admins, bool Reparse = false);
+    // A null Dacl is an absent DACL (SE_DACL_PRESENT clear: everyone full control), not an empty one.
+    internal sealed record Obj(bool IsDir, Ace[]? Dacl, bool Protected, string Owner = Admins, bool Reparse = false);
 
     internal sealed class FakeTree(Dictionary<string, Obj> objs) : ITree
     {
@@ -29,8 +30,8 @@ public class CheckerTests
         {
             if (ReadFails.Contains(rel)) throw new IOException("Access is denied.");
             var o = objs[rel];
-            var dacl = DescriptorTests.Acl(o.Dacl.Select(a => DescriptorTests.Ace((byte)a.Type, a.Flags, a.Mask, Sid(a.Sid))).ToArray());
-            ushort control = (ushort)(SelfRelative | DaclPresent | (o.Protected ? DaclProtected : 0));
+            var dacl = o.Dacl is null ? null : DescriptorTests.Acl(o.Dacl.Select(a => DescriptorTests.Ace((byte)a.Type, a.Flags, a.Mask, Sid(a.Sid))).ToArray());
+            ushort control = (ushort)(SelfRelative | (dacl is null ? 0 : DaclPresent) | (o.Protected ? DaclProtected : 0));
             return DescriptorTests.Sd(control, Sid(o.Owner), Sid(Admins), null, dacl);
         }
     }
@@ -61,10 +62,10 @@ public class CheckerTests
 
     internal static readonly Plan Usual = MakePlan(Rule("rule[0]", "directory", "", DirWant), Rule("rule[1]", "file", "", FileWant));
 
-    static (List<CheckRecord> Records, CheckSummary Summary) Run(Plan plan, FakeTree tree, int workers = 1)
+    static (List<CheckRecord> Records, CheckSummary Summary) Run(Plan plan, FakeTree tree, int workers = 1, string rootName = "root")
     {
         var recs = new List<CheckRecord>();
-        var s = new Checker(plan, tree, _ => null).Run(recs.Add, workers);
+        var s = new Checker(plan, tree, rootName, _ => null).Run(recs.Add, workers);
         return (recs.OrderBy(r => r.Path, StringComparer.Ordinal).ToList(), s);
     }
 
@@ -216,10 +217,149 @@ public class CheckerTests
             ["f.txt"] = new(false, FileInherited, false, Owner: Users),
         });
         var recs = new List<CheckRecord>();
-        new Checker(plan, tree, n => n == "owner@example.net" ? Admins : null).Run(recs.Add);
+        new Checker(plan, tree, "root", n => n == "owner@example.net" ? Admins : null).Run(recs.Add);
         var r = At(recs, "f.txt");
         Assert.Equal(Outcome.Write, r.Outcome);
         Assert.Contains("owner is", r.Detail);
+        // Its DACL matched; the frozen-copy note explains a DACL difference, so it is not here.
+        Assert.DoesNotContain("frozen copy", r.Detail);
+    }
+
+    // ---- the root's name (Go MatchRule: filepath.Base of the root; Set-SaclOnly: BaseName) ------
+
+    [Fact]
+    public void ARuleNamingTheRootAppliesToTheRoot()
+    {
+        var plan = MakePlan(Rule("rule[0]", "directory", "dept", DirWant), Rule("rule[1]", "directory", "", [A(OI | CI, Other)]),
+            Rule("rule[2]", "file", "", FileWant));
+        var tree = new FakeTree(new() { [""] = new(true, DirWant, true) });
+        var r = At(Run(plan, tree, rootName: "dept").Records, "");
+        Assert.Equal("rule[0]", r.Rule);
+        Assert.Equal(Outcome.Ok, r.Outcome);
+        // Under another name the same root falls through to rule[1].
+        Assert.Equal("rule[1]", At(Run(plan, tree, rootName: "other").Records, "").Rule);
+    }
+
+    [Fact]
+    public void AFileRuleNamingTheRootDoesNotApplyToIt()
+    {
+        var plan = MakePlan(Rule("rule[0]", "file", "dept", [A(0, Other)]), Rule("rule[1]", "directory", "", DirWant));
+        var tree = new FakeTree(new() { [""] = new(true, DirWant, true) });
+        var r = At(Run(plan, tree, rootName: "dept").Records, "");
+        Assert.Equal("rule[1]", r.Rule);
+        Assert.Equal(Outcome.Ok, r.Outcome);
+    }
+
+    [Fact]
+    public void TheRootIsNeverExcludedEvenWhenItsNameIs()
+    {
+        // MakePlan excludes "skip" by base name; the root keeps being checked under that name.
+        var tree = new FakeTree(new() { [""] = new(true, DirWant, true), ["f.txt"] = new(false, FileInherited, false) });
+        var (recs, _) = Run(Usual, tree, rootName: "skip");
+        Assert.Equal(Outcome.Ok, At(recs, "").Outcome);
+        Assert.Equal(Outcome.Ok, At(recs, "f.txt").Outcome);
+    }
+
+    // ---- incomplete walks ---------------------------------------------------------------------
+
+    [Fact]
+    public void ADirectoryWhoseReadFailsMakesTheCheckIncomplete()
+    {
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["locked"] = new(true, DirInherited, false),
+            ["locked/f"] = new(false, FileInherited, false),
+            ["bad.txt"] = new(false, FileInherited, false),
+        });
+        tree.ReadFails.Add("locked");
+        tree.ReadFails.Add("bad.txt");
+        var (recs, s) = Run(Usual, tree);
+        Assert.Contains("read:", At(recs, "locked").Detail);
+        Assert.DoesNotContain(recs, r => r.Path == "locked/f");     // its subtree was dropped
+        Assert.Equal(1, s.NotProcessed);                            // the file's failure is not a dropped subtree
+    }
+
+    [Fact]
+    public void AnUnreadableRootMakesTheCheckIncomplete()
+    {
+        var tree = new FakeTree(new() { [""] = new(true, DirWant, true) });
+        tree.ReadFails.Add("");
+        var (recs, s) = Run(Usual, tree);
+        Assert.Equal(Outcome.Error, Assert.Single(recs).Outcome);
+        Assert.Equal(1, s.NotProcessed);
+    }
+
+    // ---- an absent DACL (SE_DACL_PRESENT clear) -----------------------------------------------
+
+    [Fact]
+    public void AnAbsentDaclNeverFollows()
+    {
+        // The root is written, so its children would follow if their DACL had the re-derivable
+        // shape. An absent DACL has no inherited part to re-derive: it is a write of its own.
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, [A(OI | CI, Other)], true),
+            ["f.txt"] = new(false, null, false),
+        });
+        var (recs, _) = Run(Usual, tree);
+        Assert.Equal(Outcome.Write, At(recs, "").Outcome);
+        var f = At(recs, "f.txt");
+        Assert.Equal(Outcome.Write, f.Outcome);
+        Assert.DoesNotContain("frozen copy", f.Detail);
+    }
+
+    [Fact]
+    public void AKeepDirectoryWithAnAbsentDaclDropsItsSubtree()
+    {
+        var plan = MakePlan(Rule("rule[0]", "directory", "keep*", null), Rule("rule[1]", "directory", "", DirWant),
+            Rule("rule[2]", "file", "", FileWant));
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["keepme"] = new(true, null, false),
+            ["keepme/f.txt"] = new(false, FileInherited, false),
+        });
+        var (recs, s) = Run(plan, tree);
+        Assert.Contains(recs, r => r.Path == "keepme" && r.Outcome == Outcome.Keep);
+        Assert.Contains(recs, r => r.Path == "keepme" && r.Outcome == Outcome.Error && r.Detail!.Contains("DACL is absent"));
+        Assert.DoesNotContain(recs, r => r.Path == "keepme/f.txt");
+        Assert.Equal(1, s.NotProcessed);
+    }
+
+    // ---- a fault in the walk itself -----------------------------------------------------------
+
+    [Fact]
+    public async Task AWorkerFaultStopsTheRunAndIsRaised()
+    {
+        var objs = new Dictionary<string, Obj> { [""] = new(true, DirWant, true) };
+        for (int d = 0; d < 20; d++)
+        {
+            objs[$"d{d}"] = new(true, DirInherited, false);
+            for (int f = 0; f < 10; f++) objs[$"d{d}/f{f}"] = new(false, FileInherited, false);
+        }
+        int emitted = 0;
+        var checker = new Checker(Usual, new FakeTree(objs), "root", _ => null);
+        var run = Task.Run(() => checker.Run(r =>
+        {
+            emitted++;
+            if (r.Path == "d3") throw new InvalidOperationException("boom");
+        }, workers: 4));
+        // A regression that hangs fails here instead of hanging the suite.
+        var done = await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(30)));
+        Assert.Same(run, done);
+        var e = await Assert.ThrowsAsync<CheckFaultException>(() => run);
+        Assert.Contains("boom", e.Message);
+        Assert.IsType<InvalidOperationException>(e.InnerException);
+        Assert.True(emitted < objs.Count, $"the walk went on after the fault ({emitted} of {objs.Count} emitted)");
+    }
+
+    [Fact]
+    public void AFaultOnTheRootIsRaised()
+    {
+        var tree = new FakeTree(new() { [""] = new(true, DirWant, true) });
+        var e = Assert.Throws<CheckFaultException>(() => new Checker(Usual, tree, "root", _ => null).Run(_ => throw new InvalidOperationException("boom")));
+        Assert.Contains("boom", e.Message);
     }
 
     [Fact]
@@ -228,9 +368,9 @@ public class CheckerTests
         var named = new PlanRule("default", new PlanMatch("", ""), false, false, true, false, false, "", "", [],
             [PA(A(0, ""), "nobody-here@example.net")]);
         var plan = new Plan(Plan.SmbSchema, "t", "nfsv4", new PlanExclude([], [], []), named, []);
-        var e = Assert.Throws<PlanException>(() => new Checker(plan, new FakeTree([]), _ => null));
+        var e = Assert.Throws<PlanException>(() => new Checker(plan, new FakeTree([]), "root", _ => null));
         Assert.Contains("nobody-here@example.net", e.Message);
-        Assert.Throws<PlanException>(() => new Checker(plan with { Schema = Plan.SaclSchema }, new FakeTree([]), _ => "S-1-1-0"));
+        Assert.Throws<PlanException>(() => new Checker(plan with { Schema = Plan.SaclSchema }, new FakeTree([]), "root", _ => "S-1-1-0"));
     }
 
     [Fact]
