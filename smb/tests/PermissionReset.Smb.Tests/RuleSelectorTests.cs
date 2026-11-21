@@ -25,8 +25,35 @@ public class RuleSelectorTests
     [InlineData("other", false, false, -1)]                 // default
     public void SelectsAsPermissionResetDoes(string rel, bool isDir, bool excluded, int index)
     {
-        var s = new RuleSelector(P).Select(rel, isDir);
+        var s = new RuleSelector(P, "root").Select(rel, isDir);
         Assert.Equal(excluded, s.Excluded);
         if (!excluded) Assert.Equal(index, s.Index);
     }
+
+    // The root is matched by its own name, as Go's MatchRule (filepath.Base of the root path) and
+    // Set-SaclOnly's ActionFor (BaseName of the root) do, and is still never excluded.
+    [Theory]
+    [InlineData("audit7", true, 0)]                         // a directory rule naming the root
+    [InlineData("app.log", true, -1)]                       // a file rule never selects the root
+    [InlineData(".snapshot", true, -1)]                     // an excluded name does not exclude the root
+    [InlineData("other", true, -1)]
+    public void SelectsTheRootByItsName(string rootName, bool isDir, int index)
+    {
+        var s = new RuleSelector(P, rootName).Select("", isDir);
+        Assert.False(s.Excluded);
+        Assert.Equal(index, s.Index);
+    }
+
+    [Theory]
+    [InlineData(@"\\array\share\dept", "dept")]
+    [InlineData(@"\\array\share\dept\", "dept")]
+    [InlineData(@"\\array\share", "share")]                 // a bare share root: Set-SaclOnly's BaseName
+    [InlineData(@"\\?\UNC\array\share\dept", "dept")]
+    [InlineData(@"D:\data\dept", "dept")]
+    [InlineData(@"C:\", "C:")]                               // a drive root: Set-SaclOnly's BaseName
+    [InlineData("/mnt/share/dept/", "dept")]
+    [InlineData("dept", "dept")]
+    [InlineData(@"\\", "")]
+    public void RootNameIsTheLastComponent(string root, string name) =>
+        Assert.Equal(name, RuleSelector.RootName(root));
 }

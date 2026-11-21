@@ -101,8 +101,9 @@ public sealed class Checker
 
     // resolve maps a principal the plan names without a SID (name@domain, DOMAIN\name) to its SID,
     // or null when it does not resolve. Every principal is resolved here, before any read, and an
-    // unresolved one refuses the whole walk.
-    public Checker(Plan plan, ITree tree, Func<string, string?> resolve, WalkOptions? options = null)
+    // unresolved one refuses the whole walk. rootName is the root's own base name
+    // (RuleSelector.RootName of the ROOT argument), which the rules match the root by.
+    public Checker(Plan plan, ITree tree, string rootName, Func<string, string?> resolve, WalkOptions? options = null)
     {
         if (plan.Schema != Plan.SmbSchema)
             throw new PlanException($"check needs a schema {Plan.SmbSchema} plan (build-spec --smb-plan); this one is schema {plan.Schema}");
@@ -111,7 +112,7 @@ public sealed class Checker
             throw new ArgumentException("apply needs a writable tree", nameof(tree));
         this.plan = plan;
         this.tree = tree;
-        rules = new RuleSelector(plan);
+        rules = new RuleSelector(plan, rootName);
         var unresolved = new SortedSet<string>(StringComparer.Ordinal);
         var resolved = new SortedDictionary<string, string>(StringComparer.Ordinal);
         string? Sid(string principal, string planSid)
@@ -311,6 +312,10 @@ public sealed class Checker
             emit(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Keep, null));
             done?.Invoke(true);
             if (!isDir) return null;
+            // An absent DACL (everyone full control) is not an empty one: there is nothing for the
+            // children to inherit from that a reset models.
+            if (stored.Dacl is null)
+                return Fail(new CheckRecord(rel, true, rule.Label, null, Outcome.Error, "its DACL is absent, so its children cannot be classified"));
             if (storedAces.Any(a => a is null))
                 return Fail(new CheckRecord(rel, true, rule.Label, null, Outcome.Error, "its DACL holds an ACE type a reset does not model, so its children cannot be classified"));
             var acl = storedAces.Select(a => a!.Value).ToList();
@@ -322,7 +327,8 @@ public sealed class Checker
         var daclDiff = desired.Matches(stored.Dacl, storedProtected);
         var ogDiff = OwnerGroupDiff(rule, stored);
         var diff = daclDiff ?? ogDiff;
-        bool follows = Follows(desired, storedAces, storedProtected);
+        // An absent DACL never follows: the array has no inherited part to re-derive.
+        bool follows = stored.Dacl is not null && Follows(desired, storedAces, storedProtected);
         Outcome outcome;
         string? parts = null, before = null, after = null;
         if (diff is null) outcome = Outcome.Ok;
@@ -332,6 +338,8 @@ public sealed class Checker
             else
             {
                 outcome = Outcome.Write;
+                // The frozen-copy note explains a DACL difference; it says nothing about an owner or
+                // group difference on a DACL that matched.
                 if (daclDiff is not null && desired.Form != Form.Protected && follows)
                     diff += "; its inherited part does not follow its parent (a frozen copy)";
             }

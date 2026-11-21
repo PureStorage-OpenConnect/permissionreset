@@ -85,6 +85,70 @@ public sealed class CheckCliTests : IDisposable
     }
 
     [Fact]
+    public void AnUnreadableDirectoryMakesTheCheckIncomplete()
+    {
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["a"] = new(true, DirInherited, false),
+            ["a/f.txt"] = new(false, FileInherited, false),
+        });
+        tree.ReadFails.Add("a");
+        var (code, o, e) = Run(tree, null, "check", PlanFile(Usual), "R");
+        Assert.Equal(1, code);
+        Assert.DoesNotContain("f.txt", o);
+        Assert.Contains("1 director(ies) could not be read, listed or classified", e);
+        Assert.Contains("the check is incomplete", e);
+    }
+
+    [Fact]
+    public void PathsUseTheRootsSeparators()
+    {
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["a"] = new(true, DirInherited, false),
+            ["a/f.txt"] = new(false, FileInherited, false),
+        });
+        var plan = PlanFile(Usual);
+        string[] Paths(string root) => Run(tree, null, "check", plan, root).Out.Trim().Split('\n')
+            .Select(l => JsonDocument.Parse(l).RootElement.GetProperty("path").GetString()!).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal([@"\\array\share\dept", @"\\array\share\dept\a", @"\\array\share\dept\a\f.txt"], Paths(@"\\array\share\dept"));
+        Assert.Equal([@"C:\", @"C:\a", @"C:\a\f.txt"], Paths(@"C:\"));
+        Assert.Equal(["/mnt/x", "/mnt/x/a", "/mnt/x/a/f.txt"], Paths("/mnt/x"));
+    }
+
+    [Fact]
+    public void ARuleNamingTheRootAppliesToIt()
+    {
+        // Usual plus a directory rule named for the root that wants something else: it must be the
+        // root's rule, so the (otherwise right) root is a write.
+        var plan = Usual with { Rules = [new PlanRule("rule[0]", new PlanMatch("directory", "dept"), false, false, true, false, false, "", "", [],
+            [new PlanAce("line", 0, 0, AceTypes.Allow, AceFlags.ObjectInherit | AceFlags.ContainerInherit, 0x1200a9, "", false, "S-1-5-21-9-9-9-9", "")]), .. Usual.Rules] };
+        var (_, o, _) = Run(RightTree(), null, "check", PlanFile(plan), @"\\array\share\dept\");
+        using var root = JsonDocument.Parse(o.Trim().Split('\n').First(l => l.Contains("\"rule\":\"rule[0]\"")));
+        Assert.Equal(@"\\array\share\dept\", root.RootElement.GetProperty("path").GetString());
+        Assert.Equal("write", root.RootElement.GetProperty("outcome").GetString());
+    }
+
+    sealed class FailingWriter : StringWriter
+    {
+        public override void WriteLine(string? value) => throw new IOException("the pipe is broken");
+    }
+
+    [Fact]
+    public void AFaultWhileEmittingStopsWithExitOne()
+    {
+        var deps = new CheckDeps(_ => { }, _ => RightTree(), _ => null);
+        var e = new StringWriter();
+        int code = Cli.Run(["check", "--workers", "4", PlanFile(Usual), "R"], new FailingWriter(), e, check: deps);
+        Assert.Equal(1, code);
+        Assert.Contains("check: stopped: ", e.ToString());
+        Assert.Contains("the pipe is broken", e.ToString());
+        Assert.Contains("the check is incomplete", e.ToString());
+    }
+
+    [Fact]
     public void MissingBackupPrivilegeReadsNothing()
     {
         var (code, o, e) = Run(RightTree(), "SeBackupPrivilege", "check", PlanFile(Usual), "R");
@@ -100,6 +164,23 @@ public sealed class CheckCliTests : IDisposable
         Assert.Equal(1, code);
         Assert.Empty(o);
         Assert.Contains("schema 2", e);
+    }
+
+    // A plan file that can't be read is a message and exit 1, from check (before any privilege or
+    // tree use) and from plan alike, never an unhandled exception.
+    [Theory]
+    [InlineData("check")]
+    [InlineData("plan")]
+    public void AnUnreadablePlanExitsOneWithAMessage(string cmd)
+    {
+        var missing = Path.Combine(Path.GetTempPath(), $"smbplan-missing-{Guid.NewGuid():N}.json");
+        string[] args = cmd == "check" ? ["check", missing, "R"] : ["plan", missing];
+        var (code, o, e) = Run(RightTree(), "SeBackupPrivilege", args);
+        Assert.Equal(1, code);
+        Assert.Empty(o);
+        Assert.Contains($"cannot read plan {missing}", e);
+        Assert.DoesNotContain("SeBackupPrivilege", e);
+        Assert.DoesNotContain("--help", e);
     }
 
     [Theory]

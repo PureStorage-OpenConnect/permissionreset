@@ -13,14 +13,14 @@ public class ApplyTests
     static (List<CheckRecord> Records, CheckSummary Summary) Apply(Plan plan, FakeTree tree, int workers = 1, ICheckpoint? cp = null, bool rootProtected = false)
     {
         var recs = new List<CheckRecord>();
-        var s = new Checker(plan, tree, _ => null, new WalkOptions(Apply: true, RootProtected: rootProtected)).Run(recs.Add, workers, cp);
+        var s = new Checker(plan, tree, "root", _ => null, new WalkOptions(Apply: true, RootProtected: rootProtected)).Run(recs.Add, workers, cp);
         return (recs.OrderBy(r => r.Path, StringComparer.Ordinal).ToList(), s);
     }
 
     static List<CheckRecord> Check(Plan plan, FakeTree tree)
     {
         var recs = new List<CheckRecord>();
-        new Checker(plan, tree, _ => null).Run(recs.Add);
+        new Checker(plan, tree, "root", _ => null).Run(recs.Add);
         return recs;
     }
 
@@ -37,6 +37,25 @@ public class ApplyTests
     });
 
     // ---- converging -------------------------------------------------------------------------------
+
+    [Fact]
+    public void AnAbsentDaclIsWrittenNotTakenForAFrozenCopy()
+    {
+        // An absent DACL (everyone full control) is never right and never follows, so apply writes
+        // it in the desired form rather than stopping on G1; its child then follows.
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["a"] = new(true, null, false),
+            ["a/f.txt"] = new(false, FileInherited, false),
+        });
+        var (recs, s) = Apply(Usual, tree);
+        Assert.Null(s.Stop);
+        Assert.True(s.Complete);
+        Assert.Equal(Outcome.Written, At(recs, "a").Outcome);
+        Assert.NotNull(tree.Objs["a"].Dacl);
+        Assert.All(Check(Usual, tree), r => Assert.Equal(Outcome.Ok, r.Outcome));
+    }
 
     [Fact]
     public void AnNfsFlattenedTreeBecomesDynamicAndARerunWritesNothing()
@@ -127,7 +146,7 @@ public class ApplyTests
             ["f.txt"] = new(false, FileInherited, false, Owner: Users),
         });
         var recs = new List<CheckRecord>();
-        var checker = new Checker(plan, tree, n => n == "owner@example.net" ? Admins : null, new WalkOptions(Apply: true));
+        var checker = new Checker(plan, tree, "root", n => n == "owner@example.net" ? Admins : null, new WalkOptions(Apply: true));
         Assert.True(checker.SetsOwnerOrGroup);
         Assert.Equal(Admins, checker.Principals["owner@example.net"]);
         Assert.True(checker.Run(recs.Add).Complete);
@@ -344,7 +363,7 @@ public class ApplyTests
     {
         var tree = Flattened();
         int n = 0;
-        var s = new Checker(Usual, tree, _ => null, new WalkOptions(Apply: true)).Run(r =>
+        var s = new Checker(Usual, tree, "root", _ => null, new WalkOptions(Apply: true)).Run(r =>
         {
             if (++n == 2) throw new IOException("There is not enough space on the disk.");
         }, workers: 4);
@@ -524,7 +543,7 @@ public class ApplyTests
         var t = ProbeTree();
         t.AfterWrite = rel =>
         {
-            if (rel == "p/d") t.Objs[rel] = t.Objs[rel] with { Dacl = [.. t.Objs[rel].Dacl.Reverse()] };
+            if (rel == "p/d") t.Objs[rel] = t.Objs[rel] with { Dacl = [.. t.Objs[rel].Dacl!.Reverse()] };
         };
         var r = Preflight.Run(t, "", DirWant, name: "p");
         Assert.False(r.Passed);

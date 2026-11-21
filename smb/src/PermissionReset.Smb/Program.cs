@@ -116,7 +116,11 @@ static class Cli
         {
             InspectLine line;
             try { line = new InspectLine(p, Descriptor.Decode(reader.Read(p, withSacl)), withSacl, null, null); }
-            catch (Exception e) when (e is Win32Exception or DescriptorFormatException)
+            // A path the reader can't name (Path.GetFullPath or the long-path prefix rejects it:
+            // illegal characters, unsupported form, too long) is that path's failure, not the run's.
+            // Anything else is a bug and still escapes.
+            catch (Exception e) when (e is Win32Exception or DescriptorFormatException or ArgumentException
+                                          or NotSupportedException or IOException)
             {
                 failed++;
                 // No descriptor came back, so nothing was read: sacl_read is left out.
@@ -158,13 +162,14 @@ static class Cli
         var plan = Plan.Load(pos[0]);
         try { deps.EnablePrivilege("SeBackupPrivilege"); }
         catch (Win32Exception e) { return Fail(stderr, $"check: {e.Message} (Win32 error {e.NativeErrorCode})", 1); }
-        var checker = new Checker(plan, deps.Tree(pos[1]), deps.Resolve, new WalkOptions(RootProtected: rootProtected));
+        var root = pos[1];
+        var checker = new Checker(plan, deps.Tree(root), RuleSelector.RootName(root), deps.Resolve, new WalkOptions(RootProtected: rootProtected));
 
-        var summary = checker.Run(r => stdout.WriteLine(JsonSerializer.Serialize(r with { Path = FullPath(pos[1], r.Path) }, Json)), workers);
+        var summary = checker.Run(r => stdout.WriteLine(JsonSerializer.Serialize(r with { Path = FullPath(root, r.Path) }, Json)), workers);
 
         PrintSummary(stderr, "check", summary);
-        if (summary.Stop is not null) stderr.WriteLine($"check: stopped: {summary.Stop}");
-        if (summary.NotProcessed > 0) stderr.WriteLine($"check: {summary.NotProcessed} director(ies) could not be listed; the check is incomplete");
+        if (summary.Stop is not null) stderr.WriteLine($"check: stopped: {summary.Stop}; the check is incomplete");
+        if (summary.NotProcessed > 0) stderr.WriteLine($"check: {summary.NotProcessed} director(ies) could not be read, listed or classified, so what is below them was not checked; the check is incomplete");
         stderr.WriteLine(validate ? "check: validate; nothing was written" : "check: dry run; nothing was written");
 
         bool failed = summary.Count(Outcome.Error) > 0 || summary.NotProcessed > 0 || summary.Stop is not null;
@@ -172,7 +177,15 @@ static class Cli
         return failed || (validate && differs) ? 1 : 0;
     }
 
-    static string FullPath(string root, string rel) => rel.Length == 0 ? root : Path.Join(root, rel);
+    // FullPath names an object in the root's own separator style, so \\array\share\dept gives
+    // \\array\share\dept\a\f.txt, not \\array\share\dept\a/f.txt.
+    static string FullPath(string root, string rel)
+    {
+        if (rel.Length == 0) return root;
+        char sep = root.Contains('\\') ? '\\' : root.Contains('/') ? '/' : Path.DirectorySeparatorChar;
+        var r = sep == '/' ? rel : rel.Replace('/', sep);
+        return root.EndsWith('\\') || root.EndsWith('/') ? root + r : root + sep + r;
+    }
 
     static IReadOnlyDictionary<string, long> OutcomeCounts(CheckSummary s) =>
         Enum.GetValues<Outcome>().ToDictionary(o => o.ToString().ToLowerInvariant(), s.Count);
@@ -234,7 +247,7 @@ static class Cli
             return Fail(stderr, $"apply: rule(s) {string.Join(", ", withSacl)} set sacl:, and this build writes no SACL (phase 3); use Set-SaclOnly for audit ACEs, and a plan without sacl: here", 1);
 
         var tree = deps.Tree(root);
-        var checker = new Checker(plan, tree, deps.Resolve, new WalkOptions(Apply: true, RootProtected: rootProtected));
+        var checker = new Checker(plan, tree, RuleSelector.RootName(root), deps.Resolve, new WalkOptions(Apply: true, RootProtected: rootProtected));
         var privileges = new List<string> { "SeBackupPrivilege", "SeSecurityPrivilege" };
         try
         {

@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-15 |
-| Status | **Draft for review.** The three-form model (section 2.1) was chosen by the maintainer on 2026-11-15, over writing every object explicit and protected. Phase 1 (section 8) is built: plan schema 2 (`build-spec --smb-plan`), `Inheritance`, `Desired` and `check`, and was qualified read-only at `700630b` on FlashArray (2026-11-16, `benchmarks/qual-smb-check-700630b-20261116/`). The same run answered Q-INH (matches), Q-EXP (no) and Q-PROT (yes) (section 7). Phase 2 (DACL apply) is built (2026-11-19, section 10) and qualified on FlashArray at `e834ac8` (2026-11-19, `benchmarks/qual-smb-apply-e834ac8-20261119/`). No release is qualified. |
+| Status | **Draft for review.** The three-form model (section 2.1) was chosen by the maintainer on 2026-11-15, over writing every object explicit and protected. Phase 1 (section 8) is built: plan schema 2 (`build-spec --smb-plan`), `Inheritance`, `Desired` and `check`, and was qualified read-only at `700630b` on FlashArray (2026-11-16, `benchmarks/qual-smb-check-700630b-20261116/`). The same run answered Q-INH (matches), Q-EXP (no) and Q-PROT (yes) (section 7). Phase 2 (DACL apply) is built (2026-11-19, section 10) and qualified on FlashArray at `e834ac8` (2026-11-19, `benchmarks/qual-smb-apply-e834ac8-20261119/`). Merging `main`'s review fixes (#74: the root matched by its own name, absent DACLs, separator-style paths) changed the walk after that run, so a release candidate needs its own hardware run. No release is qualified. |
 | Builds on | `docs/decision-flasharray-smb-20261107.md` (sections 4–8), and the read-only scaffold in this directory |
 
 This is how `permissionreset-smb` will reset DACLs and SACLs on FlashArray over SMB. It takes the

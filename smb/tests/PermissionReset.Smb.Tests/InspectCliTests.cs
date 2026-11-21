@@ -127,6 +127,31 @@ public class InspectCliTests
     }
 
     [Fact]
+    public void UnnameablePathGetsItsOwnRecordAndTheRunGoesOn()
+    {
+        var r = new FakeReader();
+        r.Fails["bad\0path"] = new ArgumentException("Null character in path.");
+        var (code, stdout, _) = Run(r, "inspect", "a", "bad\0path", "b");
+
+        Assert.Equal(1, code);
+        var recs = Records(stdout);
+        Assert.Equal(3, recs.Count);
+        Assert.Equal("Null character in path.", recs[1].GetProperty("error").GetString());
+        Assert.False(recs[1].TryGetProperty("win32_error", out _));
+        Assert.False(recs[1].TryGetProperty("descriptor", out _));
+        Assert.True(recs[0].TryGetProperty("descriptor", out _));
+        Assert.True(recs[2].TryGetProperty("descriptor", out _));
+    }
+
+    [Fact]
+    public void ABugInTheReaderStillEscapes()
+    {
+        var r = new FakeReader();
+        r.Fails["a"] = new NullReferenceException();
+        Assert.Throws<NullReferenceException>(() => Run(r, "inspect", "a"));
+    }
+
+    [Fact]
     public void NoSaclRecordSaysSaclWasNotRead()
     {
         var r = new FakeReader();
