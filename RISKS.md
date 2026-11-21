@@ -139,6 +139,13 @@ such a principal at the write (EINVAL), so the objects naming it fail instead.
   owner/group/DACL unchanged on every object (45,409 on t40k), raw before/after.
 - **No SMB-side verification in the tool.** permissionreset reads only the NFS view, which hides this
   damage.
+- **`--restore-from` has the same flattening, accepted as a known limit.** A restore writes the
+  reference's NFS ACL bytes, which carry no inherited flag, so on FlashBlade an object it writes
+  reads back over SMB with `INHERITED_ACE` cleared (1 of 664 objects in the `cebd265` check,
+  `benchmarks/restore-fb-20261117/`; lab evidence in the private lab repository, PR #150). Masks
+  and ACE order match the baseline. Neither the restore nor `--validate` can detect it, `--apply`
+  prints a NOTE, and nothing is refused. Not a blocker (maintainer decision, 2026-11-21); see
+  [docs/limitations.md](docs/limitations.md).
 
 ### 12. FlashBlade rewrites ids ≥ 1,000,000,000 on any NFS ACL write — GUARDED (refused unless `--allow-high-ids`)
 FlashBlade renders a SID with no RFC 2307 id as `1000000000 + RID`, and on an NFS ACL write it decodes

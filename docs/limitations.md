@@ -17,6 +17,16 @@ Operator-facing limitations for field deployment are in [field-preview/known-lim
 - `generate-tree --transport=userspace` does not validate principals. The kernel path probes every principal in the roster before fanning out — it stamps a throwaway local file with each one and refuses to start if any fails to resolve (`treegen.ValidatePrincipals`). The userspace path skips this entirely: the probe writes a local file, which a mount-free run cannot do, and there is no over-the-wire equivalent yet. A typo in `--principals` is therefore found at fan-out time rather than at startup, after the tree has begun to appear. Verify the roster against the array before a large userspace generation run.
 - A mount-free `generate-tree` derives its safety ACE principal from the local account name (`--safety-principal` overrides). On a machine not bound to the NFSv4 domain that name is one the array cannot resolve, and because principals are not validated on this path (above) it is not caught at startup.
 - `generate-tree --acls-only` and `--no-acls` are refused with `--transport=userspace`. Both reach only the kernel code paths whatever the transport says — a local `setxattr` of `system.nfs4_acl`, and a fan-out that copies through a mount — so on a host that has to use the userspace transport they would build the tree in the wrong place or die at the first xattr. `cmdflags.Gate` cannot express this: each flag is portable on its own, and it is the combination with a transport that is not. Re-stamping an existing tree over the userspace transport has no implementation yet.
+- `--restore-from` cannot restore an ACE's SMB INHERITED flag. Over NFS the ACL bytes carry no
+  inherited flag, so on FlashBlade a restored object's ACEs read back over SMB as explicit: the masks
+  and order match the baseline, but `INHERITED_ACE` (`0x10`) is cleared. In the lab check on
+  `cebd265` this was 1 of 664 objects, the only written object that had an inherited ACE at baseline
+  (`benchmarks/restore-fb-20261117/`, the SMB view; lab evidence in the private lab repository,
+  PR #150). Neither the restore nor `--validate` can see it, since both read only the NFS view.
+  Effective access is the baseline's, but the object no longer follows later changes to its parent's
+  inheritable ACEs. `--apply` prints a NOTE about it and refuses nothing. The maintainer accepted it
+  as a known limit, not a release blocker. For SMB-written data that must keep its inheritance, use
+  an SMB-side tool (`permissionreset-smb` on FlashArray), not `--restore-from`.
 
 ## Identity forms in ACE principals
 
