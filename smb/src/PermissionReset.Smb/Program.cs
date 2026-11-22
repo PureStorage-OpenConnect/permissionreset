@@ -243,7 +243,7 @@ static class Cli
             deps = CheckDeps.Windows();
         }
         string planPath = pos[0], root = pos[1];
-        var planBytes = File.ReadAllBytes(planPath);
+        var planBytes = Plan.ReadBytes(planPath);
         var planSha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(planBytes)).ToLowerInvariant();
         var plan = Plan.Parse(planBytes);
 

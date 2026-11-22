@@ -213,10 +213,11 @@ public sealed class CheckCliTests : IDisposable
     [Theory]
     [InlineData("check")]
     [InlineData("plan")]
+    [InlineData("apply")]
     public void AnUnreadablePlanExitsOneWithAMessage(string cmd)
     {
         var missing = Path.Combine(Path.GetTempPath(), $"smbplan-missing-{Guid.NewGuid():N}.json");
-        string[] args = cmd == "check" ? ["check", missing, "R"] : ["plan", missing];
+        string[] args = cmd == "plan" ? ["plan", missing] : [cmd, missing, "R"];
         var (code, o, e) = Run(RightTree(), "SeBackupPrivilege", args);
         Assert.Equal(1, code);
         Assert.Empty(o);
