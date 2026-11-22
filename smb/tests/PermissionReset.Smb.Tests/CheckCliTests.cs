@@ -143,7 +143,8 @@ public sealed class CheckCliTests : IDisposable
         var e = new StringWriter();
         int code = Cli.Run(["check", "--workers", "4", PlanFile(Usual), "R"], new FailingWriter(), e, check: deps);
         Assert.Equal(1, code);
-        Assert.Contains("check stopped: the pipe is broken", e.ToString());
+        Assert.Contains("check: stopped: ", e.ToString());
+        Assert.Contains("the pipe is broken", e.ToString());
         Assert.Contains("the check is incomplete", e.ToString());
     }
 

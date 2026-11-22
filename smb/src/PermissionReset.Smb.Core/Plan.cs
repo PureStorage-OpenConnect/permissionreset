@@ -133,6 +133,14 @@ public sealed record Plan(
         return Parse(json);
     }
 
+    // Parse(bytes) decodes the way File.ReadAllText does (UTF-8 by default, a byte-order mark
+    // honored and dropped), so apply, which hashes the exact bytes, reads the same plan as check.
+    public static Plan Parse(byte[] bytes)
+    {
+        using var r = new StreamReader(new MemoryStream(bytes), System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return Parse(r.ReadToEnd());
+    }
+
     // Unknown fields are refused: a field this build does not know means a plan it would misread.
     static readonly JsonSerializerOptions Options = new()
     {

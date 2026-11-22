@@ -50,9 +50,20 @@ static partial class Win32Security
 
     // EnablePrivilege enables a privilege the token already holds. AdjustTokenPrivileges reports
     // success even when the token lacks it, so ERROR_NOT_ALL_ASSIGNED (1300) is checked too.
-    public static void EnablePrivilege(string name)
+    public static void EnablePrivilege(string name) => AdjustPrivilege(name, enable: true);
+
+    // DisablePrivilege turns a privilege off for this process (design 4: SeRestorePrivilege stays
+    // off unless the plan sets owner or group). A token that does not hold it is already there.
+    public static void DisablePrivilege(string name)
     {
-        const uint TOKEN_ADJUST_PRIVILEGES = 0x20, TOKEN_QUERY = 0x8, SE_PRIVILEGE_ENABLED = 2;
+        try { AdjustPrivilege(name, enable: false); }
+        catch (Win32Exception e) when (e.NativeErrorCode == 1300) { }
+    }
+
+    static void AdjustPrivilege(string name, bool enable)
+    {
+        const uint TOKEN_ADJUST_PRIVILEGES = 0x20, TOKEN_QUERY = 0x8;
+        uint SE_PRIVILEGE_ENABLED = enable ? 2u : 0u;
         if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out var token))
             throw LastError($"open process token for {name}");
         try
@@ -88,6 +99,69 @@ static partial class Win32Security
             return sd;
         }
         finally { CloseHandle(h); }
+    }
+
+    [LibraryImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetKernelObjectSecurity(IntPtr h, uint info, byte[] sd);
+
+    const uint WRITE_DAC = 0x00040000, WRITE_OWNER = 0x00080000;
+
+    // WriteDescriptor sets the parts info names, through a handle opened with backup intent and
+    // without following a reparse point, asking only for the access those parts need: WRITE_DAC for
+    // the DACL, WRITE_OWNER for owner or group, ACCESS_SYSTEM_SECURITY for the SACL. It is one
+    // SetKernelObjectSecurity, the handle-based form of the SetFileSecurityW call the Q-INH/Q-EXP/
+    // Q-PROT runs used; unlike SetSecurityInfo it does no client-side inheritance work.
+    public static void WriteDescriptor(string path, uint info, byte[] sd)
+    {
+        uint access = READ_CONTROL;
+        if ((info & DACL) != 0) access |= WRITE_DAC;
+        if ((info & (OWNER | GROUP)) != 0) access |= WRITE_OWNER;
+        if ((info & SACL) != 0) access |= ACCESS_SYSTEM_SECURITY;
+        IntPtr h = CreateFile(LongPath(path), access, SHARE_ALL, IntPtr.Zero, OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, IntPtr.Zero);
+        if (h == new IntPtr(-1)) throw LastError("open for write");
+        try
+        {
+            if (!SetKernelObjectSecurity(h, info, sd)) throw LastError("set security");
+        }
+        finally { CloseHandle(h); }
+    }
+
+    [LibraryImport("kernel32.dll", EntryPoint = "CreateDirectoryW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CreateDirectoryW(string path, IntPtr sa);
+
+    [LibraryImport("kernel32.dll", EntryPoint = "RemoveDirectoryW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool RemoveDirectoryW(string path);
+
+    [LibraryImport("kernel32.dll", EntryPoint = "DeleteFileW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool DeleteFileW(string path);
+
+    // The probe's calls. The parent must exist: nothing here creates intermediate directories, so
+    // a mistyped --probe-dir fails rather than landing a new directory in live data.
+    public static void CreateDirectory(string path)
+    {
+        if (!CreateDirectoryW(LongPath(path), IntPtr.Zero)) throw LastError("create directory");
+    }
+
+    public static void CreateNewFile(string path)
+    {
+        const uint GENERIC_WRITE = 0x40000000, CREATE_NEW = 1, FILE_ATTRIBUTE_NORMAL = 0x80;
+        IntPtr h = CreateFile(LongPath(path), GENERIC_WRITE, SHARE_ALL, IntPtr.Zero, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, IntPtr.Zero);
+        if (h == new IntPtr(-1)) throw LastError("create file");
+        CloseHandle(h);
+    }
+
+    // Delete removes a file or an empty directory. A missing one is FileNotFoundException.
+    public static void Delete(string path, bool isDir)
+    {
+        if (isDir ? RemoveDirectoryW(LongPath(path)) : DeleteFileW(LongPath(path))) return;
+        int err = Marshal.GetLastPInvokeError();
+        if (err is 2 or 3) throw new FileNotFoundException($"delete: {new Win32Exception(err).Message}", path);
+        throw Error(err, "delete");
     }
 
     [LibraryImport("kernel32.dll", SetLastError = true)]
