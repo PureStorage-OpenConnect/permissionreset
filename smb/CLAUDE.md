@@ -16,9 +16,12 @@
   `OperatingSystem.IsWindows()` and `[SupportedOSPlatform("windows")]`.
 - `release/pack.ps1` — builds, packs and smoke-checks the release zip and `SHA256SUMS`; run by the
   `smb-windows` CI job and by `.github/workflows/release-smb.yml` on `smb-v*` tags (draft only).
-  The exe is reproducible: keep the SDK pinned exactly in `global.json`, run dotnet from `smb/`,
-  and keep `ContinuousIntegrationBuild` on and SourceLink off in the publish. A local pack and
-  the workflow's must give the same exe SHA-256 for one commit.
+  The exe is reproducible: keep the SDK pinned exactly in `global.json`, and keep the publish on
+  the script's private SDK copy with multilevel lookup off. Roslyn records the runtime it ran on in
+  the PDB, so a newer 8.0 patch on the machine changes the exe. Keep `ContinuousIntegrationBuild`
+  on and SourceLink off too. The `smb-windows` job builds the PR head, not the merge commit,
+  because the commit SHA is in the informational version. A local pack and the workflow's must
+  give the same exe SHA-256 for one commit.
 - `tests/PermissionReset.Smb.Tests/` — xUnit; runs on Linux too (`dotnet test`). The CLI's records
   and exit codes are tested through a fake `IDescriptorReader`; the Win32 reads are checked on
   hardware only. `CheckerTests.FakeTree` is writable and models the array's measured inheritance

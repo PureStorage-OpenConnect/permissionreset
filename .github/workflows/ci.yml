@@ -97,7 +97,12 @@ jobs:
     if: github.repository == 'PureStorage-OpenConnect/permissionreset'
     runs-on: windows-2022
     steps:
+      # The PR head itself, not the refs/pull/N/merge commit a pull_request run checks out by
+      # default: the SDK stamps the commit SHA into the exe's informational version, so only a
+      # build of the head can be compared with a local pack.ps1 build of it.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-dotnet@v4
         with:

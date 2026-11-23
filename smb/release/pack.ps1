@@ -46,24 +46,69 @@ if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 # ContinuousIntegrationBuild maps source paths in the embedded PDB to /_/, so the checkout's
 # location does not leak into the exe. SourceLink is off because it embeds the clone's origin
 # URL, which differs between a fork, an SSH clone and the runner's checkout.
-# dotnet finds global.json by searching up from the working directory, so publish runs from smb/;
-# from the repository root it would take whatever SDK the machine has newest. The version check
-# turns a missing pinned SDK into a clear error rather than a different exe.
+#
+# The compiler records the runtime it ran on in the embedded PDB, and it rolls forward to the
+# newest 8.0 runtime it can find, so a machine with a newer 8.0 patch than the SDK's own (the
+# hosted runner image) gives a different exe. So publish uses a private copy of the SDK pinned in
+# smb/global.json, installed by Microsoft's dotnet-install script into a directory of its own
+# under the temp directory and reused on later runs, with multilevel lookup off, so the SDK's
+# bundled runtime is the only one the compiler can run on. Both are checked before publishing.
 $sdkWant = "$((Get-Content -Raw (Join-Path $root 'smb/global.json') | ConvertFrom-Json).sdk.version)"
+$dotnetDir = Join-Path ([IO.Path]::GetTempPath()) "permissionreset-smb-dotnet-$sdkWant"
+# Not $IsWindows: Windows PowerShell 5.1 lacks it, and strict mode rejects an unset variable.
+$onUnix = [Environment]::OSVersion.Platform -eq [PlatformID]::Unix
+$dotnetExe = Join-Path $dotnetDir $(if ($onUnix) { 'dotnet' } else { 'dotnet.exe' })
+if (-not (Test-Path (Join-Path $dotnetDir "sdk/$sdkWant/dotnet.runtimeconfig.json"))) {
+    $installer = Join-Path ([IO.Path]::GetTempPath()) "dotnet-install-$([guid]::NewGuid().ToString('N'))"
+    try {
+        if ($onUnix) {
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://dot.net/v1/dotnet-install.sh' -OutFile "$installer.sh"
+            bash "$installer.sh" --version $sdkWant --install-dir $dotnetDir --no-path
+        }
+        else {
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://dot.net/v1/dotnet-install.ps1' -OutFile "$installer.ps1"
+            & "$installer.ps1" -Version $sdkWant -InstallDir $dotnetDir -NoPath
+        }
+        if ($LASTEXITCODE -ne 0) { throw "pack: dotnet-install exited $LASTEXITCODE" }
+    }
+    finally { Remove-Item -Force "$installer.sh", "$installer.ps1" -ErrorAction SilentlyContinue }
+}
+$runtimeWant = "$((Get-Content -Raw (Join-Path $dotnetDir "sdk/$sdkWant/dotnet.runtimeconfig.json") | ConvertFrom-Json).runtimeOptions.framework.version)"
+
+$saved = @{}
+foreach ($k in 'DOTNET_ROOT', 'DOTNET_MULTILEVEL_LOOKUP', 'DOTNET_ROLL_FORWARD', 'PATH') { $saved[$k] = [Environment]::GetEnvironmentVariable($k) }
+# dotnet finds global.json by searching up from the working directory, so publish runs from smb/.
 Push-Location (Join-Path $root 'smb')
 try {
-    $sdkHave = "$(dotnet --version)".Trim()
+    $env:DOTNET_ROOT = $dotnetDir
+    $env:DOTNET_MULTILEVEL_LOOKUP = '0'
+    $env:DOTNET_ROLL_FORWARD = $null
+    $env:PATH = $dotnetDir + [IO.Path]::PathSeparator + $env:PATH
+
+    $sdkHave = "$(& $dotnetExe --version)".Trim()
     if ($LASTEXITCODE -ne 0 -or $sdkHave -ne $sdkWant) {
-        throw "pack: needs .NET SDK $sdkWant (smb/global.json), found '$sdkHave'"
+        throw "pack: needs .NET SDK $sdkWant (smb/global.json), found '$sdkHave' in $dotnetDir"
     }
-    dotnet publish 'src/PermissionReset.Smb/PermissionReset.Smb.csproj' `
-        -c Release -r win-x64 --self-contained true --nologo `
+    $runtimes = @(& $dotnetExe --list-runtimes | ForEach-Object {
+        if ($_ -match '^Microsoft\.NETCore\.App (8\.\d+\.\d+) ') { $Matches[1] } })
+    if ($runtimes.Count -ne 1 -or $runtimes[0] -ne $runtimeWant) {
+        throw "pack: the compiler must see only runtime $runtimeWant (SDK $sdkWant's own), sees: $($runtimes -join ', ')"
+    }
+    Write-Host "pack: SDK $sdkHave, runtime $runtimeWant, from $dotnetDir"
+
+    # No build servers: a node or compiler server left by another SDK must not do this build.
+    & $dotnetExe publish 'src/PermissionReset.Smb/PermissionReset.Smb.csproj' `
+        -c Release -r win-x64 --self-contained true --nologo -nodeReuse:false `
+        -p:UseSharedCompilation=false `
         -p:PublishSingleFile=true -p:DebugType=embedded -p:Version=$Version `
         -p:ContinuousIntegrationBuild=true -p:EnableSourceLink=false `
         -o $stage
     if ($LASTEXITCODE -ne 0) { throw "pack: dotnet publish exited $LASTEXITCODE" }
 }
-finally { Pop-Location }
+finally {
+    Pop-Location
+    foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) }
+}
 
 $extra = Get-ChildItem $stage | Where-Object { $_.Name -ne 'permissionreset-smb.exe' }
 if ($extra) { throw "pack: publish left more than the exe: $($extra.Name -join ', ')" }

@@ -90,13 +90,17 @@ when the preflight passed and every object is right, 1 otherwise, 2 on a usage e
 
 ## Build and test
 
-Needs the .NET SDK version pinned in `smb/global.json`, exactly: `rollForward` is off so that every
-machine builds with the same compiler and runtime pack. dotnet reads `global.json` only from
-`smb/` or below, so run these commands from there or pass the solution path as shown.
+Needs a .NET 8 SDK. `smb/global.json` pins the release SDK exactly, with `rollForward` off, and
+dotnet reads it only when run from `smb/` or below. Run from the repository root, as shown, these
+commands use the machine's newest SDK, which is fine for development.
 
 The release exe is reproducible. `pwsh smb/release/pack.ps1`, run from a clean checkout of a
 commit, gives an exe with the same SHA-256 as the release workflow's build of that commit, and it
-prints that hash. Pass the same `-Version` the tag carries. The zip also matches when it is packed
+prints that hash. Pass the same `-Version` the tag carries. To get there, the script installs the
+pinned SDK into a private directory under the temp directory (with Microsoft's `dotnet-install`
+script, downloaded on first use and reused afterwards). It then builds with that copy alone, so
+the compiler runs on the SDK's own runtime rather than a newer 8.0 patch installed on the machine,
+and it refuses to build if it sees any other 8.0 runtime. The zip also matches when it is packed
 under the same PowerShell and .NET major version as the runner, since its compressed bytes come
 from that runtime.
 
