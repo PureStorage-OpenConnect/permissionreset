@@ -119,18 +119,20 @@ public sealed record Plan(
 
     // Load reads and parses the plan at path. A file that can't be read is a PlanException naming
     // the path, so the CLI reports it as a message rather than a stack trace.
-    public static Plan Load(string path)
+    public static Plan Load(string path) => Parse(ReadBytes(path));
+
+    // ReadBytes reads the plan file's exact bytes (apply hashes them), turning a read failure into
+    // a PlanException: a clean message and exit 1, never an unhandled exception.
+    public static byte[] ReadBytes(string path)
     {
-        string json;
         try
         {
-            json = File.ReadAllText(path);
+            return File.ReadAllBytes(path);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Security.SecurityException)
         {
             throw new PlanException($"cannot read plan {path}: {e.Message}", e);
         }
-        return Parse(json);
     }
 
     // Parse(bytes) decodes the way File.ReadAllText does (UTF-8 by default, a byte-order mark

@@ -163,7 +163,14 @@ static class Cli
         try { deps.EnablePrivilege("SeBackupPrivilege"); }
         catch (Win32Exception e) { return Fail(stderr, $"check: {e.Message} (Win32 error {e.NativeErrorCode})", 1); }
         var root = pos[1];
-        var checker = new Checker(plan, deps.Tree(root), RuleSelector.RootName(root), deps.Resolve, new WalkOptions(RootProtected: rootProtected));
+        // Principal resolution happens inside the Checker's constructor, before any tree read. A
+        // lookup failure that the Checker could not classify as an unresolved principal (a thrown
+        // domain/trust error is folded in; this is the belt for anything else) is still refused,
+        // never a crash.
+        Checker checker;
+        try { checker = new Checker(plan, deps.Tree(root), RuleSelector.RootName(root), deps.Resolve, new WalkOptions(RootProtected: rootProtected)); }
+        catch (PlanException) { throw; }   // the outer handler prints it and exits 1
+        catch (Exception e) { return Fail(stderr, $"check: the plan's principals could not be prepared: {e.Message}", 1); }
 
         var summary = checker.Run(r => stdout.WriteLine(JsonSerializer.Serialize(r with { Path = FullPath(root, r.Path) }, Json)), workers);
 
@@ -236,7 +243,7 @@ static class Cli
             deps = CheckDeps.Windows();
         }
         string planPath = pos[0], root = pos[1];
-        var planBytes = File.ReadAllBytes(planPath);
+        var planBytes = Plan.ReadBytes(planPath);
         var planSha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(planBytes)).ToLowerInvariant();
         var plan = Plan.Parse(planBytes);
 

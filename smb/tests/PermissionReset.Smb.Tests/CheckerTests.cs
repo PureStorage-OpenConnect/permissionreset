@@ -11,8 +11,10 @@ public class CheckerTests
     // ---- fixture: an in-memory tree ------------------------------------------------------------
 
     // A null Dacl is an absent DACL (SE_DACL_PRESENT clear: everyone full control), not an empty one.
+    // OpenedIsDir/OpenedReparse simulate an object whose type changed between listing and open
+    // (smb/DESIGN-write-path.md, 5.3): List reports IsDir/Reparse, Read reports the opened kind.
     internal sealed record Obj(bool IsDir, Ace[]? Dacl, bool Protected, string Owner = Admins, bool Reparse = false,
-        Ace[]? Sacl = null, string Group = Admins, ushort ExtraControl = 0);
+        Ace[]? Sacl = null, string Group = Admins, ushort ExtraControl = 0, bool? OpenedIsDir = null, bool OpenedReparse = false);
 
     // FakeTree is an in-memory array. Its writes model what FlashArray was measured to do
     // (smb/DESIGN-write-path.md, section 1): it stores exactly the DACL written (F1), and a DACL
@@ -46,7 +48,7 @@ public class CheckerTests
                     .OrderBy(kv => kv.Key, StringComparer.Ordinal).ToList();
         }
 
-        public byte[] Read(string rel, bool withSacl)
+        public TreeObject Read(string rel, bool withSacl)
         {
             if (ReadFails.Contains(rel)) throw new IOException("Access is denied.");
             if (withSacl)
@@ -62,7 +64,8 @@ public class CheckerTests
                 ? DescriptorTests.Acl(o.Sacl.Select(a => DescriptorTests.Ace((byte)a.Type, a.Flags, a.Mask, Sid(a.Sid))).ToArray())
                 : null;
             ushort control = (ushort)(SelfRelative | (dacl is null ? 0 : DaclPresent) | (o.Protected ? DaclProtected : 0) | (sacl is null ? 0 : 0x0010) | o.ExtraControl);
-            return DescriptorTests.Sd(control, Sid(o.Owner), Sid(o.Group), sacl, dacl);
+            var sd = DescriptorTests.Sd(control, Sid(o.Owner), Sid(o.Group), sacl, dacl);
+            return new TreeObject(sd, o.OpenedIsDir ?? o.IsDir, o.OpenedReparse);
         }
 
         public void Write(string rel, uint info, byte[] sd)
@@ -304,6 +307,159 @@ public class CheckerTests
         Assert.Equal(Outcome.Reparse, At(recs, "link").Outcome);
         Assert.Contains("read:", At(recs, "bad.txt").Detail);
         Assert.Contains(recs, r => r.Path == "locked" && r.Outcome == Outcome.Error && r.Detail!.StartsWith("list:"));
+        Assert.Equal(1, s.NotProcessed);
+    }
+
+    [Fact]
+    public void AKeepRuleStillReportsAnOwnerDifference()
+    {
+        // No acl:, so the DACL is kept, but the rule names an owner: ownership is checked
+        // independently of the DACL, and a difference is a write, not a keep.
+        var plan = MakePlan(Rule("rule[0]", "directory", "keep*", null, owner: "owner@example.net"),
+            Rule("rule[1]", "directory", "", DirWant), Rule("rule[2]", "file", "", FileWant));
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["keepme"] = new(true, [A(OI | CI, Other)], true, Owner: Users),
+        });
+        var recs = new List<CheckRecord>();
+        new Checker(plan, tree, "root", n => n == "owner@example.net" ? Admins : null).Run(recs.Add);
+        var r = At(recs, "keepme");
+        Assert.Equal(Outcome.Write, r.Outcome);
+        Assert.Contains("owner is", r.Detail);
+    }
+
+    [Fact]
+    public void ApplyReportsAKeepRuleOwnerDifferenceAsAnErrorAndWritesNothing()
+    {
+        // Apply writes nothing on a rule without acl:, so an owner difference there is an error
+        // the operator sees, never a silent Keep, and no write is sent for it.
+        var plan = MakePlan(Rule("rule[0]", "directory", "keep*", null, owner: "owner@example.net"),
+            Rule("rule[1]", "directory", "", DirWant), Rule("rule[2]", "file", "", FileWant));
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["keepme"] = new(true, [A(OI | CI, Other)], true, Owner: Users),
+        });
+        var recs = new List<CheckRecord>();
+        new Checker(plan, tree, "root", n => n == "owner@example.net" ? Admins : null, new WalkOptions(Apply: true)).Run(recs.Add);
+        var r = At(recs, "keepme");
+        Assert.Equal(Outcome.Error, r.Outcome);
+        Assert.Contains("owner is", r.Detail);
+        Assert.DoesNotContain(tree.Writes, w => w.Rel == "keepme");
+        Assert.Equal(Users, tree.Objs["keepme"].Owner);
+    }
+
+    [Fact]
+    public void AnExplicitOnlyChildDoesNotFollowAWrittenParent()
+    {
+        // The root will be written and the child wants explicit ACEs plus the inherited part, but
+        // it stores only the explicit one: Q-EXP found an unprotected explicit-only object does
+        // not pick up parent changes, so nothing above re-derives it. It needs its own write.
+        var plan = MakePlan(Rule("rule[0]", "directory", "", DirWant),
+            Rule("rule[1]", "file", "", [A(0, Other), .. FileWant]));
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, [A(OI | CI, Other)], true),
+            ["f.txt"] = new(false, [A(0, Other)], false),
+        });
+        var (recs, _) = Run(plan, tree);
+        Assert.Equal(Outcome.Write, At(recs, "").Outcome);
+        var f = At(recs, "f.txt");
+        Assert.Equal(Form.ExplicitPlusInherits, f.Form);
+        Assert.Equal(Outcome.Write, f.Outcome);
+    }
+
+    [Fact]
+    public void AFrozenIdCopyDoesNotFollowAWrittenParent()
+    {
+        // The root will be written, but the child's ID part is a frozen copy of an unrelated ACL:
+        // it does not equal what the stored root currently passes down (F2), so the array will not
+        // re-derive it when the root changes. It needs its own write.
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, [A(OI | CI, Other)], true),
+            ["f.txt"] = new(false, [A(ID, Users)], false),
+        });
+        var (recs, _) = Run(Usual, tree);
+        Assert.Equal(Outcome.Write, At(recs, "").Outcome);
+        var f = At(recs, "f.txt");
+        Assert.Equal(Outcome.Write, f.Outcome);
+        Assert.Contains("frozen copy", f.Detail);
+    }
+
+    [Fact]
+    public void AnUnprotectedKeepDirectoryPassesDownOnlyItsStoredDacl()
+    {
+        // Nothing above writes; the kept directory's children are classified against the DACL it
+        // actually stores, not against its explicit ACEs plus a re-derived inherited part.
+        var plan = MakePlan(Rule("rule[0]", "directory", "keep*", null), Rule("rule[1]", "directory", "", DirWant),
+            Rule("rule[2]", "file", "", [A(0, Other)]));
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["keepme"] = new(true, [A(OI | CI, Other)], false),
+            ["keepme/f.txt"] = new(false, [A(ID, Other)], false),
+        });
+        var (recs, _) = Run(plan, tree);
+        Assert.Equal(Outcome.Keep, At(recs, "keepme").Outcome);
+        var f = At(recs, "keepme/f.txt");
+        Assert.Equal(Form.Inherits, f.Form);
+        Assert.Equal(Outcome.Ok, f.Outcome);
+    }
+
+    [Fact]
+    public void ATrackingKeepDirectoryUnderAWrittenAncestorLetsItsRederivedPartDown()
+    {
+        // The root will be written, and the kept directory's inherited part equals what the stored
+        // root currently passes down: it tracks (F2), so after the root's write the array
+        // re-derives it from the root's desired DACL, and the tracking child follows.
+        var plan = MakePlan(Rule("rule[0]", "directory", "keep*", null), Rule("rule[1]", "directory", "", DirWant),
+            Rule("rule[2]", "file", "", FileWant));
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, [A(OI | CI, Other)], true),
+            ["keepme"] = new(true, [A(ID | OI | CI, Other)], false),
+            ["keepme/f.txt"] = new(false, [A(ID, Other)], false),
+        });
+        var (recs, _) = Run(plan, tree);
+        Assert.Equal(Outcome.Write, At(recs, "").Outcome);
+        Assert.Equal(Outcome.Keep, At(recs, "keepme").Outcome);
+        Assert.Equal(Outcome.Follows, At(recs, "keepme/f.txt").Outcome);
+    }
+
+    [Fact]
+    public void AFileThatBecomesADirectoryBetweenListingAndOpenIsSkippedAndCounted()
+    {
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["moved"] = new(false, FileInherited, false, OpenedIsDir: true),
+            ["moved/inside"] = new(false, FileInherited, false),
+        });
+        var (recs, s) = Run(Usual, tree);
+        var m = At(recs, "moved");
+        Assert.Equal(Outcome.Error, m.Outcome);
+        Assert.Contains("type changed", m.Detail);
+        Assert.Contains("a directory", m.Detail);
+        Assert.DoesNotContain(recs, r => r.Path == "moved/inside");     // the new subtree was never walked
+        Assert.Equal(1, s.NotProcessed);
+    }
+
+    [Fact]
+    public void AListentryThatBecomesAReparsePointAtOpenIsSkippedAndCounted()
+    {
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["gone"] = new(true, DirInherited, false, OpenedReparse: true),
+            ["gone/f"] = new(false, FileInherited, false),
+        });
+        var (recs, s) = Run(Usual, tree);
+        var g = At(recs, "gone");
+        Assert.Equal(Outcome.Error, g.Outcome);
+        Assert.Contains("reparse point", g.Detail);
+        Assert.DoesNotContain(recs, r => r.Path == "gone/f");
         Assert.Equal(1, s.NotProcessed);
     }
 

@@ -70,14 +70,14 @@ public static class Preflight
 
     static string? Check(IWritableTree t, string dir, string sub, string file, List<Ace> aces)
     {
-        var before = Descriptor.Decode(t.Read(dir, withSacl: true));
+        var before = Descriptor.Decode(t.Read(dir, withSacl: true).Descriptor);
         var protectedDacl = new Desired(Form.Protected, aces, true);
         t.Write(dir, SecurityInformation.Dacl | SecurityInformation.ProtectedDacl,
             DescriptorBuilder.Build((ushort)(Control.DaclProtected | (before.Control & Control.DaclAutoInherited)), null, null, null, aces));
         t.Write(dir, SecurityInformation.Sacl | SecurityInformation.ProtectedSacl,
             DescriptorBuilder.Build((ushort)(Control.SaclProtected | (before.Control & Control.SaclAutoInherited)), null, null, [PlaceholderAudit], null));
 
-        var after = Descriptor.Decode(t.Read(dir, withSacl: true));
+        var after = Descriptor.Decode(t.Read(dir, withSacl: true).Descriptor);
         var d = protectedDacl.Matches(after.Dacl, (after.Control & Control.DaclProtected) != 0);
         if (d is not null) return $"the probe's DACL read back differs from what was written: {d}";
         if (after.Owner != before.Owner || after.Group != before.Group) return "the probe's owner or group changed across a DACL-only write";
@@ -87,7 +87,7 @@ public static class Preflight
 
         foreach (var (rel, isDir) in new[] { (sub, true), (file, false) })
         {
-            var c = Descriptor.Decode(t.Read(rel, withSacl: false));
+            var c = Descriptor.Decode(t.Read(rel, withSacl: false).Descriptor);
             if ((c.Control & Control.DaclProtected) != 0) return $"probe child {rel} is protected; it should inherit";
             var got = (c.Dacl?.Aces ?? []).Select(Ace.FromView).Where(a => a is null || a.Value.Inherited).ToList();
             var wantInh = Inheritance.Inherit(aces, isDir);
@@ -106,10 +106,10 @@ public static class Preflight
     static string? CheckUnprotected(IWritableTree t, string sub, List<Ace> aces)
     {
         var want = new Desired(Form.ExplicitPlusInherits, [UnprotectedExplicit, .. Inheritance.Inherit(aces, true)], false);
-        var before = Descriptor.Decode(t.Read(sub, withSacl: true));
+        var before = Descriptor.Decode(t.Read(sub, withSacl: true).Descriptor);
         t.Write(sub, SecurityInformation.Dacl | SecurityInformation.UnprotectedDacl,
             DescriptorBuilder.Build(Control.DaclAutoInherited, null, null, null, want.Aces));
-        var after = Descriptor.Decode(t.Read(sub, withSacl: true));
+        var after = Descriptor.Decode(t.Read(sub, withSacl: true).Descriptor);
         var d = Checker.ReadbackDiff(want, before, after, before.Owner, before.Group, daclWritten: true);
         return d is null ? null : $"probe child {sub}, written unprotected with explicit and inherited ACEs: {d}";
     }
@@ -126,7 +126,7 @@ public static class Preflight
         {
             t.Write(dir, SecurityInformation.Dacl | SecurityInformation.ProtectedDacl,
                 DescriptorBuilder.Build(Control.DaclProtected, null, null, null, [OwnerFull]));
-            var back = Descriptor.Decode(t.Read(dir, withSacl: false));
+            var back = Descriptor.Decode(t.Read(dir, withSacl: false).Descriptor);
             var d = new Desired(Form.Protected, [OwnerFull], true).Matches(back.Dacl, (back.Control & Control.DaclProtected) != 0);
             if (d is not null) cleanup = $"the cleanup DACL on {dir} read back differently: {d}";
         }
