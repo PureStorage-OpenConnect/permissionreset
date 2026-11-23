@@ -238,6 +238,9 @@ func smbRule(r *Rule, rp *spec.RulePerms) error {
 		ace.Line = t
 		r.Dacl = append(r.Dacl, ace)
 	}
+	if len(r.Dacl) == 0 {
+		return fmt.Errorf("%s: acl: holds no entries after comments and blanks are removed; an SMB plan with has_acl and no dacl means an empty DACL (no access for anyone), so build-spec refuses to emit it -- delete acl: or add a real entry", r.Label)
+	}
 	return nil
 }
 

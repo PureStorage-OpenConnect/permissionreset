@@ -282,6 +282,11 @@ func TestBuildSMBRefuses(t *testing.T) {
 		{"numeric in sacl", "default:\n  sacl: [\"U:S:1000:r\"]\n", "numeric principal"},
 		{"numeric owner", "default:\n  acl: [\"A::admins@example.net:r\"]\n  owner: \"1000\"\n", "numeric id"},
 		{"dacl field", "default:\n  acl: [\"A::admins@example.net:r\"]\n  dacl: [\"A::admins@example.net:r\"]\n", "dacl: is not supported"},
+		// Comment-only acl: has has_acl: true but nothing to translate; emitting it
+		// would hand permissionreset-smb a plan Plan.cs refuses (has_acl with no
+		// dacl). Refused at the boundary, naming the rule.
+		{"comment-only acl in default", "default:\n  acl: [\"# rotated out\", \"   \" ]\n", "default: acl: holds no entries after comments"},
+		{"comment-only acl in a rule", "default:\n  acl: [\"A::admins@example.net:r\"]\nrules:\n  - match: {type: directory}\n    acl: [\"# none left\"]\n", "rule[0]: acl: holds no entries after comments"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
