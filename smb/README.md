@@ -5,12 +5,17 @@ array's own model over SMB: SIDs without id mapping, inherited flags as stored, 
 `SeSecurityPrivilege`. Why it exists, and what is still open before it can write anything, is in
 [the decision record](../docs/decision-flasharray-smb-20261107.md).
 
-**Status: pre-release.** It reads and decodes descriptors, validates plans, checks a tree against
-a plan (`check`, phase 1 of [the write-path design](DESIGN-write-path.md)) and, since phase 2,
-resets DACLs (`apply`). `apply` is qualified on FlashArray at `e834ac8`
-([record](../benchmarks/qual-smb-apply-e834ac8-20261119/RESULTS.md)); there is no `smb-v*` release yet, and a release is
-qualified on its own assets. `inspect` and `check` are qualified read-only at `700630b`. SACL writes (phase 3) are not
-built.
+**Status: released as `smb-v0.1.0`** (tag on `959c505`). It reads and decodes descriptors,
+validates plans, checks a tree against a plan (`check`, phase 1 of
+[the write-path design](DESIGN-write-path.md)) and resets DACLs (`apply`, phase 2) on FlashArray
+over SMB. `smb-v0.1.0` was qualified on FlashArray with a run at `2e0ad61`, then targeted
+reruns at `959c505` and on the released exe itself (SHA-256
+`211732052b2214846b20a0c8e43c48b91a28f9f3e30b2201700d32995320a139`). The later reruns were
+targeted because the change after `2e0ad61` only alters how the plan file is read, before any tree
+access. Earlier records: `apply` at `e834ac8`
+([record](../benchmarks/qual-smb-apply-e834ac8-20261119/RESULTS.md)), `inspect` and `check`
+read-only at `700630b` ([results](../benchmarks/qual-smb-check-700630b-20261116/RESULTS.md)).
+Each release is qualified on its own assets. SACL writes (phase 3) are not built.
 
 | Platform | Tool |
 |---|---|
@@ -106,7 +111,7 @@ Set-SaclOnly (`tools/set-saclonly/testdata/glob-vectors.json`) and against build
 ## Versions
 
 Independent of `permissionreset`: tags are `smb-vX.Y.Z`, starting at `smb-v0.1.0` (decision record,
-section 6). No release exists yet.
+section 6). The first release is `smb-v0.1.0`.
 
 Pushing an `smb-vX.Y.Z` tag runs `.github/workflows/release-smb.yml` on a hosted Windows runner: it
 builds and tests the solution, then `smb/release/pack.ps1` publishes a self-contained single-file
