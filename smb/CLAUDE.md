@@ -27,7 +27,9 @@ Rules:
 - Phase 1 (`check`) is qualified read-only at `700630b` (`benchmarks/qual-smb-check-700630b-20261116/`).
   Phase 2 (`apply`, DACL writes, `DESIGN-write-path.md` section 10) is qualified on FlashArray at
   `e834ac8` (`benchmarks/qual-smb-apply-e834ac8-20261119/`; A7b, the missing-audit-bypass refusal, unverified).
-  A change to the write path after `e834ac8` needs its own hardware run before an `smb-v*` tag. Every
+  `smb-v0.1.0` is released (tag on `959c505`), qualified with a run at `2e0ad61` and targeted
+  reruns at `959c505` and on the released exe (`README.md` status). A change to the write path
+  after `959c505` needs its own hardware run before the next `smb-v*` tag. Every
   write goes through G1 and G2 (section 5); never add a path that writes without them, and never add
   an override for either. SACL writes are phase 3: `apply` refuses plans with `sacl:` until then.
 - `Inheritance.Inherit`'s table test is the prediction the Q-INH hardware run checks. If the array
