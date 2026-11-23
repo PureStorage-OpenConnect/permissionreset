@@ -40,10 +40,12 @@ jobs:
           echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
 
       - name: build
-        run: dotnet build smb/PermissionResetSmb.sln -c Release --nologo
+        working-directory: smb
+        run: dotnet build PermissionResetSmb.sln -c Release --nologo
 
       - name: test
-        run: dotnet test smb/PermissionResetSmb.sln -c Release --nologo --no-build
+        working-directory: smb
+        run: dotnet test PermissionResetSmb.sln -c Release --nologo --no-build
 
       # Publishes the self-contained exe, zips it with README and LICENSE, smoke-checks the
       # extracted archive (version, and plan on both golden plans) and writes SHA256SUMS. Fails if

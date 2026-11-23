@@ -52,6 +52,9 @@ release and publishes nothing; a tag with a suffix (`v0.10.0-rc1`) is marked as 
 `permissionreset-smb` is tagged `smb-vX.Y.Z` and has its own workflow (`release-smb.yml`) and
 draft, with one Windows zip and its own `SHA256SUMS`; that draft never becomes the repository's
 latest release, so leave "Set as the latest release" unticked when publishing it.
+Its exe is reproducible from the tagged commit (`smb/release/pack.ps1`): from `smb-v0.1.1` on,
+the exe that was qualified must have the same SHA-256 as the exe in the draft's zip before the
+draft is published.
 Verify each download against that `SHA256SUMS` and record it. The offline script's local build
 carries a different build date, so its checksums differ: it qualifies the commit, not the shipped
 archives. Do not use a build from a checkout. `make release` runs `make clean` first, which deletes the host binaries that
