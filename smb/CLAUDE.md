@@ -16,6 +16,9 @@
   `OperatingSystem.IsWindows()` and `[SupportedOSPlatform("windows")]`.
 - `release/pack.ps1` — builds, packs and smoke-checks the release zip and `SHA256SUMS`; run by the
   `smb-windows` CI job and by `.github/workflows/release-smb.yml` on `smb-v*` tags (draft only).
+  The exe is reproducible: keep the SDK pinned exactly in `global.json`, run dotnet from `smb/`,
+  and keep `ContinuousIntegrationBuild` on and SourceLink off in the publish. A local pack and
+  the workflow's must give the same exe SHA-256 for one commit.
 - `tests/PermissionReset.Smb.Tests/` — xUnit; runs on Linux too (`dotnet test`). The CLI's records
   and exit codes are tested through a fake `IDescriptorReader`; the Win32 reads are checked on
   hardware only. `CheckerTests.FakeTree` is writable and models the array's measured inheritance

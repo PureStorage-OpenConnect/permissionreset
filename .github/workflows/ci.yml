@@ -104,10 +104,12 @@ jobs:
           global-json-file: smb/global.json
 
       - name: build
-        run: dotnet build smb/PermissionResetSmb.sln -c Release --nologo
+        working-directory: smb
+        run: dotnet build PermissionResetSmb.sln -c Release --nologo
 
       - name: test
-        run: dotnet test smb/PermissionResetSmb.sln -c Release --nologo --no-build
+        working-directory: smb
+        run: dotnet test PermissionResetSmb.sln -c Release --nologo --no-build
 
       # Packs the release archive exactly as release-smb.yml does and smoke-checks it extracted
       # (version, and plan on both golden plans), so a packaging break shows up on the pull
@@ -115,6 +117,15 @@ jobs:
       - name: pack and smoke-check
         shell: pwsh
         run: smb/release/pack.ps1 -OutDir dist-smb
+
+      # The packed zip, so a maintainer can compare its exe with a local pack.ps1 build of the
+      # same commit (pack.ps1 prints the exe's SHA-256 in the log above). Not a release asset.
+      - name: upload packed zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: permissionreset-smb-${{ github.sha }}
+          path: dist-smb/
+          retention-days: 14
 
   # Set-SaclOnly's Pester suite under Windows PowerShell 5.1 and PowerShell 7 (decision record
   # docs/decision-flasharray-smb-20261107.md, section 7). Its GoGlob and rule tests read the shared
