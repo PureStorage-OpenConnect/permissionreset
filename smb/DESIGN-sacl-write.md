@@ -17,8 +17,8 @@ is cited by name only, and its facts are restated here without principals, hosts
 
 The SACL gets the DACL's three-form model (`Inherits`, `Explicit + inherits`, `Protected`), the same
 `inh` function, and its own G1 and G2 guards. A SACL-aware comparison treats an absent SACL as "no
-auditing", and a SACL-aware follows model lets an unaudited child follow its parent instead of being
-written. Each SACL write is its own `SetKernelObjectSecurity` call, carrying
+auditing" (FlashArray never reports one; a never-audited object reads `S:AI` empty), and a SACL-aware
+follows model lets a never-audited child follow its parent instead of being written. Each SACL write is its own `SetKernelObjectSecurity` call, carrying
 `SACL_SECURITY_INFORMATION`, an explicit SACL protection flag and a stated control word. The JSON
 plan shape does not change. A plan that sets `sacl:` moves to **schema 3**, under a compatibility
 rule the maintainer confirmed (2.1). The producer and the consumer refuse all four creator SIDs in
@@ -30,9 +30,9 @@ only with `--accept-unproven-read`. When both parts of an object differ, `--writ
 is written first. The tool promises end-state evidence, not rollback; the operator docs require an
 array snapshot.
 
-Lab records already answer several hardware questions: SACL inheritance, most of the control-word
-behaviour, most of SACL-only write isolation, and whether unaudited SMB-created children follow
-their parent. Section 8 marks what remains open.
+Lab records already answer most hardware questions: SACL inheritance, the control word, SACL-only
+write isolation, whether written and converted SACLs stay dynamic (SMB- and NFS-written), and
+whether never-audited children follow their parent. Section 8 marks what remains open.
 
 ## 1. What is known
 
@@ -42,28 +42,27 @@ row says otherwise.
 | Id | Fact | Source |
 |---|---|---|
 | K1 | A DACL-only SMB write leaves the SACL bytes and the SACL control bits unchanged. Phase 2's G2 enforces this on every write. | `smb/DESIGN-write-path.md:24-25`; `smb/src/PermissionReset.Smb.Core/Checker.cs:482-503` |
-| K2 | **SACL-only writes leave the DACL alone, including writes that change `S:P`.** Set-SaclOnly's write, which copies the object's own `S:P`/`S:AI`, leaves owner, group, every DACL ACE and every DACL control flag unchanged. In the lab, SACL-only writes that changed `S:P` to `S:AI`, including on objects reset over NFS, left the DACL bytes identical (13 of 13 and 15 of 15 objects) and owner and group identical (13 of 13). Caveat: the same interval also held DACL writes, so a clean rerun is still owed (Q-SACL-ISOLATION). | `tools/set-saclonly/SaclOnly.cs:294-307`; `RISKS.md:134-139`; `benchmarks/sacl-ps07-20261026/RESULTS.md`; lab records `fa-smb-saclconv-20261116`, `fa-smb-saclnone-20261116` |
+| K2 | **SACL-only writes leave everything else alone, including writes that change `S:P`.** 96 SACL-only writes changed nothing outside the SACL: owner, group, DACL bytes, `D:P` and `D:AI` were identical before and after on every one. The writes covered six SMB DACL forms (Protected, Inherits and Explicit + inherits, on directories and files) and raw-NFS-written directories and files, flipped `S:P` to unprotected and back, and ran with `SeRestorePrivilege` off and then on. Earlier runs (13 of 13 and 15 of 15, in an interval that also held DACL writes) agree. Set-SaclOnly's write, which copies the object's own `S:P`/`S:AI`, is the same call shape. | lab record `fa-smb-saclq-20261123`; `tools/set-saclonly/SaclOnly.cs:294-307`; `RISKS.md:134-139`; `benchmarks/sacl-ps07-20261026/RESULTS.md`; lab records `fa-smb-saclconv-20261116`, `fa-smb-saclnone-20261116` |
 | K3 | Over NFS, any FlashArray ACL write marks `S:AI` to `S:P` and `D:AI` to `D:P`. Objects written that way read back over SMB as `S:P` and `D:P`. | `CLAUDE.md` (SACL mode); `benchmarks/qual-smb-apply-e834ac8-20261119/RESULTS.md` (Q10) |
-| K4 | **SACL inheritance matches `inh`.** In the phase 1 Q-INH run, the parents' audit ACEs were written by SACL-only `SetFileSecurityW` (`SACL\|PROTECTED_SACL`): all 11 flag rows, as `AU` with `SA`+`FA`, plus `SA`-only and `FA`-only. Children and grandchildren, created before and after the parent's write, matched `Inheritance.Inherit`, with 0 differences in 280 objects. The public record's line "every write was one DACL-only `SetFileSecurityW`" was inaccurate, and it now carries a correction. | `benchmarks/qual-smb-check-700630b-20261116/RESULTS.md` (B, Q-INH); lab records `fa-smb-inh-20261115`, `qual-smb-check-700630b` |
+| K4 | **SACL inheritance matches `inh`.** 304 of 304 children matched `inh` exactly, under 38 parents whose SACL was written with `SACL_SECURITY_INFORMATION`: all 12 flag sets (including `OI\|NP\|IO` and `CI\|NP\|IO`, #77) as `SA`, `FA` and both, a five-ACE order case and an unprotected parent, for children that existed at the write and children created after it. The phase 1 Q-INH run agrees (280 objects, 0 differences; its parents' audit ACEs were SACL-only writes, `SACL\|PROTECTED_SACL`, and its public record now carries a correction saying so). | lab record `fa-smb-saclq-20261123`; `benchmarks/qual-smb-check-700630b-20261116/RESULTS.md` (B, Q-INH); lab records `fa-smb-inh-20261115`, `qual-smb-check-700630b` |
 | K5 | The phase 2 preflight writes one protected, non-inheritable placeholder audit ACE to the probe and requires it to read back. This proves the array kept a SACL write on the probe. It proves nothing about SACL inheritance. | `smb/src/PermissionReset.Smb.Core/Preflight.cs:73-86` |
 | K6 | Phase 2 `apply` refuses any plan with a `sacl_set` rule. | `smb/src/PermissionReset.Smb/Program.cs:250-254` |
 | K7 | An NFS read by an identity without the bypass emptied an inheriting object's SACL (Purity//FA 6.10.6). This was reproduced again in the week of 2026-11-23. The spec guide says "SMB reads do not do this", but no record backs that half. | `docs/spec-guide.md:736-739`; lab records |
 | K8 | `Descriptor` recognises SACL ACE types it does not model: mandatory label (0x11), resource attribute (0x12) and scoped policy id (0x13). It decodes nothing for object and callback ACE types. | `smb/src/PermissionReset.Smb.Core/Descriptor.cs:114-118` |
-| K9 | **A present, empty SACL is stored as written.** `S:P` empty reads back `S:P` empty, and `S:AI` empty reads back `S:AI` empty (local NTFS stores it as NULL; FlashArray does not). | lab records `fa-smb-saclnone-20261116`, `fa-smb-saclconv-20261116` |
-| K10 | **Unaudited SMB-created children follow their parent's SACL.** An object never written, with no SACL, picked up the parent's inheritable audit ACEs, and so did files and directories created after the parent's write. A never-written object followed two successive parent changes. Limits: a protected SACL does not follow, and an `S:AI` empty SACL under a parent that passes ACEs down is a mismatch, a freeze. NFS-created unaudited children are untested. | lab records `fa-smb-inh-20261115`, `fa-smb-saclnone-20261116`, `qual-smb-check-700630b` |
-| K11 | **The array decides the auto-inherit bit from protection, for both ACLs.** DACL: an unprotected write sent with `D:AI` **clear** was stored with `D:AI` set (`7ac90d8` run), so F5 is not an echo of what phase 2 sends. SACL: `S:PAI` sent is stored `S:P`, and an unprotected SACL is stored `S:AI`. Still untested: an unprotected SACL write sent with `S:AI` clear. | `smb/DESIGN-write-path.md:26-29`; lab records `fa-smb-apply-7ac90d8` (STOP record), `fa-smb-inh-20261115`, `fa-smb-saclconv-20261116` |
+| K9 | **FlashArray always stores a present SACL.** Present-empty, NULL and absent SACL writes all read back as a present, 0-ACE SACL, protected or not as the protection flag says. So a SACL write with no ACEs clears auditing, and `sacl: []` reads back `S:P` with 0 ACEs. The array never reports an absent SACL: an object whose SACL was never written reads `S:AI` empty (local NTFS can store NULL; FlashArray does not). | lab record `fa-smb-saclq-20261123`; lab records `fa-smb-saclnone-20261116`, `fa-smb-saclconv-20261116` |
+| K10 | **A SACL follows its parent when its `ID` part matches what the parent passes down, and only then.** Never-written objects (`S:AI` empty), children and grandchildren included, picked up a parent's first SACL write as `ID` ACEs: one write, not one per object. Objects written with a matching `ID` part, and `S:P` objects converted to unprotected with a matching `ID` part, followed **two** later parent changes together with their unwritten subtrees. An `S:AI` empty SACL under a parent that passes nothing down follows a later parent SACL too. Limits: an object whose `ID` part does not match what its parent passes (an `S:AI` empty SACL under a parent that passes ACEs down included) stays frozen through both changes, and a protected SACL (`S:P`, `sacl: []` included) does not follow and blocks its children from a later ancestor change until it is itself written. A re-read 30 s later was byte-identical. | lab record `fa-smb-saclq-20261123`; lab records `fa-smb-inh-20261115`, `fa-smb-saclnone-20261116`, `qual-smb-check-700630b` |
+| K11 | **The array decides the auto-inherit bit from protection, for both ACLs.** DACL: an unprotected write sent with `D:AI` **clear** was stored with `D:AI` set (`7ac90d8` run), so F5 is not an echo of what phase 2 sends. SACL: the protection flag alone decides; `S:AI` sent with a protected SACL is stored `S:P` with AI clear, and an unprotected SACL sent with `S:AI` clear is stored `S:AI`. | `smb/DESIGN-write-path.md:26-29`; lab record `fa-smb-saclq-20261123`; lab records `fa-smb-apply-7ac90d8` (STOP record), `fa-smb-inh-20261115`, `fa-smb-saclconv-20261116` |
 | K12 | Without the array's audit bypass, the SMB SACL open was refused (sandbox array, Purity//FA 6.12.2). Whether an SMB SACL read without the bypass changes the object is not recorded. | `benchmarks/sacl-ps07-20261026/` |
-| K13 | **The array can return success and still drop what it doesn't store.** A write carrying object or callback ACEs returned rc 0, and those ACEs were missing on read-back. Only a read-back shows what was stored. | lab finding (win01-lab, 2026-11-24) |
-| K14 | **The client token's `SeSecurityPrivilege` is not the array's gate.** A SACL write succeeded with `SeSecurityPrivilege` disabled in the client token. On FlashArray, what admits a SACL write is the array side (the audit bypass), not the client privilege. | lab finding (win01-lab, 2026-11-24) |
+| K13 | **The array can return success and still drop what it doesn't store.** A write carrying object or callback ACEs returned rc 0, and those ACEs were missing on read-back. Only a read-back shows what was stored. | lab record `fa-smb-saclq-20261123` |
+| K14 | **The client token's `SeSecurityPrivilege` is not the array's gate.** A SACL write succeeded with `SeSecurityPrivilege` disabled in the client token. On FlashArray, what admits a SACL write is the array side (the audit bypass), not the client privilege. | lab record `fa-smb-saclq-20261123` |
 | K15 | On FlashArray, an object with no explicit audit ACE shows its parent's inheritable ones (`ID`). So an excluded or left-alone object under a directory with an inheritable SACL is audited anyway. | `tools/set-saclonly/README.md:58-60` |
+| K16 | **What decides following is whether the object's ACL was ever written, not the protocol that created it.** An NFS-created object whose ACL was never written (mode only) reads `S:AI` empty and picked up a parent's new audit ACE as `ID`, as an SMB-created one does. An NFS ACL write leaves the SACL `S:P` (K3), so it does not follow. After one matching-`ID` unprotected SACL write, such an object followed two parent changes. Its own NFS-ACL-written children stayed `S:P`, frozen: **each NFS-ACL-written object needs its own conversion.** | lab record `fa-smb-saclq-20261123` |
+| K17 | **A failed second write leaves the first one stored, and the read-back tells the truth.** SACL written first, then a DACL write denied (error 5, two variants): the new SACL was stored and the old DACL unchanged, and the immediate read-back, a second read and a 30 s re-read all agreed with that. Untested: a failing first SACL write (none could be produced in scope), so the `dacl-first` failure case. Unanswered: a disconnect after the server committed, which needs fault injection. | lab record `fa-smb-saclq-20261123` |
 
 What remains open (section 8):
-- whether a child written with `ID` audit ACEs, or converted from `S:P`, stays dynamic (the DACL's F2);
-- NFS-created unaudited children;
-- a clean SACL-only isolation run;
-- write failures between two writes;
-- whether an SMB SACL read without the bypass has a side effect;
-- whether audit events are delivered for what is stored.
+- a failing first SACL write, and a disconnect after the server committed (Q-SACL-PARTIAL);
+- whether an SMB SACL read without the bypass has a side effect (Q-SACL-AUTH);
+- whether audit events are delivered for what is stored (Q-SACL-EVENTS).
 
 ## 2. Plan schema
 
@@ -138,7 +137,7 @@ Consumer (`Plan.CheckAces`), all checked before any probe or read:
 rows carry `[]`. The only way to set `SACL_SECURITY_INFORMATION` is a `sacl_set` rule.
 
 **"Never written" is not "unchanged".** An object with no `sacl:` key, under a directory whose SACL
-this run writes, has its stored SACL changed by inheritance (K10, K15). When any rule sets `sacl:`,
+this run writes, has its stored SACL changed by inheritance (K10, K15, K16). When any rule sets `sacl:`,
 `check` and `apply` therefore classify every object's SACL, the way the DACL side handles a kept
 directory's children:
 - An object whose SACL tracks what its parent passes down is reported `Follows` (dry run) or `Ok`
@@ -149,8 +148,8 @@ directory's children:
 The operator docs say plainly that a rule without `sacl:` doesn't mean "not audited" on FlashArray.
 
 An empty desired SACL is sent as a **present, empty** ACL, never as a NULL SACL. FlashArray stores a
-present, empty SACL as written (K9). What it does with a NULL SACL is **UNVERIFIED**, and the tool
-never sends one.
+present, empty SACL as written, and stores a NULL or absent SACL write the same way (K9). The tool
+still never sends a NULL SACL, because other servers need not behave alike.
 
 **`sacl: []` is always Protected and empty** (`S:P`, no audit ACEs; section 11, decision 2). This
 matches the classifier, which says "the rule's ACL is complete, and an unprotected explicit-only ACL
@@ -158,9 +157,9 @@ would pick up whatever the parent passes down later" (`Inheritance.cs`, `Classif
 Windows way to guarantee no auditing: disable inheritance and remove every entry.
 `smb/DESIGN-write-path.md` 2.5 was corrected to match.
 
-**What `sacl: []` costs** (section 11, decision 11). Absent is the normal SACL state, and absent
-differs from present-empty `S:P` (3.1). So a `sacl: []` rule **writes every never-audited object in
-its scope once**. On a large tree that is one write per object. The dry run shows that count, and
+**What `sacl: []` costs** (section 11, decision 11). A never-audited object reads `S:AI` empty on
+FlashArray (K9), and an absent SACL elsewhere; neither equals present-empty `S:P` (3.1). So a
+`sacl: []` rule **writes every never-audited object in its scope once**. On a large tree that is one write per object. The dry run shows that count, and
 before any write `apply` prints how many objects will lose audit ACEs, so the operator sees both
 numbers before anything changes. Since there is no opt-in flag (decision 5), those counts are the
 operator's warning.
@@ -202,19 +201,24 @@ spelled out:
 |---|---|---|
 | absent (`SaclPresent` clear) | Protected, empty (`sacl: []`) | **differs**: written once to present-empty `S:P` (2.3) |
 | absent | Inherits, where the parent passes ACEs down | **follows** once the parent is right (3.2), never a "no SACL" error |
+| `S:AI` empty (FlashArray's never-audited state, K9) | Inherits, where the parent passes ACEs down | **follows** once the parent is right, when the parent's stored SACL passes nothing down now (3.2); otherwise a frozen copy (G1-SACL) |
 | absent | anything else | differs |
 | present | any | compared raw, as `Matches` does: count, order, type, flags (`ID` included), mask, SID, and `S:P` |
 
 G2's `SaclPresent` row compares raw. A present, empty SACL reads back present (K9), so `sacl: []`
-converges.
+converges. FlashArray never returns an absent SACL (K9); the absent rows are kept for other servers
+and for a read that omits the SACL.
 
 ### 3.2 Following
 
 `TrackableShape` and `Follows` (`Checker.cs:511-540`) need a SACL variant. On the DACL, an object
 follows only when its stored ACL has the right explicit part and a non-empty inherited remainder.
-On the SACL, **an absent SACL also counts as following** when the object's desired form is
-Inherits and its parent will pass ACEs down. SMB-created unaudited children pick up the parent's
-audit ACEs, existing and new (K10). Without this, every descendant of a newly audited directory is
+On the SACL, **an absent SACL, or an unprotected SACL with no explicit part whose `ID` part equals
+what the parent's stored SACL passes down now (0 ACEs included), also counts as following** when the
+object's desired form is Inherits and its parent will pass ACEs down. On FlashArray that is the
+never-audited state, `S:AI` empty under a parent that passes nothing. Such objects pick up the
+parent's audit ACEs, existing children and new ones, whether SMB- or NFS-created, as long as their
+ACL was never written (K10, K16). Without this, every descendant of a newly audited directory is
 predicted, and written, as its own `Write`: N writes instead of one parent write plus the array's
 propagation.
 
@@ -223,9 +227,9 @@ This does not cover:
 - **An unprotected, empty SACL (`S:AI` empty)** under a parent that passes ACEs down: it is a
   mismatch freeze (K10), so it is treated as a frozen copy. That means G1-SACL in `apply`, and an
   error in `check`.
-- **NFS-created unaudited children**: their behaviour is untested (Q-SACL-ABSENT). Until it is
-  answered, `apply` relies on reading each child after its parent is written (as phase 2 does).
-  A child that hasn't followed is written as its own `Write`, never assumed.
+- **NFS-ACL-written objects**: their SACL is `S:P` (K3, K16), so each is a `Write` of its own, and
+  its NFS-ACL-written children are too. `apply` still reads each child after its parent is written
+  (as phase 2 does), so a child that hasn't followed is written as its own `Write`, never assumed.
 
 **Kept directory SACLs.** A directory whose rule has no `sacl:` key still feeds its children's
 inherited audit part from its **stored** SACL. The phase 1 fix applies to the SACL too: the stored
@@ -241,9 +245,11 @@ of it (section 11, decision 4), because nothing shows that the two ACLs of one r
 
 **The main use.** Trees audited over NFS are `S:P` with every audit ACE explicit (K3). Converting
 them to Inherits writes the parent's inheritable audit ACEs in `ID` form with `S:P` cleared. That is
-the DACL's Q-PROT conversion. Whether it makes the SACL dynamic is Q-SACL-DYNAMIC. A tree with no
-SACLs at all, the more common start, needs only the parents written (K10), except for NFS-created
-children (Q-SACL-ABSENT).
+the DACL's Q-PROT conversion, and it makes the SACL dynamic: a converted object follows later parent
+changes (K10, K16). It does not convert the object's children. **Every object whose ACL was written
+over NFS needs its own write**, so the write count for such a tree is the number of NFS-ACL-written
+objects, not the number of directories; the dry run shows it. A tree whose ACLs were never written,
+SMB- or NFS-created, the more common start, needs only the parents written (K10, K16).
 
 ## 4. The write
 
@@ -318,8 +324,8 @@ preflight confirms the rule on the probe for each run (section 6, step 5). It re
 - the probe's readings disagree with the rule; or
 - the same write, repeated, reads back differently.
 
-Q-SACL-CONTROL's remaining row, an unprotected write sent with `S:AI` clear, is answered by the
-probe too, since 4.1 never sends that combination.
+The lab answered the unprotected write sent with `S:AI` clear (K11). The probe measures it again
+on each run, since 4.1 never sends that combination.
 
 ### 4.4 Guards
 
@@ -328,8 +334,9 @@ when its stored SACL is unprotected and has the right explicit part with only `I
 but its `ID` part differs from `inh(desired(parent).sacl)`. So does an `S:AI` empty SACL under a
 parent that passes ACEs down (K10). This applies to every classified object, including those with
 no `sacl:` key (2.3). There is no override, as for the DACL G1. It fires on a frozen copy that
-predates the run too. Whether a written SACL can freeze is Q-SACL-DYNAMIC. The guard stays until
-that is answered, because a false stop costs a rerun while a missed freeze is silent.
+predates the run too. A written or converted SACL with a matching `ID` part stays dynamic, and one with a mismatching
+`ID` part stays frozen (K10), so the guard is needed: a false stop costs a rerun while a missed
+freeze is silent.
 
 **G2 for a SACL write.** A fresh read with the SACL after every write, compared raw:
 
@@ -425,9 +432,8 @@ proof on a disposable probe, before any tree read, in the same way build-spec pr
    cleared. If the root passes nothing down, use an inheritable placeholder (`OI|CI|SA|FA`) instead,
    so the check below is never vacuous. Read back, and require the subdirectory's and file's `ID`
    audit part to equal `inh(…)`. They were created in step 1 with no SACL, so **this step depends on
-   unaudited children following their parent**. That holds for SMB-created children (K10), and the
-   probe's children are SMB-created. This is G1 on known data. If Q-SACL-ABSENT's NFS half turns
-   out differently, this step does not change, because the probe is never NFS-created.
+   never-audited children following their parent**. That holds for objects whose ACL was never
+   written (K10, K16), which the probe's children are. This is G1 on known data.
 5. **Confirm the `S:AI` rule (4.3):** write an unprotected SACL (one explicit audit ACE, then its
    inherited part) to the subdirectory and a protected one to the file, each with the control word
    of 4.1, and read both back. Then write the subdirectory once more, unprotected, with `S:AI`
@@ -441,7 +447,8 @@ A plan with no `sacl_set` rule runs phase 2's preflight unchanged.
 
 **What the probe does not prove:**
 - that a written SACL stays dynamic after later parent changes (Q-SACL-DYNAMIC);
-- that NFS-created children in the tree follow (Q-SACL-ABSENT);
+- that the tree's objects are in the never-written state the probe's children are in: an
+  NFS-ACL-written object in the tree is `S:P` and is written, not followed (K16);
 - that the target share behaves like the probe's directory, unless the probe is inside the target
   share, which phase 2 already requires;
 - that audit events are delivered (Q-SACL-EVENTS).
@@ -514,14 +521,14 @@ the records in section 1 settle. **Blocks** is what stays blocked until the open
 
 | Id | Question | Status | Blocks |
 |---|---|---|---|
-| Q-SACL-ISOLATION | Does a SACL-only write, **including one that changes `S:P`**, leave owner, group, DACL bytes, `DaclPresent`, `D:P`, `D:AI` and other control bits unchanged? Test every DACL form, SMB-written and NFS-written objects, and `SeRestorePrivilege` both on and off. | **Largely answered** (K2): DACL bytes identical on 13/13 and 15/15, owner/group on 13/13, including NFS-reset objects. Open: a run with no DACL writes in the same interval, every DACL form, and `SeRestorePrivilege` on and off. | the release; G2's DACL row stays regardless |
-| Q-SACL-PARTIAL | After the first of two writes, a failed second write, or a disconnect after the server committed: what is stored, and does the read-back tell the truth? | open | the two-write order (4.2), under both orders; the `unknown` outcome |
-| Q-SACL-DYNAMIC | Is a child **written** with `ID` audit ACEs that match its parent dynamic, and is one that does not match a frozen copy? After an `S:P` to unprotected conversion, does the object and its unwritten subtree follow **two** later parent SACL changes? Test SMB-born and genuinely NFS-flattened objects. | **Partly answered** (K10): never-written SMB-created objects follow two parent changes; protected SACLs don't follow; `S:AI` empty under a passing parent is a freeze. Open: written and converted objects, NFS-flattened objects. | G1-SACL; the main use (3.2) |
-| Q-SACL-ABSENT | Does a never-audited child (SACL absent) pick up a parent's newly written inheritable audit ACEs, existing children and ones created later? | **Answered for SMB-created children: yes** (K10). Open: NFS-created children (win01-lab's current fixture). | the follows model (3.2) for NFS-created trees; until then `apply` writes such a child if it hasn't followed |
+| Q-SACL-ISOLATION | Does a SACL-only write, **including one that changes `S:P`**, leave owner, group, DACL bytes, `DaclPresent`, `D:P`, `D:AI` and other control bits unchanged? Test every DACL form, SMB-written and NFS-written objects, and `SeRestorePrivilege` both on and off. | **Answered: yes** (K2): 96 SACL-only writes, 0 changes outside the SACL, over six SMB DACL forms and raw-NFS-written objects, `S:P` flipped both ways, `SeRestorePrivilege` off and on. | nothing; G2's DACL row stays regardless |
+| Q-SACL-PARTIAL | After the first of two writes, a failed second write, or a disconnect after the server committed: what is stored, and does the read-back tell the truth? | **Partly answered** (K17): SACL first, DACL write failed: the SACL write is stored and the read-back, a second read and a 30 s re-read agree. Open: a failing first SACL write (so `dacl-first`'s failure case), and a disconnect after commit (needs fault injection). | `dacl-first`'s failure handling; the `unknown` outcome |
+| Q-SACL-DYNAMIC | Is a child **written** with `ID` audit ACEs that match its parent dynamic, and is one that does not match a frozen copy? After an `S:P` to unprotected conversion, does the object and its unwritten subtree follow **two** later parent SACL changes? Test SMB-born and genuinely NFS-flattened objects. | **Answered** (K10, K16): matching-`ID` written objects, `S:P`-to-unprotected conversions and never-written objects follow two parent changes with their unwritten subtrees; a mismatching `ID` part stays frozen. Genuinely NFS-written objects follow after their own conversion; their unconverted NFS-ACL-written children stay `S:P`. | nothing; G1-SACL stays (4.4) |
+| Q-SACL-ABSENT | Does a never-audited child (SACL absent) pick up a parent's newly written inheritable audit ACEs, existing children and ones created later? | **Answered: yes, when the child's ACL was never written** (K9, K10, K16), SMB- or NFS-created. FlashArray never reports an absent SACL; such a child reads `S:AI` empty. An NFS-ACL-written child is `S:P` and does not follow. | nothing; `apply` still writes any child that hasn't followed |
 | Q-SACL-EVENTS | Do `SA`-only, `FA`-only and combined ACEs deliver events for allowed and denied SMB access by non-bypass identities, at the final sink, with and without an audit policy on the managed directory? | open over SMB; NFS only (`benchmarks/sacl-fa-20261015/AUDITLOG-RESULTS.md`) | any claim about audit coverage, as opposed to stored rules |
-| Q-SACL-AUTH | With `SeSecurityPrivilege` but no array audit bypass: is an SMB SACL read refused, empty or returned, and does it change the object (K7)? Is the SACL write refused or dropped? | **Partly answered** (K12, K14): the SMB SACL open was refused; the client privilege is not the gate. Open: whether a read without the bypass changes the object, with the identity provisioned under decision 12. | `check --accept-unproven-read`'s risk; S1 |
-| Q-SACL-INH | Do audit ACE flags (`OI`, `CI`, `NP`, `IO` and combinations, with `SA`, `FA`, both) inherit as `inh` predicts **when the parent's SACL is written with `SACL_SECURITY_INFORMATION`**? | **Answered: yes** (K4), 11 rows, 280 objects, 0 differences. | nothing |
-| Q-SACL-CONTROL | What do protected, unprotected, present-empty and NULL SACL writes read back as (`S:P`, `S:AI`, `SaclPresent`)? In particular, how does `sacl: []` (protected, present, empty) read back? What happens to children of an empty protected SACL when their parent later gains auditing? | **Largely answered** (K9, K10, K11): present-empty is kept as written, `S:P` empty included; protected is stored `S:P`, unprotected `S:AI`; a protected SACL doesn't follow. Open: an unprotected write sent with `S:AI` clear (the preflight measures it, 4.3), and NULL (never sent). | nothing beyond the preflight's check |
+| Q-SACL-AUTH | With `SeSecurityPrivilege` but no array audit bypass: is an SMB SACL read refused, empty or returned, and does it change the object (K7)? Is the SACL write refused or dropped? | **Partly answered** (K12, K14): the SMB SACL open was refused on another array; the client privilege is not the gate. Open on this array: all of it, with the identity provisioned under decision 12. | `check --accept-unproven-read`'s risk; S1 |
+| Q-SACL-INH | Do audit ACE flags (`OI`, `CI`, `NP`, `IO` and combinations, with `SA`, `FA`, both) inherit as `inh` predicts **when the parent's SACL is written with `SACL_SECURITY_INFORMATION`**? | **Answered: yes** (K4): 304/304 children under 38 parents, every flag set as `SA`, `FA` and both. | nothing |
+| Q-SACL-CONTROL | What do protected, unprotected, present-empty and NULL SACL writes read back as (`S:P`, `S:AI`, `SaclPresent`)? In particular, how does `sacl: []` (protected, present, empty) read back? What happens to children of an empty protected SACL when their parent later gains auditing? | **Answered** (K9, K10, K11): the protection flag alone decides `S:P`/`S:AI`, whatever AI bit is sent; present-empty, NULL and absent writes all store a present 0-ACE SACL; `sacl: []` reads `S:P` with 0 ACEs and blocks a later ancestor change until written. | nothing beyond the preflight's check |
 | Q-SACL-IDENTITY | Are audit ACEs naming unmapped, deleted, foreign-domain or array-local SIDs stored unchanged? Does a SACL-only write on an object whose DACL names such SIDs leave the DACL byte-identical? | the DACL half for Set-SaclOnly's write (`benchmarks/sacl-unmapped-sid-20261020/`) | `sacl:`-only rules on damaged trees |
 | Q-SACL-SCOPE | Does a parent SACL change reach excluded subtrees and `Keep` subtrees under it? | **Answered for what is stored** (K15): excluded and left objects show the parent's inheritable ACEs. Open: nothing for the design; the operator docs state it. | nothing |
 | Q-SACL-OPAQUE | Does FlashArray store mandatory label, resource attribute or scoped policy ACEs over SMB? | **Partly answered** (K13): object and callback ACEs are dropped on write. Open: the three K8 types. | whether 4.5's refusal can fire in practice |
@@ -583,7 +590,8 @@ Following `MAINTAINERS.md` and design section 8.
 - sections 2 to 7 built;
 - offline tests green, with `FakeTree` extended so a wrong SACL model fails a unit test first:
   - SACL analogues of F1 to F3;
-  - absent SACLs following (K10), and protected and `S:AI` empty ones not following;
+  - never-written SACLs (absent, or `S:AI` empty under a parent that passes nothing) following,
+    and protected ones and mismatching `ID` parts not following (K10, K16);
   - K9's present-empty behaviour and K11's `S:AI` rule;
   - a write that returns success and drops ACEs (K13);
   - partial writes and `unknown` outcomes;
@@ -608,7 +616,7 @@ the design before the product run.
 | S0 | `check` with a `sacl:` plan, `SeSecurityPrivilege` not assignable to the token | exit 1 naming it; nothing read |
 | S1 | `apply`, and `check` without `--accept-unproven-read`, as the provisioned identity: `SeSecurityPrivilege` in the token, **no** array bypass, not in Audit Operators (section 11, decision 12) | preflight refuses; no evidence directory, no checkpoint, probe removed, tree byte-identical (raw reads before and after with a bypass identity) |
 | S2 | preflight on a conforming root, for `apply` and for `check` | passes; its line names the SACL steps and the confirmed `S:AI` rule |
-| S3 | A fixture covering every SACL form under every rule kind in 2.4, including: `sacl: []` under parents that do and do not pass auditing down; a never-audited subtree under a newly audited directory, SMB-created and NFS-created; an NFS-audited subtree written by a real `permissionreset --sacl` run; an SMB-audited subtree; a deny-only directory; unmapped and array-local SIDs in the DACL under a `sacl:`-only rule; `acl:`-only objects under a directory whose SACL is written | `check` agrees with an independent classifier written from this text, including its write and loss counts; `apply` exits 0 with no stop; every written object's after-image equals an independent raw read; every `sacl:`-only object's owner, group, DACL bytes and DACL control bits are identical before and after; SMB-created never-audited descendants are followers, not writes |
+| S3 | A fixture covering every SACL form under every rule kind in 2.4, including: `sacl: []` under parents that do and do not pass auditing down; a never-audited subtree under a newly audited directory, SMB-created and NFS-created (mode only); an NFS-ACL-written subtree under it; an NFS-audited subtree written by a real `permissionreset --sacl` run; an SMB-audited subtree; a deny-only directory; unmapped and array-local SIDs in the DACL under a `sacl:`-only rule; `acl:`-only objects under a directory whose SACL is written | `check` agrees with an independent classifier written from this text, including its write and loss counts; `apply` exits 0 with no stop; every written object's after-image equals an independent raw read; every `sacl:`-only object's owner, group, DACL bytes and DACL control bits are identical before and after; never-written descendants (SMB- or NFS-created) are followers, not writes; each NFS-ACL-written object is a write of its own |
 | S4 | Rerun `apply`, then `check --validate` | 0 writes; exit 0 |
 | S5 | A frozen SACL copy planted under a parent the run does not write, and one under an `acl:`-only rule | `check` reports both; `apply` stops on G1, exit 1 |
 | S6 | Kill mid-run on a tree large enough to checkpoint; `--resume` | completes; `check --validate` exits 0; partial records as documented; every directly written object has its before-image in the evidence |
@@ -705,7 +713,7 @@ FlashArray findings:
 | # | Finding | Handling |
 |---|---|---|
 | 1 | `Matches` treats an absent ACL as a difference, which is wrong for the SACL | **Fixed**: a SACL comparison with its null semantics spelled out (3.1). K9 retires the present-empty risk. `sacl: []`'s one-write-per-object cost is stated, with counts (2.3). |
-| 2 | Missing question: does a never-audited child pick up a parent's audit ACEs? | **Fixed**: Q-SACL-ABSENT added, answered for SMB-created children (K10). The SACL follows model counts an absent SACL as following (3.2). NFS-created children stay open. |
+| 2 | Missing question: does a never-audited child pick up a parent's audit ACEs? | **Fixed**: Q-SACL-ABSENT added, answered for SMB-created children (K10). The SACL follows model counts an absent SACL as following (3.2). NFS-created children were open at `e475693`; win01-lab's final run answered them (K16): mode-only children follow, NFS-ACL-written ones are `S:P` and need their own write. |
 | 3 | The SACL control word is unspecified, and F5 looked confounded | **Fixed**: 4.1 states the control word. **Argued** on the confound: F5 is not confounded (K11, `7ac90d8`), so 4.3 expects the recorded rule. The one untested combination is measured by the preflight (step 5). |
 | 4 | `check` reads tree SACLs with no bypass proof | **Fixed**: `check` runs the probe's bypass proof before any tree SACL read, or needs `--accept-unproven-read` (section 6). |
 | 5 | "Left alone" fails across the run | **Fixed**: every object's SACL is classified when any rule sets `sacl:`; followers are reported, frozen copies are errors and hit G1-SACL (2.3, 4.4, S5). |
