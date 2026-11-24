@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | Date | 2026-11-20 |
-| Status | **Draft for review. Design only; nothing here is built or qualified.** This extends `smb/DESIGN-write-path.md` (sections 2.5 and 8, phase 3). |
-| Scope | FlashArray only. FlashBlade SACL writes are the second half of phase 3, and they gate Set-SaclOnly's retirement (`docs/decision-flasharray-smb-20261107.md:66-71`). |
+| Status | **Draft for review. Design only; nothing here is built or qualified.** This extends `smb/DESIGN-write-path.md` (sections 2.5 and 8, phase 3). The maintainer's decisions of 2026-11-23 are recorded in section 11; the rest of the text follows them. |
+| Scope | FlashArray only. FlashBlade is out of scope (section 11, decision 9). Set-SaclOnly's retirement still needs FlashBlade covered (`docs/decision-flasharray-smb-20261107.md:66-71`), so this phase does not retire it. |
 | Base | The phase 2 DACL apply in PR #73 (`smb-phase2-apply` @ `632cfc0`), not `main` alone. Citations marked **P2:** are paths and lines at that commit. Other citations are against `main` @ `d91cf0d`. |
 | Builds on | `smb/DESIGN-write-path.md`, `tools/set-saclonly/`, `benchmarks/qual-smb-check-700630b-20261116/`, `benchmarks/qual-smb-apply-e834ac8-20261119/` (on P2) |
 
@@ -17,8 +17,9 @@ and which claims were checked by hand.
 The SACL gets the DACL's three-form model (`Inherits`, `Explicit + inherits`, `Protected`), the same
 `inh` function and its own G1 and G2 guards. It is written by its own `SetKernelObjectSecurity`
 call carrying `SACL_SECURITY_INFORMATION` and an explicit SACL protection bit. The JSON plan shape
-does not change: schema 2 already carries `sacl_set`, `keep_dacl` and `sacl`. The producer gets one
-new refusal and the consumer four new checks. `check` and `apply` read the SACL on every object
+does not change, since schema 2 already carries `sacl_set`, `keep_dacl` and `sacl`. But a plan that
+sets `sacl:` moves to **schema 3**, to mark the new write semantics. The producer gets one new
+refusal and the consumer four new checks. `check` and `apply` read the SACL on every object
 whenever any rule sets `sacl:`, so both need `SeSecurityPrivilege`. The preflight probe proves SACL
 behaviour on data that is not the tree's before any tree SACL is read. The tool promises end-state
 evidence, not rollback. Twelve hardware questions (section 8) block the release. One record that
@@ -64,9 +65,19 @@ Audit ACE flags come from the same translation as the DACL's: `S` becomes `SA` (
 are numeric principals (`saclplan.go:244-253`). `OWNER@` and `GROUP@` map to `CO`/`CG`
 (`saclplan.go:79-83`) and are refused only in the DACL (`saclplan.go:248-249`).
 
-**The JSON shape does not change and the schema stays 2.** An older `apply` refuses every
-`sacl_set` plan (K6), so no older build can half-apply a phase 3 plan. A schema bump was proposed in
-one draft (section 12) and is listed in section 11.
+**The JSON shape does not change, but the schema version does** (section 11, decision 7). Schema 3
+marks the change in write semantics: in schema 2, `sacl_set` is a rule the consumer refuses (K6); in
+schema 3 it is a SACL write. Proposed compatibility rule, **for the maintainer to confirm**:
+
+| Build | `--smb-plan` emits | `check`/`apply` accept |
+|---|---|---|
+| phase 2 (`smb-v0.1.x`) | schema 2 | schema 2; a `sacl_set` rule is refused (K6). Schema 3 is refused as an unknown version. |
+| phase 3 | schema 3 when any rule sets `sacl:` (`sacl: []` included); schema 2 otherwise | schema 2 with no `sacl_set` rule (a DACL-only plan, unchanged meaning); schema 3. A schema 2 plan with a `sacl_set` rule is refused, with a message to rebuild it. |
+
+So a DACL-only plan stays schema 2 and still loads in a qualified phase 2 build. A plan that writes
+SACLs can't reach a build that would refuse it only rule by rule, and an old schema 2 SACL plan is
+never reinterpreted. `--sacl-plan` stays schema 1 (Set-SaclOnly's), and `plan` keeps reading it for
+display only.
 
 ### 2.2 What must be added
 
@@ -76,7 +87,7 @@ Producer (`BuildSMB`):
    the inherited SID depends on who created the child (P2:`Inheritance.cs`, `CreatorSids`). A
    directory whose desired SACL names `CO`/`CG` with any inheritance flag would leave every child
    unclassifiable. Set-SaclOnly accepts them, so `--smb-plan` becomes stricter than `--sacl-plan`
-   here. `--sacl-plan` (schema 1) is unchanged.
+   here (section 11, decision 6). `--sacl-plan` (schema 1) is unchanged.
 
 Consumer (`Plan.CheckAces`), all checked before any probe or read:
 
@@ -104,12 +115,13 @@ rows carry `[]`. The only way to set `SACL_SECURITY_INFORMATION` is a `sacl_set`
 An empty desired SACL is sent as a **present, empty** ACL, never as a NULL SACL. What the array does
 with a NULL SACL is **UNVERIFIED**, and the tool never sends one.
 
-**Disagreement in the existing design.** `smb/DESIGN-write-path.md` 2.5 says `sacl: []` is
-**Inherits** when the parent passes nothing down. The classifier says **Protected**, because "the
-rule's ACL is complete, and an unprotected explicit-only ACL would pick up whatever the parent
-passes down later" (P2:`Inheritance.cs`, `Classify`). Section 2.1 of the same design argues the same
-way. This design follows the classifier: `sacl: []` is always **Protected and empty**. Section 2.5
-should be corrected, and maintainer confirmation is listed in section 11.
+**`sacl: []` is always Protected and empty** (`S:P`, no audit ACEs; section 11, decision 2). This
+matches the classifier, which says "the rule's ACL is complete, and an unprotected explicit-only ACL
+would pick up whatever the parent passes down later" (P2:`Inheritance.cs`, `Classify`). It is also
+the Windows way to guarantee no auditing: disable inheritance and remove every entry.
+`smb/DESIGN-write-path.md` 2.5 said **Inherits** when the parent passes nothing down. It is
+corrected in the same change. How a present, empty, protected SACL reads back on FlashArray is
+Q-SACL-CONTROL.
 
 ### 2.4 SACL-only rules and rules with both
 
@@ -146,9 +158,8 @@ are reported as errors and not written.
 
 **The root.** Its `desired(parent).sacl` is read from the array as its stored `ID` audit ACEs, as
 for the DACL. A frozen `ID` copy on the root cannot be detected, so **`--root-sacl-protected`**
-forces the root's SACL to Protected. It is separate from `--root-protected` (#76): nothing shows that
-the two ACLs of one root freeze together. One draft proposed a single flag for both; that choice is
-listed in section 11.
+forces the root's SACL to Protected. It is separate from `--root-protected` (#76) and independent
+of it (section 11, decision 4): nothing shows that the two ACLs of one root freeze together.
 
 **The main use.** Trees audited over NFS are `S:P` with every audit ACE explicit (K3). Converting
 them to Inherits writes the parent's inheritable audit ACEs in `ID` form with `S:P` cleared. That is
@@ -174,18 +185,26 @@ a combined write is **UNVERIFIED** (Q-SACL-COMBINED), so phase 3 does not use on
 
 ### 4.2 Order when both parts differ
 
-**The SACL first, then the DACL**, each followed by its own G2 read-back. Neither order is atomic,
-and each leaves a window:
+The order is a switch, because the right one is customer-specific (section 11, decision 3):
+**`--write-order=sacl-first|dacl-first`**, default **`sacl-first`**. Each write is followed by its
+own G2 read-back. Neither order is atomic, and each leaves a window:
 
 | Order | Window if the second write fails |
 |---|---|
-| SACL first (chosen) | Auditing is already the new policy while access is still the old one. |
-| DACL first | Access is already the new policy, possibly wider, with the old auditing. New access can go unaudited. |
+| `sacl-first` (default) | Auditing is already the new policy while access is still the old one. |
+| `dacl-first` | Access is already the new policy, possibly wider, with the old auditing. New access can go unaudited. |
 
-SACL first is chosen because a failed run should not leave newly granted access unaudited. It costs
-one extra read: the SACL write's read-back becomes the DACL write's before-image, and the DACL write
-re-reads that before-image immediately before it writes. One draft argued for DACL first, because it
-keeps the qualified phase 2 step byte-identical and saves that read; it is listed in section 11.
+`sacl-first` is the default because a failed run should not leave newly granted access unaudited.
+It costs one extra read: the SACL write's read-back becomes the DACL write's before-image, and the
+DACL write re-reads that before-image immediately before it writes.
+
+`dacl-first` **must keep the qualified phase 2 DACL step byte-identical**: the same before-read, the
+same `SetKernelObjectSecurity` call and descriptor bytes, and the same G2. The SACL write follows,
+and its G2 compares the DACL against the DACL write's read-back. A test asserts that the DACL step
+under `dacl-first` sends the bytes phase 2 sends for the same object.
+
+The order applies only to objects where both parts differ. It is recorded in the manifest and
+bound in the checkpoint (7.1), so a resume cannot switch it.
 
 A directory's children are queued only after **every** selected part of the directory has passed G2.
 
@@ -313,7 +332,7 @@ The checkpoint header moves to **v2**. A v1 checkpoint is never resumed by a SAC
 v2 header binds:
 - the plan's SHA-256 (already bound in v1);
 - the root;
-- `--root-protected` and `--root-sacl-protected`;
+- `--root-protected`, `--root-sacl-protected` and `--write-order`;
 - a SHA-256 of the resolved principal-to-SID table, so a name that resolves differently on resume
   refuses the resume;
 - the `S:AI` measurement from the preflight.
@@ -342,9 +361,9 @@ Phase 2's shard format is kept. Its before- and after-images are already read wi
 and is buffered, and a hard kill already lost one before-image in qualification (P2 qualification
 record). Objects that change only by inheritance from a written parent have no before-image at all.
 
-Before running phase 3 on a tree whose audit coverage matters, the operator takes an array snapshot.
-A per-object undo would need a durable intent journal, flushed before each write, and is not
-designed here (section 11).
+**The phase 3 operator docs require an array snapshot before `apply`.** A per-object undo needs a
+durable intent journal, flushed before each write. It is not in phase 3; a separate design covers
+it for both the DACL and the SACL (#87; section 11, decision 8).
 
 Any future restore writes parents before children and rechecks every `ID` ACE against its parent;
 otherwise a restored child becomes a frozen copy. The NFS `--restore-from` path does not apply:
@@ -370,7 +389,7 @@ product qualification. They are ranked by the damage a wrong assumption would do
 | Q-SACL-EVENTS | Do `SA`-only, `FA`-only and combined ACEs deliver events for allowed and denied SMB access by non-bypass identities, at the final sink, with and without an audit policy on the managed directory? | NFS only (`benchmarks/sacl-fa-20261015/AUDITLOG-RESULTS.md`) | any claim about audit coverage, as opposed to stored rules |
 | Q-SACL-AUTH | With `SeSecurityPrivilege` but no array audit bypass: is an SMB SACL read refused, empty or returned, and does it change the object (K7)? Is the SACL write refused or dropped? | one refusal path in `benchmarks/sacl-ps07-20261026/` | preflight order (section 6); the spec-guide sentence |
 | Q-SACL-INH | Do audit ACE flags (`OI`, `CI`, `NP`, `IO` and combinations, with `SA`, `FA`, both) inherit as `inh` predicts **when the parent's SACL is written with `SACL_SECURITY_INFORMATION`**? Include the two missing rows from #77. | K4, which does not say how the audit ACEs were written | release; G1 |
-| Q-SACL-CONTROL | What do protected, unprotected, present-empty and NULL SACL writes read back as (`S:P`, `S:AI`, `SaclPresent`)? What happens to children of an empty protected SACL when their parent later gains auditing? | nothing | G2's `S:AI` row; `sacl: []` |
+| Q-SACL-CONTROL | What do protected, unprotected, present-empty and NULL SACL writes read back as (`S:P`, `S:AI`, `SaclPresent`)? In particular, how does `sacl: []` (protected, present, empty) read back? What happens to children of an empty protected SACL when their parent later gains auditing? | nothing | G2's `S:AI` row; `sacl: []` |
 | Q-SACL-IDENTITY | Are audit ACEs naming unmapped, deleted, foreign-domain or array-local SIDs stored unchanged? Does a SACL-only write on an object whose DACL names such SIDs leave the DACL byte-identical? | the DACL half for Set-SaclOnly's write (`benchmarks/sacl-unmapped-sid-20261020/`) | `sacl:`-only rules on damaged trees |
 | Q-SACL-SCOPE | Does a parent SACL change reach excluded subtrees and `Keep` subtrees under it? | DACL propagation is recorded; SACL is not | the operator docs' statement of what exclusions mean |
 | Q-SACL-OPAQUE | Does FlashArray store mandatory label, resource attribute or scoped policy ACEs over SMB? | nothing | whether 4.5's refusal can fire in practice |
@@ -393,7 +412,7 @@ FlashArray **and** FlashBlade. The FlashArray half does not retire it.
 | root preflight on the first object | **replaced** by the disposable probe (section 6) |
 | strict owner/group/DACL comparison, stop on change | **kept and tightened**: raw bytes and all control bits (4.4) |
 | `-Accept dacl-unprotected` (FlashBlade) | **not applicable** on FlashArray |
-| `S:P`/`S:AI` copied from the object, ACEs written as given | **replaced** by computed forms (section 3). This is the behavioural difference; section 11 item 1 decides whether a parity mode comes first. |
+| `S:P`/`S:AI` copied from the object, ACEs written as given | **replaced** by computed forms (section 3). This is the behavioural difference. There is no parity mode; scenario S-PAR compares the two tools (section 11, decision 1). |
 | skip when ACEs equal, control ignored | **replaced** by a raw compare including `S:P` |
 | `OWNER@`/`GROUP@` written as `CO`/`CG` | **refused** (2.2) |
 | `sacl: []` clears, absent key leaves alone | **kept** (2.3) |
@@ -406,7 +425,7 @@ That is out of date: the Go tool keeps each object's audit ACEs without `--sacl`
 
 | Guard | Why it exists over NFS | Over SMB |
 |---|---|---|
-| `--sacl` opt-in; an `acl:` rule with no `sacl:` key refused | one NFS ACL holds both lists, so a DACL write without audit entries deletes them | the hazard does not exist: the parts are separate (K1). The plan's `sacl_set` is the intent. Whether `sacl: []` still deserves a flag is in section 11. |
+| `--sacl` opt-in; an `acl:` rule with no `sacl:` key refused | one NFS ACL holds both lists, so a DACL write without audit entries deletes them | the hazard does not exist: the parts are separate (K1). **No `--sacl` flag**: the plan's `sacl_set` is the intent, `sacl: []` included (section 11, decision 5). |
 | `ErrAuditedObject` | an NFS write flips `S:AI`/`D:AI` to protected | not applicable; G2 catches any cross-part change |
 | `ErrDACLFlattening` | NFS has no `ID`, so a kept DACL is stored flat | not applicable: a `sacl:`-only write never names the DACL. G2 proves it per object. |
 | `ErrUnmappedPrincipal`, `ErrSyntheticRangePrincipal` | NFS translates ids to SIDs on write | not applicable: SIDs are written natively. No numeric RID threshold is imposed. Stored SIDs the tool does not write are never re-encoded. |
@@ -432,7 +451,9 @@ Following `MAINTAINERS.md` and design section 8.
   analogues of F1 to F3, the F5 question, partial writes and `unknown` outcomes;
 - the CLI refusals tested through fakes;
 - the `--smb-plan` golden file updated, with golden cases for absent, empty, listed, contradictory
-  and malformed `sacl`.
+  and malformed `sacl`. It also covers the schema rule in 2.1: schema 2 for a DACL-only spec,
+  schema 3 when any rule sets `sacl:`, and a schema 2 plan with `sacl_set` refused by the consumer;
+- a unit test that the DACL step under `--write-order=dacl-first` sends phase 2's bytes (4.2).
 
 **Qualification pending** means every row below passed on one exact candidate. The candidate is
 recorded as phase 2's was: commit, artifact SHA-256s, unit test count, `build-spec` at the same
@@ -451,49 +472,44 @@ design before the product run.
 | S4 | Rerun `apply`, then `check --validate` | 0 writes; exit 0 |
 | S5 | A frozen SACL copy planted under a parent the run does not write | `check` reports it; `apply` stops on G1, exit 1 |
 | S6 | Kill mid-run on a tree large enough to checkpoint; `--resume` | completes; `check --validate` exits 0; partial records as documented |
-| S7 | A rule with both, on objects where only the SACL, only the DACL, or both differ; a fault injected between the two writes | `parts` recorded correctly; the half-written object is not checkpointed; a rerun converges |
+| S7 | A rule with both, on objects where only the SACL, only the DACL, or both differ; a fault injected between the two writes. **Run once under each `--write-order`.** | `parts` recorded correctly, in the chosen order; the half-written object is not checkpointed; a rerun converges. Under `dacl-first`, each DACL step's call and descriptor bytes equal phase 2's for the same object. |
+| S7b | S3's fixture again under the order S3 did not use | the same pass conditions as S3; the end state equals S3's |
 | S8 | **After** a successful run: two independent parent SACL changes, plus new files and directories created under written directories | unwritten and newly created descendants follow both changes. A matching state right after the run is not enough. |
+| S-PAR | One spec on two copies of one fixture: Set-SaclOnly on one, `permissionreset-smb apply` on the other | every object's **effective** audit ACEs (its explicit ACEs plus what it inherits) are equal on the two copies. Bytes, `ID` flags and `S:P` are expected to differ wherever the computed form differs from Set-SaclOnly's copied form; each such difference is listed. |
 | S9 | Events, if the lab array has an audit policy: allowed and denied SMB access by non-bypass identities, for `SA`-only, `FA`-only and both | events observed at the sink. Stored rules and delivered events are reported as separate verdicts. With no policy available, this is recorded as **unverified**, not skipped silently. |
 
 Deliverables:
 - `benchmarks/qual-smb-sacl-<commit>-<date>/RESULTS.md`, with passed, failed, skipped and unverified
   listed separately;
 - a `COMPATIBILITY.md` row for SMB SACL writes;
+- operator docs that require an array snapshot before `apply` (7.3) and describe `--write-order`;
 - the design's as-built section extended.
 
 The `smb-v0.1.0` tag is not affected by this phase.
 
-## 11. Decisions left to the maintainer
+## 11. Maintainer decisions (2026-11-23)
 
-1. **A Set-SaclOnly parity mode first, or not.** The existing design (2.5, 8) records a decision to
-   ship Set-SaclOnly's behaviour first, so the two tools can be compared object for object.
-   - One draft proposes a `--sacl-inheritance=stamp|computed` switch, with `stamp` as the default.
-   - Another argues the stamp mode is a second write form that is thrown away later. It proposes
-     running the comparison as qualification scenario S-PAR instead: the same spec on two copies of
-     one fixture, compared on effective audit ACEs rather than bytes.
+Robert decided these on 2026-11-23, after reviewing the open choices in the first draft. The rest
+of this text follows them.
 
-   Under computed inheritance, a byte-for-byte parity expectation is wrong for any object whose form
-   changes. This text designs the computed mode only and leaves the choice open.
-2. **`sacl: []` is always Protected (2.3).** This contradicts the existing 2.5 sentence. It needs
-   confirmation.
-3. **SACL first (4.2)**, or DACL first, which keeps phase 2's step unchanged and saves a read.
-4. **A separate `--root-sacl-protected` (section 3)**, or one flag for both ACLs.
-5. **No `--sacl` opt-in on the SMB tool (9.2).** The NFS hazard is absent, but `sacl: []` deletes
-   audit ACEs, and some operators may want a flag in front of that.
-6. **`OWNER@`/`GROUP@` refused in `sacl:` (2.2).** Specs that work with Set-SaclOnly today would be
-   refused by `--smb-plan`. The alternative, accepting non-inheritable `CO`/`CG` only, has unverified
-   meaning on FlashArray.
-7. **A schema bump.** The JSON shape is unchanged and older builds refuse SACL plans, so this text
-   keeps schema 2. One draft proposed schema 3, to mark the change in write semantics.
-8. **A durable intent journal for rollback (7.3).** It is not designed here. Without it, the answer
-   to "undo this run" is the operator's snapshot.
-9. **FlashBlade.** What is known:
-   - Set-SaclOnly's SMB SACL write clears `D:P` on NFS-written FlashBlade objects
-     (`tools/set-saclonly/README.md`).
-   - FlashBlade stores an `S:AI` write as `S:`.
+| # | Topic | Decision | Where it applies |
+|---|---|---|---|
+| 1 | Set-SaclOnly parity mode | **Computed inheritance only. No stamp mode.** The comparison with Set-SaclOnly is qualification scenario S-PAR: one spec on two copies of one fixture, compared on effective audit ACEs, not bytes. | section 3; 9.1; 10 (S-PAR); `DESIGN-write-path.md` 2.5 and 8 |
+| 2 | `sacl: []` | **Always Protected and empty** (`S:P`, no audit ACEs). It matches the Windows way to guarantee no auditing: disable inheritance and remove every entry. `DESIGN-write-path.md` 2.5 is corrected to match. | 2.3; 3; Q-SACL-CONTROL |
+| 3 | Write order when both parts differ | **A switch**, because the right order is customer-specific: `--write-order=sacl-first\|dacl-first`, default `sacl-first`. `dacl-first` keeps the qualified phase 2 DACL step byte-identical. Qualification covers both orders. | 4.2; 7.1; 10 (S7, S7b) |
+| 4 | Root SACL | **A separate `--root-sacl-protected`**, independent of `--root-protected` (#76). | section 3; 7.1 |
+| 5 | Opt-in | **No `--sacl` flag** on the SMB tool. The plan's `sacl_set` is the intent. | 9.2 |
+| 6 | `OWNER@`/`GROUP@` in `sacl:` | **Refused** by `--smb-plan` and by the consumer, as 2.2 says. | 2.2 |
+| 7 | Schema | **Schema 3** for this change in write semantics. The compatibility rule (which schemas each build emits and accepts) is proposed in 2.1, and **Robert confirms it**. | 0; 2.1; 10 |
+| 8 | Rollback journal | **Not in phase 3.** A separate design covers a durable intent journal for both the DACL and the SACL (#87). Phase 3 docs require an operator snapshot. | 7.3; 10 |
+| 9 | FlashBlade | **Out of scope.** FlashBlade over SMB comes last, if at all. | header; 9.1 |
 
-   Whether FlashBlade has dynamic SACL inheritance over SMB decides whether this model applies there
-   at all. It is not designed here.
+Still open: Robert's confirmation of the schema compatibility rule in 2.1.
+
+For reference, what the first draft knew about FlashBlade when this was decided:
+- Set-SaclOnly's SMB SACL write clears `D:P` on NFS-written FlashBlade objects
+  (`tools/set-saclonly/README.md`).
+- FlashBlade stores an `S:AI` write as `S:`.
 
 ## 12. How this text was written
 
@@ -503,7 +519,7 @@ hand:
 | Model | Role | Main contributions kept |
 |---|---|---|
 | claude-fable-5-1 | independent draft | the structure; the schema analysis (no shape change, new producer and consumer checks); the three-form model applied to the SACL; the preflight reordering so no tree SACL is read before the bypass is proven; the Set-SaclOnly and Go guard tables; most of the qualification table |
-| gpt-6-sol | independent draft | the `stamp` versus `computed` option (11.1); SACL-first ordering; the separate root flag; checkpoint v2 binding the principal table; `unknown` outcomes on write errors; the stale Set-SaclOnly README line |
+| gpt-6-sol | independent draft | the `stamp` versus `computed` option (decided: computed only, section 11, decision 1); SACL-first ordering; the separate root flag; checkpoint v2 binding the principal table; `unknown` outcomes on write errors; the stale Set-SaclOnly README line |
 | gpt-6-astra | adversarial review: failure analysis and testable requirements | the finding that K4's audit rows came from a record of DACL-only writes; the refusal of unmodelled SACL ACE types (K8); no rollback promise; the post-run parent-change requirement (S8); separating stored rules from delivered events; ranking hardware questions by damage |
 
 **Model output is not evidence.** The following were checked by hand against the code and records
