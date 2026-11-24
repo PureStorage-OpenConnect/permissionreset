@@ -81,11 +81,6 @@ had answered most Q-INH allow rows and Q-EXP/Q-PROT with one parent change. This
 candidate's own `Inheritance.Inherit`, and adds the `OI|CI|NP|IO` row, deny and audit for every row,
 and two parent changes.
 
-> **Correction (2026-11-24).** The first sentence above is inaccurate for the audit rows. Per the
-> lab record of this run, the parents' audit ACEs in Q-INH were written by SACL-only
-> `SetFileSecurityW` (`SACL|PROTECTED_SACL`). The DACL rows were DACL-only writes, as stated. See
-> `smb/DESIGN-sacl-write.md`, K4.
-
 **Q-INH: matches.** All 11 rows of the table in
 `smb/tests/PermissionReset.Smb.Tests/InheritanceTests.cs`, each as allow, deny and audit (SA and FA;
 SA-only and FA-only too for `OICI`). Every case has file and directory children and grandchildren,
