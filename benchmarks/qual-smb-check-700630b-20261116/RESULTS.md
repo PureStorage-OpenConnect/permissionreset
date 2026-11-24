@@ -75,8 +75,14 @@ reads raw `GetFileSecurityW` and walks the fixture builder's manifest, not `chec
 
 ## B. Platform behavior
 
-Every write was one DACL-only `SetFileSecurityW` from the lab harness; every read a raw
-`GetFileSecurityW`. The fixture was built over SMB. Earlier partial runs (2026-11-15 and 2026-11-16)
+Every write was one `SetFileSecurityW` from the lab harness, naming only the part under test: the
+DACL with `PROTECTED_DACL_SECURITY_INFORMATION` or `UNPROTECTED_DACL_SECURITY_INFORMATION`, or the
+SACL with `PROTECTED_SACL_SECURITY_INFORMATION`, never owner or group. Every read in this part was
+a raw `GetFileSecurityW`. Allow and deny parents, and every Q-EXP and Q-PROT write, were DACL-only.
+The 13 Q-INH audit parents were set by one SACL-only write each, sent `S:PAI` and stored `S:P` (the
+array clears AI on a protected SACL), with the DACL untouched. (Corrected 2026-11-24: this sentence
+first said every write was DACL-only, but the lab write log shows the audit parents were written
+SACL-only.) The fixture was built over SMB. Earlier partial runs (2026-11-15 and 2026-11-16)
 had answered most Q-INH allow rows and Q-EXP/Q-PROT with one parent change. This run checks the
 candidate's own `Inheritance.Inherit`, and adds the `OI|CI|NP|IO` row, deny and audit for every row,
 and two parent changes.
