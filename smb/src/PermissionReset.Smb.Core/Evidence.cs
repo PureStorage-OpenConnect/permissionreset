@@ -100,6 +100,38 @@ public sealed class Evidence : IDisposable
     };
 }
 
+// ProbeShard is the preflight shard of smb/DESIGN-sacl-write.md section 6 (section 11, decision
+// 18): one line per probe event in preflight-shard-000001.log, in an evidence directory
+// Evidence.CheckDir allows. It writes no manifest: the run's own manifest (apply) or summary
+// (check) carries the preflight line. Each line is flushed to stable storage right away, the 7.2
+// rule applied to the probe.
+public sealed class ProbeShard : IDisposable
+{
+    public const string ShardName = "preflight-shard-000001.log";
+
+    readonly FileStream shard;
+
+    public ProbeShard(string dir)
+    {
+        Evidence.CheckDir(dir);
+        Directory.CreateDirectory(dir);
+        shard = new FileStream(Path.Combine(dir, ShardName), FileMode.CreateNew, FileAccess.Write);
+    }
+
+    public static string Line(ProbeEvent e) =>
+        $"PROBE-{e.Kind.ToUpperInvariant()}: {e.Rel}{(e.Detail is null ? "" : $": {e.Detail}")}" +
+        (e.BeforeB64 is null ? "" : $"\tbefore={e.BeforeB64}") + (e.AfterB64 is null ? "" : $"\tafter={e.AfterB64}");
+
+    public void Record(ProbeEvent e)
+    {
+        var b = Encoding.UTF8.GetBytes(Line(e).Replace("\n", " ") + "\n");
+        shard.Write(b);
+        shard.Flush(true);
+    }
+
+    public void Dispose() => shard.Dispose();
+}
+
 public sealed record ManifestShard(string Name, string Sha256, long Size, long Records);
 
 public sealed record Manifest(
