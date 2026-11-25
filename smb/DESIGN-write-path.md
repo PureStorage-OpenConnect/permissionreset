@@ -134,12 +134,15 @@ with `SACL_SECURITY_INFORMATION` only.
 - A `sacl:`-only rule never touches the DACL. That is Set-SaclOnly's job, and this tool takes
   over its strict checks: owner, group and DACL are compared before and after.
 - An `acl:` rule with no `sacl:` key leaves the SACL as it is.
-- `sacl: []` means no audit ACEs: **Inherits** when the parent's SACL passes nothing down, else
-  **Protected** and empty.
+- `sacl: []` means no audit ACEs: always **Protected** and empty (`S:P`, no audit ACEs), the
+  Windows way to guarantee no auditing. An earlier text said **Inherits** when the parent passes
+  nothing down; the maintainer decided against it on 2026-11-23 (`DESIGN-sacl-write.md` section 11,
+  decision 2).
 
 This is a change from Set-SaclOnly, which keeps each object's `S:P` flag and writes the plan's
-ACEs as given. Moving SACLs to computed inheritance is phase 3 (section 8). Until then the SACL
-path keeps Set-SaclOnly's behavior, so the two tools can be compared object for object.
+ACEs as given. SACL writes are phase 3 (section 8), and they use computed inheritance only. There is
+no Set-SaclOnly parity mode; qualification compares the two tools on effective audit ACEs instead
+(`DESIGN-sacl-write.md`, scenario S-PAR).
 
 ## 3. The run
 
@@ -266,10 +269,12 @@ unwritten children). Q-OWN and Q2 remain open.
    on a fixture covering every case, an NFS-flattened tree, an audited subtree, a protected
    subtree, and a deny-only directory under backup intent). **Built 2026-11-19** (section 10);
    **qualified** on FlashArray at `e834ac8` (2026-11-19, `benchmarks/qual-smb-apply-e834ac8-20261119/`).
-3. **SACL**, first with Set-SaclOnly's behavior and its strict checks (a parity run against
-   Set-SaclOnly on the same fixture), then computed SACL inheritance. Set-SaclOnly is retired only
-   after a release is qualified for SACL writes on FlashArray and on FlashBlade (decision record,
-   section 2.5), so this phase includes a FlashBlade SACL design and qualification.
+3. **SACL** on FlashArray, with computed SACL inheritance and Set-SaclOnly's strict checks
+   (`DESIGN-sacl-write.md`). There is no parity mode; qualification compares the two tools on
+   effective audit ACEs (scenario S-PAR). FlashBlade is out of scope: FlashBlade over SMB comes
+   last, if at all (2026-11-23). Set-SaclOnly retires for FlashArray once this phase is released
+   (`smb-v0.2.0`), and stays supported, frozen, for SMB-written FlashBlade data until FlashBlade
+   over SMB is decided (decision record, section 2.5, as amended).
 4. **`smb-v0.1.0`** when phase 2 is qualified: the tag (the `smb-v*` release workflow is built), a
    COMPATIBILITY.md row, and the platform-to-tool split in the operator docs.
 
