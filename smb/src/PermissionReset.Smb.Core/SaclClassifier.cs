@@ -61,7 +61,8 @@ public static class SaclClassifier
         List<Ace> remainder = unprotectedShape ? stored.Skip(desired.Aces.Count(a => !a.Inherited)).Select(a => a!.Value).ToList() : [];
         // What the array re-derives (3.2, K10): an absent SACL, or an unprotected one with the
         // right explicit part whose ID part equals what the parent's stored SACL passed down at
-        // compare time (0 ACEs included), counts as following when the parent will pass ACEs down.
+        // compare time, counts as following when the parent will pass ACEs down. A 0-ACE ID part
+        // counts only with no explicit part (S:AI empty); TrackableWide refuses explicit-only.
         bool follows = unprotectedShape && inherited.Count > 0 &&
             (storedSacl is null || remainder.SequenceEqual(parentPropagatedAtCompare));
 
