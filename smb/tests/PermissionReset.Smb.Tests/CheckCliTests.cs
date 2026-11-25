@@ -251,4 +251,18 @@ public sealed class CheckCliTests : IDisposable
     [InlineData("check", "--frobnicate", "plan.json", "R")]
     public void UsageErrorsExitTwo(params string[] args) =>
         Assert.Equal(2, Run(RightTree(), null, args).Code);
+
+    // smb/DESIGN-sacl-write.md 6: no tree SACL is read before the probe proves the audit bypass.
+    // Until check runs that probe, a plan with a sacl: rule is refused before any read.
+    [Fact]
+    public void APlanThatSetsSaclIsRefusedBeforeAnyRead()
+    {
+        var plan = Usual with { Schema = Plan.SmbSaclSchema, Default = Usual.Default with { SaclSet = true } };
+        var tree = WrongTree();
+        var (code, _, err) = Run(tree, null, "check", PlanFile(plan), @"\\array\share\dept");
+        Assert.Equal(1, code);
+        Assert.Contains("set sacl:", err);
+        Assert.Empty(tree.SaclReads);
+        Assert.Empty(tree.Writes);
+    }
 }

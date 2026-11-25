@@ -555,7 +555,7 @@ public sealed class Checker
                 // its parent and an ancestor's SACL will be written. The same stored-as-is stands
                 // when an opaque ACE made the desired form untrustworthy.
                 saclForChildren = storedSaclAces;
-                if (saclOpaque is null && !storedSaclProtected && saclAncestorWrites && Tracks(storedSaclAces, parentSaclNow))
+                if (saclOpaque is null && !storedSaclProtected && saclAncestorWrites && TracksSacl(storedSaclAces, parentSaclNow))
                     saclForChildren = storedSaclAces.Where(a => !a.Inherited).Concat(inheritedSacl).ToList();
                 storedNowSacl = storedSaclAces;
             }
@@ -965,6 +965,17 @@ public sealed class Checker
         if (parentPropagates is not { Count: > 0 } || !TrackableShape(d, stored, storedProtected)) return false;
         var explicitCount = d.Aces.Count(a => !a.Inherited);
         return stored.Skip(explicitCount).Select(a => a!.Value).SequenceEqual(parentPropagates);
+    }
+
+    // TracksSacl is Tracks for a kept directory's SACL (3.2, K10), one step wider: an S:AI empty
+    // SACL under a parent that passes nothing down tracks too, and picks up a later parent SACL.
+    // An explicit-only SACL does not (decision 22; Q-EXP for the DACL), and a mismatching ID part
+    // is a frozen copy.
+    static bool TracksSacl(List<Ace> sacl, List<Ace> parentPropagates)
+    {
+        var inheritedPart = sacl.Where(a => a.Inherited).ToList();
+        if (inheritedPart.Count == 0 && sacl.Count > 0) return false;
+        return inheritedPart.SequenceEqual(parentPropagates);
     }
 
     // Tracks is the same evidence for a directory whose own DACL is kept: its stored inherited

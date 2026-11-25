@@ -297,6 +297,34 @@ public class SaclWalkTests
         Assert.Null(r.SaclForm);
     }
 
+    [Fact]
+    public void AKeptNeverAuditedDirectoryPassesItsParentsNewAuditToItsChildren()
+    {
+        // 3.2, K10: a kept directory whose SACL is S:AI empty under a root that passes nothing
+        // tracks it, so once the root is audited it passes the new ACEs on. Its children are
+        // classified against that, not against its empty stored SACL.
+        var plan = MakeSaclPlan(
+            Rule("rule[k]", "directory", "k", DirWant),               // no sacl: key
+            SaclRule("rule[0]", "directory", "", DirWant, [AuditDir]),
+            SaclRule("rule[1]", "file", "", FileWant, [AuditFile]));
+        FakeTree Tree() => new(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["k"] = new(true, DirInherited, false),
+            ["k/f.txt"] = new(false, FileInherited, false),
+        });
+        var recs = Check(plan, Tree()).Records;
+        Assert.Equal(Outcome.Follows, At(recs, "k").SaclOutcome);
+        var f = At(recs, "k/f.txt");
+        Assert.Equal(Form.Inherits, f.SaclForm);
+        Assert.Equal(Outcome.Follows, f.SaclOutcome);
+        var tree = Tree();
+        var (applied, s) = Apply(plan, tree);
+        Assert.Null(s.Stop);
+        Assert.Equal(Outcome.Ok, At(applied, "k/f.txt").Outcome);
+        Assert.Equal("", Assert.Single(tree.Writes).Rel);           // one root write; the rest followed
+    }
+
     // ---- per-part refusals (4.5, decision 16) -------------------------------------------------------
 
     [Fact]
