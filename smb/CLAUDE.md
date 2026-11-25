@@ -4,7 +4,7 @@
 `../docs/decision-flasharray-smb-20261107.md` (sections 4–8) first.
 
 - `src/PermissionReset.Smb.Core/` — portable logic only, no Win32: `Plan` (build-spec
-  `--smb-plan` JSON, schema 2, or `--sacl-plan`, schema 1; strict), `RuleSelector` (permissionreset's rule and exclude
+  `--smb-plan` JSON, schema 2 DACL-only or schema 3 with `sacl:`, or `--sacl-plan`, schema 1; strict), `RuleSelector` (permissionreset's rule and exclude
   semantics), `GoGlob` (Go `path.Match`), `Descriptor` (managed MS-DTYP decoder), `Inheritance` and
   `Desired` (the inheritance function and three-form classifier, design 2.1 and 2.4), `Checker`
   (the top-down walk behind `check` and `apply`, over an `ITree`/`IWritableTree`, with guards G1

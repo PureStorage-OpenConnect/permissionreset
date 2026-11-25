@@ -128,7 +128,6 @@ public sealed class Checker
         rules = new RuleSelector(plan, rootName);
         var unresolved = new SortedSet<string>(StringComparer.Ordinal);
         var resolved = new SortedDictionary<string, string>(StringComparer.Ordinal);
-        var failed = new HashSet<string>(StringComparer.Ordinal);
         // Every distinct principal the plan names is resolved exactly once here, the miss cached
         // too (#78); the plan's principal string is the cache key. A lookup that throws (a domain
         // or trust failure, not just an unknown name) is an unresolved principal too: refused
@@ -137,11 +136,11 @@ public sealed class Checker
         {
             if (planSid.Length > 0) return planSid;
             if (resolved.TryGetValue(principal, out var known)) return known;
-            if (failed.Contains(principal)) return null;
+            if (unresolved.Contains(principal)) return null;
             string? s;
             try { s = resolve(principal); }
             catch { s = null; }
-            if (s is null) { unresolved.Add(principal); failed.Add(principal); }
+            if (s is null) unresolved.Add(principal);
             else resolved[principal] = s;
             return s;
         }
