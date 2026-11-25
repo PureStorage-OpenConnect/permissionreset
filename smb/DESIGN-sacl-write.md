@@ -149,8 +149,9 @@ directory's children:
 
 **A protected SACL with explicit ACEs under a rule with no `sacl:` key is `Keep`, never a
 `Write`.** A rule with no `sacl:` key leaves the SACL alone, as Set-SaclOnly does
-(`tools/set-saclonly/README.md:57-58`; section 11, decision 14), and the maintainer's decision of
-2026-10-21 stands: keep the protection flags, change only the ACEs. A rule with no `sacl:` key
+(`tools/set-saclonly/README.md:57-58`; section 11, decision 14), and, for rules with no `sacl:`
+key (decision 14's scope), the maintainer's decision of 2026-10-21 stands: keep the protection
+flags, change only the ACEs. A rule with no `sacl:` key
 names no audit ACEs, so nothing about the SACL changes.
 
 The operator docs say plainly that a rule without `sacl:` doesn't mean "not audited" on FlashArray.
@@ -253,6 +254,13 @@ This does not cover:
   `apply` (it is frozen, and the tool may not write it), and the run does not stop.
 - **The same state after this run's parent write**, where the parent passed nothing at compare time:
   the child should have followed. That is G1-SACL (4.4).
+- **An unprotected SACL with explicit audit ACEs and no `ID` part.** No record says it follows its
+  parent, and the DACL's explicit-only objects do not (Q-EXP). Under a `sacl:` rule it is a plain
+  `Write`, never `Follows` and never G1-SACL. Under a rule with no `sacl:` key, when its parent
+  passes audit ACEs down, its SACL part is an error in `check` and `apply`: it will not carry what
+  its parent passes, and the tool may not write it. The run does not stop and the DACL part
+  proceeds (decision 22). When the parent passes nothing down it is `Ok`. Set-SaclOnly leaves this
+  shape on never-audited objects it touched.
 - **NFS-ACL-written objects**: their SACL is `S:P` (K3, K16), so each is a `Write` of its own, and
   its NFS-ACL-written children are too. `apply` still reads each child after its parent is written
   (as phase 2 does), so a child that hasn't followed is written as its own `Write`, never assumed.
@@ -409,9 +417,11 @@ that were written, and its directory is not checkpointed.
 
 The SACL write is refused, and the object's SACL part recorded as an error, when its stored SACL:
 - holds an opaque ACE type the model does not handle (K8: mandatory label and the others, the
-  object and callback types 5, 7 and 9, or any type `Descriptor` doesn't decode). A rebuilt
+  SACL object and callback types 7, 0xD and 0xF, or any type `Descriptor` doesn't decode). A rebuilt
   audit-only list would delete it. FlashArray drops object and callback ACEs on write (K13), so
   these types may never be stored there. Whether the other types can be stored is Q-SACL-OPAQUE;
+- holds an Allow or Deny ACE (type 0 or 1), or any other non-audit type. The model writes audit
+  ACEs only, so a rebuilt list would delete it the same way; it is refused as opaque;
 - would exceed 65,535 bytes once encoded, the encoder's limit. The array's own limit is Q-SACL-SIZE.
 
 **The refusal is per part** (section 11, decision 16): an opaque ACE type errors the SACL part
@@ -767,12 +777,13 @@ decisions 13 to 21), after reviewing the open choices in the first draft and the
 | 13 | Resume freeze detection (G1) | Robert, 2026-11-24: checkpoint v2 records each directory's compare-time SACL, or its classification, before any write in that directory. A resume uses that record to tell a pre-run freeze (3.2) from a G1-SACL failure (4.4). | 4.4; 7.1; 7.3 |
 | 14 | Protected SACL under no `sacl:` key (G2) | Robert, 2026-11-24: a protected SACL with explicit ACEs under a rule with no `sacl:` key is `Keep`, as in Set-SaclOnly (`tools/set-saclonly/README.md:57-58`). The 2026-10-21 decision stands: keep the protection flags, change only the ACEs, and where the rule names no ACEs the SACL does not change. | 2.3; 3.2 |
 | 15 | Owner and group in the DACL call (G3) | Robert, 2026-11-24: owner and group travel in the DACL call, never alone (per #79). `--write-order` orders that call, owner and group included, against the SACL call. | 4.1; 4.2 |
-| 16 | Opaque ACE types (G4) | Robert, 2026-11-24: an opaque ACE type (the object and callback types 5, 7 and 9, or any type `Descriptor` doesn't decode) errors the object's SACL part only. The DACL part proceeds and is written if it differs. | 3.2; 4.5 |
+| 16 | Opaque ACE types (G4) | Robert, 2026-11-24: an opaque ACE type (the object and callback types, which in a SACL are 7, 0xD and 0xF, or any type `Descriptor` doesn't decode) errors the object's SACL part only. The DACL part proceeds and is written if it differs. | 3.2; 4.5 |
 | 17 | Probe object (G5) | Robert, 2026-11-24: the preflight probe is a throwaway object with an `EVERYONE@` placeholder audit ACE, never the root, as in `internal/auditproof` (PS-02). | 6 |
 | 18 | Probe evidence (G6) | Robert, 2026-11-24: `check` takes an optional `--evidence-dir`; the probe's write, read-back and removal go there as a preflight shard. Without it they go to a NOTE line plus the summary JSON. | 6; 7.2 |
 | 19 | Persistent per-child errors (G8) | Robert, 2026-11-24: a persistent per-child error keeps its directory incomplete, and a resume re-reads the child, following the Go tool's PS-11 rule. | 7.1; 7.3 |
 | 20 | #78 as prerequisite | Robert, 2026-11-24: #78 is a prerequisite for the producer and consumer checks (2.2), the privilege rules (5) and the checkpoint's principal table hash (7.1). | 2.2; 5; 7.1 |
 | 21 | S-PAR scope | Robert, 2026-11-24: S-PAR's spec excludes `sacl: []` on unprotected objects and `OWNER@`/`GROUP@`, because Set-SaclOnly differs from this design on both by design. Other scenarios cover those cases against this design's rules. | 9.1; 10 |
+| 22 | Explicit-only SACL under no `sacl:` key | Robert, 2026-11-25: an unprotected SACL with explicit audit ACEs and no `ID` part, under a rule with no `sacl:` key and a parent that passes audit ACEs down, is an error on its SACL part, not `Keep`. It does not stop the run, and the DACL part proceeds. Only a spec in which some rule sets `sacl:` classifies it; a DACL-only spec never reads the SACL. | 3.2 |
 
 The review findings on `e475693`, the lab findings and the K1 to K8 and section 8 rebuild were folded
 in as part of decision round 2. Section 13 lists them.
@@ -857,7 +868,7 @@ linux01-public's re-review (R2-1 to R2-7) and win01-lab's AUTH run:
 | G1 | Resume: telling a pre-run freeze from a G1-SACL failure | **Fixed**: checkpoint v2 records each directory's compare-time SACL (or its classification) before the write, and the resume uses that record (4.4, 7.1, 7.3). |
 | G2 | A protected SACL with explicit ACEs under a rule with no `sacl:` key | **Fixed**: it is `Keep` (`tools/set-saclonly/README.md:57-58`; Robert's 2026-10-21 decision: keep the protection flags, change only the ACEs) (2.3, 3.2). |
 | G3 | Where owner and group go in the two-write order | **Fixed**: owner and group travel in the DACL call, never alone (per #79), and `--write-order` orders that call against the SACL call (4.1, 4.2). |
-| G4 | An opaque ACE type (5, 7, 9) in the stored SACL | **Fixed**: the refusal is per part; the DACL part proceeds and only the SACL part errors (3.2, 4.5). |
+| G4 | An opaque ACE type (object or callback) in the stored SACL | **Fixed**: the refusal is per part; the DACL part proceeds and only the SACL part errors (3.2, 4.5). |
 | G5 | What the preflight probe writes to | **Fixed**: the probe is a throwaway object with an `EVERYONE@` placeholder audit ACE, never the root, as in `internal/auditproof` (6). |
 | G6 | Where `check` records the probe | **Fixed**: `check` takes an optional `--evidence-dir`; the probe's write, read-back and removal go there as a preflight shard, else to a NOTE line plus the summary JSON (6, 7.2). |
 | G8 | A persistent per-child error and the checkpoint | **Fixed**: it keeps its directory incomplete, and a resume re-reads the child (PS-11) (7.1, 7.3). |

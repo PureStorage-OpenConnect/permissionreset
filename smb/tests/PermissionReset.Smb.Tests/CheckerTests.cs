@@ -13,15 +13,23 @@ public class CheckerTests
     // A null Dacl is an absent DACL (SE_DACL_PRESENT clear: everyone full control), not an empty one.
     // OpenedIsDir/OpenedReparse simulate an object whose type changed between listing and open
     // (smb/DESIGN-write-path.md, 5.3): List reports IsDir/Reparse, Read reports the opened kind.
+    // A null Sacl with SaclEverWritten false is a never-ACL-written object (smb/DESIGN-sacl-write.md,
+    // K9: it reads S:AI empty); SaclProtected is S:P, set by a protected SACL write or by
+    // MarkNfsAclWritten (K3).
     internal sealed record Obj(bool IsDir, Ace[]? Dacl, bool Protected, string Owner = Admins, bool Reparse = false,
-        Ace[]? Sacl = null, string Group = Admins, ushort ExtraControl = 0, bool? OpenedIsDir = null, bool OpenedReparse = false);
+        Ace[]? Sacl = null, string Group = Admins, ushort ExtraControl = 0, bool? OpenedIsDir = null, bool OpenedReparse = false,
+        bool SaclProtected = false, bool SaclEverWritten = false);
 
     // FakeTree is an in-memory array. Its writes model what FlashArray was measured to do
-    // (smb/DESIGN-write-path.md, section 1): it stores exactly the DACL written (F1), and a DACL
-    // write to a directory re-derives every unprotected descendant whose inherited part matched
-    // what the directory passed down before (F2, F3); one that didn't match is a frozen copy and
-    // keeps its ACEs. ArrayInherit is the array's inheritance function: the tool's by default,
-    // replaceable to model an array that disagrees.
+    // (smb/DESIGN-write-path.md, section 1; smb/DESIGN-sacl-write.md, section 1): it stores exactly
+    // the DACL written (F1), and a DACL write to a directory re-derives every unprotected
+    // descendant whose inherited part matched what the directory passed down before (F2, F3); one
+    // that didn't match is a frozen copy and keeps its ACEs. The SACL side is the same model
+    // (K4): a SACL write stores exactly what was sent (DropSaclAceTypes excepted), an empty one
+    // reads back present-empty (K9), the AI bit comes from protection (K11), never-ACL-written
+    // objects (S:AI empty) and matching-ID ones follow a parent's SACL change while protected and
+    // mismatching-ID ones stay frozen (K10, K16). ArrayInherit is the array's inheritance
+    // function: the tool's by default, replaceable to model an array that disagrees.
     internal sealed class FakeTree(Dictionary<string, Obj> objs) : IWritableTree
     {
         public HashSet<string> ReadFails = [], ListFails = [], WriteFails = [], DeleteFails = [], SaclReadFails = [];
@@ -29,6 +37,7 @@ public class CheckerTests
         public readonly List<string> SaclReads = [];
         public Func<IReadOnlyList<Ace>, bool, List<Ace>> ArrayInherit = Inheritance.Inherit;
         public bool DropSacl;                                  // accept SACL writes, keep nothing
+        public readonly HashSet<byte> DropSaclAceTypes = [];   // accept SACL writes, silently drop these ACE types (K13)
         public Action<string>? AfterWrite;                     // runs after each write, to corrupt it
         public readonly List<(string Rel, uint Info)> Writes = [];
         public readonly Dictionary<string, ushort> SentControl = [];  // the control word of each object's last write
@@ -60,10 +69,22 @@ public class CheckerTests
             Obj o;
             lock (Objs) o = Objs[rel];
             var dacl = o.Dacl is null ? null : DescriptorTests.Acl(o.Dacl.Select(a => DescriptorTests.Ace((byte)a.Type, a.Flags, a.Mask, Sid(a.Sid))).ToArray());
-            byte[]? sacl = withSacl && o.Sacl is not null
-                ? DescriptorTests.Acl(o.Sacl.Select(a => DescriptorTests.Ace((byte)a.Type, a.Flags, a.Mask, Sid(a.Sid))).ToArray())
+            // K9: FlashArray always stores a present SACL, so a read that asks for it gets one:
+            // present-empty for a never-ACL-written object (S:AI empty), the stored ACEs otherwise.
+            byte[]? sacl = withSacl
+                ? DescriptorTests.Acl((o.Sacl ?? []).Select(a => DescriptorTests.Ace((byte)a.Type, a.Flags, a.Mask, Sid(a.Sid))).ToArray())
                 : null;
-            ushort control = (ushort)(SelfRelative | (dacl is null ? 0 : DaclPresent) | (o.Protected ? DaclProtected : 0) | (sacl is null ? 0 : 0x0010) | o.ExtraControl);
+            ushort saclControl = 0;
+            if (sacl is not null)
+            {
+                saclControl = (ushort)(0x0010 | (o.SaclProtected ? 0x2000 : 0));
+                // K11: the array decides the AI bit from protection. It is derived for written
+                // SACLs and never-written ones; a fixture SACL put in by hand states it through
+                // ExtraControl, as before.
+                if (o.SaclEverWritten || o.Sacl is null)
+                    saclControl |= o.SaclProtected ? (ushort)0 : (ushort)0x0800;
+            }
+            ushort control = (ushort)(SelfRelative | (dacl is null ? 0 : DaclPresent) | (o.Protected ? DaclProtected : 0) | saclControl | o.ExtraControl);
             var sd = DescriptorTests.Sd(control, Sid(o.Owner), Sid(o.Group), sacl, dacl);
             return new TreeObject(sd, o.OpenedIsDir ?? o.IsDir, o.OpenedReparse);
         }
@@ -80,7 +101,25 @@ public class CheckerTests
                 if ((info & SecurityInformation.Owner) != 0) o = o with { Owner = d.Owner! };
                 if ((info & SecurityInformation.Group) != 0) o = o with { Group = d.Group! };
                 if ((info & SecurityInformation.Sacl) != 0 && !DropSacl)
-                    o = o with { Sacl = d.Sacl!.Aces.Select(a => Ace.FromView(a)!.Value).ToArray() };
+                {
+                    // The array stores exactly the SACL written (F1's SACL analogue, K4), a
+                    // present-empty one reading back present-empty (K9); it can also return
+                    // success and drop ACE types it doesn't store (K13), which DropSaclAceTypes
+                    // models: only the read-back shows what was stored.
+                    var oldSacl = o.Sacl?.ToList() ?? [];
+                    var newSacl = d.Sacl!.Aces.Where(a => !DropSaclAceTypes.Contains(a.TypeCode)).Select(a => Ace.FromView(a)!.Value).ToArray();
+                    o = o with
+                    {
+                        Sacl = newSacl,
+                        SaclProtected = (info & SecurityInformation.ProtectedSacl) != 0,
+                        SaclEverWritten = true,
+                    };
+                    Objs[rel] = o;
+                    // A SACL write to a directory re-derives every unprotected descendant whose
+                    // ID part matched what the directory passed down before, S:AI empty ones
+                    // included (K10, K16); a frozen or protected one keeps its ACEs.
+                    if (o.IsDir) PropagateSacl(rel, oldSacl, newSacl.ToList());
+                }
                 if ((info & SecurityInformation.Dacl) != 0)
                 {
                     var old = o.Dacl?.ToList() ?? [];
@@ -113,6 +152,53 @@ public class CheckerTests
             }
         }
 
+        // PropagateSacl is Propagate for the SACL (K4, K10, K16). Never-ACL-written children
+        // (S:AI empty) and ones whose ID part matched what the directory passed down before
+        // follow; an explicit-only SACL does not (no record says so; Q-EXP for the DACL); a
+        // protected SACL (S:P, sacl: [] and NFS-ACL-written objects included) does not follow and
+        // blocks its children from a later ancestor change until it is itself written; a
+        // mismatching ID part stays frozen.
+        void PropagateSacl(string dir, List<Ace> oldSacl, List<Ace> newSacl)
+        {
+            foreach (var (rel, c) in Children(dir))
+            {
+                if (c.SaclProtected || c.Reparse) continue;
+                var aces = c.Sacl?.ToList() ?? [];                       // never written: S:AI empty (K9)
+                var id = aces.Where(a => a.Inherited).ToList();
+                if (!id.SequenceEqual(ArrayInherit(oldSacl, c.IsDir))) continue;   // a frozen copy (K10)
+                // Explicit audit ACEs only: no record says this follows (K10 covers S:AI empty and
+                // matching ID parts), and the DACL's explicit-only objects do not (Q-EXP).
+                if (aces.Count > 0 && id.Count == 0) continue;
+                var newAces = aces.Where(a => !a.Inherited).Concat(ArrayInherit(newSacl, c.IsDir)).ToArray();
+                var updated = c;
+                // A write that changes nothing the child inherits leaves the child untouched; a
+                // followed child still reads S:AI, so a hand-built fixture states the bit here.
+                if (!newAces.SequenceEqual(aces))
+                    updated = c with { Sacl = newAces, ExtraControl = (ushort)(c.ExtraControl | Control.SaclAutoInherited) };
+                Objs[rel] = updated;
+                if (c.IsDir) PropagateSacl(rel, aces, (updated.Sacl ?? []).ToList());
+            }
+        }
+
+        // MarkNfsAclWritten models what an NFS ACL write leaves on FlashArray (K3: S:AI to S:P,
+        // D:AI to D:P): the object is S:P, does not follow a later parent SACL change and needs
+        // its own conversion (K16).
+        public void MarkNfsAclWritten(string rel)
+        {
+            lock (Objs)
+            {
+                var o = Objs[rel];
+                Objs[rel] = o with
+                {
+                    Protected = true,
+                    SaclProtected = true,
+                    SaclEverWritten = true,
+                    Sacl = o.Sacl ?? [],
+                    ExtraControl = (ushort)(o.ExtraControl & ~(Control.DaclAutoInherited | Control.SaclAutoInherited)),
+                };
+            }
+        }
+
         public void CreateDirectory(string rel) => Create(rel, true);
         public void CreateFile(string rel) => Create(rel, false);
 
@@ -123,7 +209,12 @@ public class CheckerTests
                 var parent = rel.Contains('/') ? rel[..rel.LastIndexOf('/')] : "";
                 if (!Objs.TryGetValue(parent, out var p) || !p.IsDir) throw new IOException("create: The system cannot find the path specified.");
                 if (Objs.ContainsKey(rel)) throw new IOException("create: Cannot create a file when that file already exists.");
-                Objs[rel] = new Obj(isDir, ArrayInherit(p.Dacl ?? [], isDir).ToArray(), false, Owner: Users);
+                // A new object holds its parent's inheritable ACEs as ID, on both ACLs, and is
+                // never ACL-written, so it follows later parent changes (K10, K18). A parent that
+                // passes nothing down leaves a never-written SACL (null: S:AI empty, K9).
+                var sacl = ArrayInherit(p.Sacl ?? [], isDir);
+                Objs[rel] = new Obj(isDir, ArrayInherit(p.Dacl ?? [], isDir).ToArray(), false, Owner: Users,
+                    Sacl: sacl.Count > 0 ? sacl.ToArray() : null, ExtraControl: Control.SaclAutoInherited);
             }
         }
 
