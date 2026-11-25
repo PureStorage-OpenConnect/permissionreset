@@ -296,6 +296,18 @@ public sealed class ApplyCliTests : IDisposable
     }
 
     [Fact]
+    public void ApplyWithASaclPlanAndNoEvidenceDirPrintsTheProbeEventsAsNotes()
+    {
+        // Decision 18: without an evidence directory the probe's writes, read-backs and removals
+        // still reach the operator, as NOTE lines.
+        var r = Run(NeverAudited(), "apply", PlanFile(AuditedPlan()), @"\\array\share\dept");
+        Assert.True(r.Code == 0, r.Err);
+        Assert.Contains("apply: NOTE: the preflight probe events", r.Err);
+        Assert.Contains("PROBE-WRITE", r.Err);
+        Assert.Contains("PROBE-REMOVE", r.Err);
+    }
+
+    [Fact]
     public void WriteOrderDaclFirstPrintsTheNoteOnceAndWritesAccessBeforeAuditing()
     {
         // 4.2: the switch orders one two-part object's two writes; dacl-first says what it risks,

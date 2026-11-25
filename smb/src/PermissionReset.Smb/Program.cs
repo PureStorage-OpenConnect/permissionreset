@@ -384,9 +384,17 @@ static class Cli
             var probeTree = probeDir is null ? tree : deps.Tree(probeDir);
             if (checker.SaclMode)
             {
+                // Without an evidence directory the events still reach the operator, as NOTE lines
+                // (decision 18), the way check prints them.
                 using var probeShard = evidenceDir is null ? null : new ProbeShard(evidenceDir, checkDir: false);
+                List<ProbeEvent>? collected = probeShard is null ? [] : null;
                 probe = Preflight.Run(probeTree, "", checker.RootAcl(),
-                    new SaclProbe(checker.RootSacl, ProbeMode.Apply, probeShard is null ? null : probeShard.Record));
+                    new SaclProbe(checker.RootSacl, ProbeMode.Apply, probeShard is not null ? probeShard.Record : collected!.Add));
+                if (collected is not null)
+                {
+                    stderr.WriteLine("apply: NOTE: the preflight probe events (no --evidence-dir; decision 18):");
+                    foreach (var ev in collected) stderr.WriteLine($"apply: NOTE:   {ProbeShard.Line(ev)}");
+                }
             }
             else
                 probe = Preflight.Run(probeTree, "", checker.RootAcl());
