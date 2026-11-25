@@ -7,9 +7,8 @@ namespace PermissionReset.Smb.Tests;
 
 // The SACL preflight of smb/DESIGN-sacl-write.md section 6, against FakeTree. FakeTree models what
 // FlashArray was measured to do (K9/K10/K11/K13 in section 1), so a wrong SACL model fails here
-// first. The CLI's check-probe plumbing is covered at the bottom: the walk itself still refuses
-// schema 3 (S-C lifts that), so those tests assert the probe ran — its events recorded, no tree
-// SACL read — and the refusal then fired.
+// first. The CLI's check-probe plumbing is covered at the bottom: the probe runs before the
+// schema 3 walk, its events recorded and no tree SACL read before the proof.
 public class SaclPreflightTests : IDisposable
 {
     const byte OI = AceFlags.ObjectInherit, CI = AceFlags.ContainerInherit, ID = AceFlags.Inherited;
@@ -202,7 +201,7 @@ public class SaclPreflightTests : IDisposable
         Assert.Equal(events.Count, events.Select(e => ProbeShard.Line(e)).Distinct().Count());   // every line renders
     }
 
-    // ---- the check CLI's probe plumbing (design 6; S-C's merge lifts the schema 3 refusal) ------
+    // ---- the check CLI's probe plumbing (design 6, wired in phase 3 S-D) -----------------------
 
     // A schema 3 plan: the default rule plus one directory rule with sacl: set on an audit ACE.
     static Plan SaclPlan()
@@ -213,10 +212,10 @@ public class SaclPreflightTests : IDisposable
         return Usual with { Schema = Plan.SmbSaclSchema, Rules = [saclRule, .. Usual.Rules] };
     }
 
-    string PlanFile()
+    string PlanFile(Plan? plan = null)
     {
         var f = Path.Combine(Path.GetTempPath(), $"smbplan-{Guid.NewGuid():N}.json");
-        File.WriteAllText(f, JsonSerializer.Serialize(SaclPlan()));
+        File.WriteAllText(f, JsonSerializer.Serialize(plan ?? SaclPlan()));
         _planFiles.Add(f);
         return f;
     }
@@ -236,34 +235,59 @@ public class SaclPreflightTests : IDisposable
     }
 
     [Fact]
-    public void CheckRunsTheProbeBeforeAnyTreeSaclReadButStillRefusesSchema3()
+    public void CheckRunsTheProbeThenWalksWithSaclOutcomes()
     {
-        // The plumbing: privilege, probe, events — then the S-D-kept refusal of schema 3 (S-C's
-        // slice lifts it). The probe proves the bypass on throwaway objects only.
+        // The wired check: privilege, probe, events, then the schema 3 walk. The probe proves the
+        // bypass on throwaway objects only; the walk then reads the root's SACL itself.
         var tree = Tree();
         var evidence = NewDir();
-        var (code, _, e) = Run(tree, _ => { }, "check", "--evidence-dir", evidence, PlanFile(), @"\\array\share\dept");
-        Assert.Equal(1, code);
+        var (code, o, e) = Run(tree, _ => { }, "check", "--evidence-dir", evidence, PlanFile(), @"\\array\share\dept");
+        Assert.Equal(0, code);
         Assert.Contains("preflight passed", e);
-        Assert.Contains("schema", e);                                  // the walk itself is not lifted yet
-        Assert.Empty(tree.SaclReads.Where(rel => !rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal)));   // no tree SACL was read
         Assert.DoesNotContain(tree.Writes, w => !w.Rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal));
         Assert.Single(tree.Objs.Keys);                                 // the probe was removed
+        Assert.Empty(tree.SaclReads.Where(rel => !rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal) && rel != ""));
+        Assert.Single(tree.SaclReads, rel => rel == "");               // the walk's compare read, after the proof
         var shard = File.ReadAllText(Path.Combine(evidence, ProbeShard.ShardName));
         Assert.Contains("PROBE-WRITE", shard);
         Assert.Contains("PROBE-REMOVE", shard);
+        // The walk ran saclMode: the root's record carries the two part verdicts (4.6).
+        Assert.Contains("\"sacl_outcome\":\"write\"", o);
+        Assert.Contains("\"dacl_outcome\":\"ok\"", o);
+        Assert.Contains("\"sacl_form\":\"protected\"", o);
     }
 
     [Fact]
     public void CheckAcceptUnprovenReadSkipsTheProbeWithANote()
     {
         var tree = Tree();
-        var (code, _, e) = Run(tree, _ => { }, "check", "--accept-unproven-read", PlanFile(), @"\\array\share\dept");
-        Assert.Equal(1, code);                                         // schema 3 is still refused
+        var (code, o, e) = Run(tree, _ => { }, "check", "--accept-unproven-read", PlanFile(), @"\\array\share\dept");
+        Assert.Equal(0, code);
         Assert.Contains("NOTE", e);
         Assert.Contains("unproven", e);
-        Assert.Empty(tree.Writes);                                     // no probe was created
         Assert.DoesNotContain("preflight passed", e);
+        Assert.Empty(tree.Writes);                                     // no probe was created
+        Assert.Single(tree.SaclReads, rel => rel == "");               // the tree's SACLs are read, unproven
+        Assert.Contains("\"sacl_outcome\":\"write\"", o);
+    }
+
+    [Fact]
+    public void APrincipalResolvingToACreatorSidIsRefusedWithNoProbeAndNoTreeRead()
+    {
+        // Design 2.2's order: every plan and principal check comes before any probe or read. The
+        // refusal fires in the Checker's constructor, so no probe is created and nothing is read.
+        var ace = new PlanAce("line", 0, 0, AceTypes.Audit, (byte)(OI | CI | SA | FA), 0x1, "creator@example.net", false, "", "");
+        var basePlan = SaclPlan();
+        var plan = basePlan with { Rules = [basePlan.Rules[0] with { Sacl = [ace] }, .. basePlan.Rules.Skip(1)] };
+        var tree = Tree();
+        var deps = new CheckDeps(_ => { }, _ => tree, n => n == "creator@example.net" ? "S-1-3-0" : null);
+        var e = new StringWriter();
+        var code = Cli.Run(["check", PlanFile(plan), @"\\array\share\dept"], new StringWriter(), e, check: deps);
+        Assert.Equal(1, code);
+        Assert.Contains("creator@example.net", e.ToString());
+        Assert.Contains("creator SID", e.ToString());
+        Assert.Empty(tree.Writes);                                     // no probe
+        Assert.Empty(tree.SaclReads);                                  // and no tree read
     }
 
     [Fact]

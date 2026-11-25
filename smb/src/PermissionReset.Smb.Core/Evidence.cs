@@ -111,9 +111,11 @@ public sealed class ProbeShard : IDisposable
 
     readonly FileStream shard;
 
-    public ProbeShard(string dir)
+    // checkDir is off when the probe shard shares apply's evidence directory with Evidence, whose
+    // own CheckDir has already vetted it; check uses the probe shard alone, so it checks.
+    public ProbeShard(string dir, bool checkDir = true)
     {
-        Evidence.CheckDir(dir);
+        if (checkDir) Evidence.CheckDir(dir);
         Directory.CreateDirectory(dir);
         shard = new FileStream(Path.Combine(dir, ShardName), FileMode.CreateNew, FileAccess.Write);
     }

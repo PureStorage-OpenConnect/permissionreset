@@ -252,17 +252,22 @@ public sealed class CheckCliTests : IDisposable
     public void UsageErrorsExitTwo(params string[] args) =>
         Assert.Equal(2, Run(RightTree(), null, args).Code);
 
-    // smb/DESIGN-sacl-write.md 6: no tree SACL is read before the probe proves the audit bypass.
-    // Until check runs that probe, a plan with a sacl: rule is refused before any read.
+    // smb/DESIGN-sacl-write.md 6: a plan with a sacl: rule is no longer refused; check runs the
+    // probe's bypass proof first, and no tree SACL is read before the probe's step 2 write.
     [Fact]
-    public void APlanThatSetsSaclIsRefusedBeforeAnyRead()
+    public void APlanThatSetsSaclRunsTheProbeBeforeAnyTreeSaclRead()
     {
         var plan = Usual with { Schema = Plan.SmbSaclSchema, Default = Usual.Default with { SaclSet = true } };
         var tree = WrongTree();
+        int writesBeforeRootSaclRead = -1;
+        tree.BeforeSaclRead = rel => { if (rel == "" && writesBeforeRootSaclRead < 0) writesBeforeRootSaclRead = tree.Writes.Count; };
         var (code, _, err) = Run(tree, null, "check", PlanFile(plan), @"\\array\share\dept");
-        Assert.Equal(1, code);
-        Assert.Contains("set sacl:", err);
-        Assert.Empty(tree.SaclReads);
-        Assert.Empty(tree.Writes);
+        Assert.Equal(0, code);
+        Assert.DoesNotContain("set sacl:", err);
+        Assert.True(writesBeforeRootSaclRead > 0);
+        // Before that read, the probe's step 2 proof had already gone out: a SACL write on a
+        // probe object, never on the root (decision 17).
+        Assert.Contains(tree.Writes[..writesBeforeRootSaclRead],
+            w => w.Rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal) && (w.Info & SecurityInformation.Sacl) != 0);
     }
 }
