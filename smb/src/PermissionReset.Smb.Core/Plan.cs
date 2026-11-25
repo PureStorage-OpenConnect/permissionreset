@@ -102,7 +102,7 @@ public sealed record Plan(
             if (r.Dacl is not null) throw new PlanException($"plan rule {r.Label}: a schema 1 plan has no dacl");
             return;
         }
-        // 2.1's schema rule: schema 2 SACLS were refused by every build that wrote a schema 2
+        // 2.1's schema rule: schema 2 SACLs were refused by every build that wrote a schema 2
         // plan; that meaning is never reinterpreted.
         if (schema == SmbSchema && r.SaclSet)
             throw new PlanException($"plan rule {r.Label}: a schema {SmbSchema} plan with sacl: set is refused (no schema {SmbSchema} build wrote one, and phase 2 refused it); rebuild the plan with this build's build-spec --smb-plan");
