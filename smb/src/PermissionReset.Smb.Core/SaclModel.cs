@@ -51,7 +51,7 @@ public static class SaclModel
         (ushort)(Control.SaclPresent | (saclProtected ? Control.SaclProtected : Control.SaclAutoInherited));
 
     // IsOpaqueAce reports whether a stored SACL ACE is a type the model does not handle (K8, 4.5,
-    // section 11 decision 16): the object and callback types 5, 7 and 9, mandatory label (0x11),
+    // section 11 decision 16): the SACL object and callback types 7, 0xD and 0xF, mandatory label (0x11),
     // resource attribute (0x12), scoped policy id (0x13), or anything Descriptor does not decode.
     // A rebuilt audit-only list would silently delete such an ACE, so an object whose stored SACL
     // holds one is never written; its SACL part is an error while its DACL part proceeds.
