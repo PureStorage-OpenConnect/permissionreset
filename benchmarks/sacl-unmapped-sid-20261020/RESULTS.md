@@ -13,8 +13,8 @@ A FlashArray ACL write over NFS does not preserve an SMB-written DACL. That rule
 
 ## What FlashArray did
 
-1. **Unmapped SIDs collapse to one identity.** On read, every SID without RFC2307 attributes renders as uid `65534`: `sacl-nomap1`, `sacl-nomap-grp`, and also `FSA\Domain Users` (…-513). On write, `65534` becomes `S-1-5-21-2040779448-1261922717-1128908984-501`. That SID is not in the example.net domain. It is probably the array's local guest/nobody account, and it does not resolve on Windows.
-2. **Other identities are rewritten too.** `BUILTIN\Administrators` (S-1-5-32-544) reads as uid `0` and writes back as `…-1128908984-500`, the array's local administrator. The group/user distinction is lost: unmapped groups come back without the `g` flag.
+1. **Unmapped SIDs collapse to one identity.** On read, every SID without RFC2307 attributes renders as uid `65534`: `sacl-nomap1`, `sacl-nomap-grp`, and also `FSA\Domain Users` (…-513). On write, `65534` becomes `S-1-5-21-<FA local domain>-501`. That SID is not in the example.net domain. It is probably the array's local guest/nobody account, and it does not resolve on Windows.
+2. **Other identities are rewritten too.** `BUILTIN\Administrators` (S-1-5-32-544) reads as uid `0` and writes back as `…-500`, the array's local administrator. The group/user distinction is lost: unmapped groups come back without the `g` flag.
 3. **The DACL structure changes, mapped principals included.**
    - **Inherited flag dropped on every ACE.** NFS has no way to show it, and FlashArray doesn't emit `INHERITED_ACE`. Every inherited entry becomes explicit, including `juser`'s and `jdoe`'s.
    - **Entries merged or dropped.** Once several SIDs share `65534`, FlashArray keeps one entry per identity. For example, `control-mapped.txt` had user `rx` and group `M`, and now has a single `…-501` `M`.
