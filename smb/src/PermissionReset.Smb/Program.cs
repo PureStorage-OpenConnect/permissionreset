@@ -384,7 +384,7 @@ static class Cli
             var probeTree = probeDir is null ? tree : deps.Tree(probeDir);
             if (checker.SaclMode)
             {
-                using var probeShard = evidenceDir is null ? null : new ProbeShard(evidenceDir);
+                using var probeShard = evidenceDir is null ? null : new ProbeShard(evidenceDir, checkDir: false);
                 probe = Preflight.Run(probeTree, "", checker.RootAcl(),
                     new SaclProbe(checker.RootSacl, ProbeMode.Apply, probeShard is null ? null : probeShard.Record));
             }
