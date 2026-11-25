@@ -135,7 +135,8 @@ public static class SaclClassifier
             // Explicit audit ACEs only. No record says such a SACL follows its parent (K10 covers
             // S:AI empty and matching ID parts; the DACL's explicit-only objects do not follow,
             // Q-EXP), so it is no G1-SACL case. When its parent passes audit ACEs down it lacks
-            // them, and a rule with no sacl: key may not write it: an error, and the run goes on.
+            // them, and a rule with no sacl: key may not write it: an error, and the run goes on
+            // (decision 22).
             return inherited.Count == 0
                 ? new SaclPart(null, Outcome.Ok, null)
                 : new SaclPart(null, Outcome.Error,

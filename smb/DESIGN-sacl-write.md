@@ -254,6 +254,13 @@ This does not cover:
   `apply` (it is frozen, and the tool may not write it), and the run does not stop.
 - **The same state after this run's parent write**, where the parent passed nothing at compare time:
   the child should have followed. That is G1-SACL (4.4).
+- **An unprotected SACL with explicit audit ACEs and no `ID` part.** No record says it follows its
+  parent, and the DACL's explicit-only objects do not (Q-EXP). Under a `sacl:` rule it is a plain
+  `Write`, never `Follows` and never G1-SACL. Under a rule with no `sacl:` key, when its parent
+  passes audit ACEs down, its SACL part is an error in `check` and `apply`: it will not carry what
+  its parent passes, and the tool may not write it. The run does not stop and the DACL part
+  proceeds (decision 22). When the parent passes nothing down it is `Ok`. Set-SaclOnly leaves this
+  shape on never-audited objects it touched.
 - **NFS-ACL-written objects**: their SACL is `S:P` (K3, K16), so each is a `Write` of its own, and
   its NFS-ACL-written children are too. `apply` still reads each child after its parent is written
   (as phase 2 does), so a child that hasn't followed is written as its own `Write`, never assumed.
@@ -776,6 +783,7 @@ decisions 13 to 21), after reviewing the open choices in the first draft and the
 | 19 | Persistent per-child errors (G8) | Robert, 2026-11-24: a persistent per-child error keeps its directory incomplete, and a resume re-reads the child, following the Go tool's PS-11 rule. | 7.1; 7.3 |
 | 20 | #78 as prerequisite | Robert, 2026-11-24: #78 is a prerequisite for the producer and consumer checks (2.2), the privilege rules (5) and the checkpoint's principal table hash (7.1). | 2.2; 5; 7.1 |
 | 21 | S-PAR scope | Robert, 2026-11-24: S-PAR's spec excludes `sacl: []` on unprotected objects and `OWNER@`/`GROUP@`, because Set-SaclOnly differs from this design on both by design. Other scenarios cover those cases against this design's rules. | 9.1; 10 |
+| 22 | Explicit-only SACL under no `sacl:` key | Robert, 2026-11-25: an unprotected SACL with explicit audit ACEs and no `ID` part, under a rule with no `sacl:` key and a parent that passes audit ACEs down, is an error on its SACL part, not `Keep`. It does not stop the run, and the DACL part proceeds. Only a spec in which some rule sets `sacl:` classifies it; a DACL-only spec never reads the SACL. | 3.2 |
 
 The review findings on `e475693`, the lab findings and the K1 to K8 and section 8 rebuild were folded
 in as part of decision round 2. Section 13 lists them.
