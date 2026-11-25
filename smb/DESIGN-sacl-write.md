@@ -413,6 +413,8 @@ The SACL write is refused, and the object's SACL part recorded as an error, when
   SACL object and callback types 7, 0xD and 0xF, or any type `Descriptor` doesn't decode). A rebuilt
   audit-only list would delete it. FlashArray drops object and callback ACEs on write (K13), so
   these types may never be stored there. Whether the other types can be stored is Q-SACL-OPAQUE;
+- holds an Allow or Deny ACE (type 0 or 1), or any other non-audit type. The model writes audit
+  ACEs only, so a rebuilt list would delete it the same way; it is refused as opaque;
 - would exceed 65,535 bytes once encoded, the encoder's limit. The array's own limit is Q-SACL-SIZE.
 
 **The refusal is per part** (section 11, decision 16): an opaque ACE type errors the SACL part

@@ -191,6 +191,22 @@ public class SaclModelTests
     }
 
     [Fact]
+    public void AnExplicitOnlySaclDoesNotFollow()
+    {
+        // No record says an unprotected SACL with explicit audit ACEs and no ID part follows its
+        // parent (K10 covers S:AI empty and matching ID parts; the DACL's explicit-only objects do
+        // not, Q-EXP). Set-SaclOnly leaves this shape on never-audited objects it touched.
+        var own = new Ace(AceTypes.Audit, SA | FA, 0x1, Other);
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["f.txt"] = new(false, FileInherited, false, Sacl: [own], SaclEverWritten: true, ExtraControl: Control.SaclAutoInherited),
+        });
+        WriteSacl(tree, "", prot: false, [AuditFd]);
+        Assert.Equal([own], tree.Objs["f.txt"].Sacl);
+    }
+
+    [Fact]
     public void AnNfsAclWrittenObjectDoesNotFollowAndNeitherDoesItsSubtree()
     {
         // K3, K16: an NFS ACL write leaves the object S:P; it and its NFS-ACL-written children

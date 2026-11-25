@@ -237,6 +237,52 @@ public class SaclClassifierTests
         Assert.Equal(Outcome.Error, Classify(apply: false, [AuditFile], FileInheritedUsers, stored: label).Outcome);
     }
 
+    // ---- explicit-only SACLs do not follow (3.2; review of #90) ---------------------------------------
+
+    [Fact]
+    public void AnExplicitOnlySaclIsAPlainWriteNeverFollowsOrG1()
+    {
+        // The rule wants its explicit ACE plus what the parent will pass; the object stores the
+        // explicit ACE only, under a parent that passed nothing at compare time. 3.2 allows an
+        // empty remainder only with no explicit part, so this is the DACL's shape: a Write.
+        var leading = AU(SA, Other);
+        var check = Classify(apply: false, [leading, AuditFile], FileInheritedUsers, atCompare: [], stored: View(leading), ancestorWrites: true);
+        Assert.Equal(Outcome.Write, check.Outcome);
+        var apply = Classify(apply: true, [leading, AuditFile], FileInheritedUsers, atCompare: [], stored: View(leading));
+        Assert.Equal(Outcome.Write, apply.Outcome);
+        Assert.False(apply.Guard);
+    }
+
+    [Fact]
+    public void AKeptExplicitOnlySaclErrorsWithoutAGuard()
+    {
+        // No sacl: key: never written (2.3). Explicit audit ACEs only, so it will not pick up what
+        // its parent passes: an error in check and apply, never G1-SACL, and Ok when the parent
+        // passes nothing.
+        var own = View(AU(SA | FA, Other));
+        var check = Classify(apply: false, null, FileInheritedUsers, atCompare: [], stored: own, ancestorWrites: true);
+        Assert.Equal(Outcome.Error, check.Outcome);
+        Assert.Contains("explicit audit ACEs only", check.Detail);
+        var apply = Classify(apply: true, null, FileInheritedUsers, atCompare: [], stored: own);
+        Assert.Equal(Outcome.Error, apply.Outcome);
+        Assert.False(apply.Guard);
+        Assert.Equal(Outcome.Ok, Classify(apply: true, null, [], atCompare: [], stored: own).Outcome);
+    }
+
+    [Fact]
+    public void AnOpaqueAceDoesNotHideAKeptFrozenCopy()
+    {
+        // The frozen-copy check runs before the kept object's opaque check (2.3, 4.4).
+        var frozen = new AclView(2, [.. View(AU(ID | SA | FA, Other)).Aces, .. CallbackAce.Aces]);
+        var check = Classify(apply: false, null, FileInheritedUsers, now: FileInheritedUsers, stored: frozen);
+        Assert.Equal(Outcome.Error, check.Outcome);
+        Assert.Contains("frozen copy", check.Detail);
+        Assert.False(check.Guard);
+        Assert.True(Classify(apply: true, null, FileInheritedUsers, now: FileInheritedUsers, stored: frozen).Guard);
+        // With no frozen copy, an opaque ACE on a kept object is still Keep.
+        Assert.Equal(Outcome.Keep, Classify(apply: false, null, FileInheritedUsers, now: FileInheritedUsers, stored: CallbackAce).Outcome);
+    }
+
     // ---- merging the two part verdicts (4.6) ------------------------------------------------------------
 
     [Theory]

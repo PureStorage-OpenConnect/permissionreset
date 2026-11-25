@@ -113,13 +113,36 @@ public static class SaclClassifier
         bool ancestorWrites)
     {
         if (storedProtected) return new SaclPart(null, Outcome.Keep, null);
+
+        var stored = (storedSacl?.Aces ?? []).Select(Ace.FromView).ToList();
+        var idPart = stored.Where(a => a is { Inherited: true }).Select(a => a!.Value).ToList();
+        bool tracks = idPart.SequenceEqual(parentPropagatesNow);
+        if (idPart.Count > 0 && !tracks)
+            // A frozen ID audit copy is an error (2.3). G1-SACL fires on it in apply, with no
+            // override, on no-sacl: objects too (4.4); in check it is reported and the run goes on.
+            // This runs before the opaque check, so an opaque ACE does not hide a frozen copy.
+            return new SaclPart(null, Outcome.Error,
+                "it holds a frozen copy of inherited audit ACEs: its inherited part does not follow its parent",
+                Guard: apply);
+
         // The object itself is never written, so an opaque ACE type is no refusal here (4.5 is
         // about writes); a kept directory holding one feeds the walk an unclassifiable parent and
         // its children's SACL parts error instead (3.2).
         if (SaclModel.OpaqueReason(storedSacl) is not null) return new SaclPart(null, Outcome.Keep, null);
 
-        var idPart = (storedSacl?.Aces ?? []).Select(Ace.FromView).Where(a => a is { Inherited: true }).Select(a => a!.Value).ToList();
-        if (idPart.SequenceEqual(parentPropagatesNow))
+        if (stored.Count > 0 && idPart.Count == 0)
+        {
+            // Explicit audit ACEs only. No record says such a SACL follows its parent (K10 covers
+            // S:AI empty and matching ID parts; the DACL's explicit-only objects do not follow,
+            // Q-EXP), so it is no G1-SACL case. When its parent passes audit ACEs down it lacks
+            // them, and a rule with no sacl: key may not write it: an error, and the run goes on.
+            return inherited.Count == 0
+                ? new SaclPart(null, Outcome.Ok, null)
+                : new SaclPart(null, Outcome.Error,
+                    "it holds explicit audit ACEs only, which do not follow its parent's audit ACEs; a rule with no sacl: key may not write it");
+        }
+
+        if (tracks)
         {
             // It tracks its parent (K10, S:AI empty under a parent that passes nothing included).
             // Check predicts Follows when an ancestor's write will change what the parent passes;
@@ -128,12 +151,6 @@ public static class SaclClassifier
                 ? new SaclPart(null, Outcome.Ok, null)
                 : new SaclPart(null, Outcome.Follows, null);
         }
-        if (idPart.Count > 0)
-            // A frozen ID audit copy is an error (2.3). G1-SACL fires on it in apply, with no
-            // override, on no-sacl: objects too (4.4); in check it is reported and the run goes on.
-            return new SaclPart(null, Outcome.Error,
-                "it holds a frozen copy of inherited audit ACEs: its inherited part does not follow its parent",
-                Guard: apply);
         // An absent SACL or an S:AI empty one that does not track its parent. Under a parent that
         // already passed ACEs down at compare time it is a pre-run freeze (3.2): an error in check
         // and apply, and the run does not stop. Under a parent that passed nothing, in apply, it
@@ -148,14 +165,17 @@ public static class SaclClassifier
 
     // TrackableWide is the shape the array keeps in step with its parent (3.2), one step wider
     // than the DACL's TrackableShape: an unprotected desired form, an unprotected stored SACL, the
-    // desired explicit part stored first, and a remainder that is all inherited — 0 ACEs allowed,
-    // since an S:AI empty SACL under a parent that passes nothing down still follows a later
-    // parent SACL (K10). A protected SACL never follows (K10).
+    // desired explicit part stored first, and a remainder that is all inherited. The remainder may
+    // be empty only when there is no explicit part: an S:AI empty SACL under a parent that passes
+    // nothing down still follows a later parent SACL (K10), but no record says an explicit-only
+    // SACL does, and the DACL's explicit-only objects do not (Q-EXP, TrackableShape). An
+    // explicit-only SACL is a plain Write. A protected SACL never follows (K10).
     static bool TrackableWide(Desired d, List<Ace?> stored)
     {
         if (stored.Any(a => a is null)) return false;
         var explicitWant = d.Aces.Where(a => !a.Inherited).ToList();
         if (stored.Count < explicitWant.Count) return false;
+        if (explicitWant.Count > 0 && stored.Count == explicitWant.Count) return false;
         for (int i = 0; i < explicitWant.Count; i++)
             if (stored[i]!.Value != explicitWant[i]) return false;
         return stored.Skip(explicitWant.Count).All(a => a!.Value.Inherited);

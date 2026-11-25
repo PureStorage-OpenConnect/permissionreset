@@ -154,9 +154,10 @@ public class CheckerTests
 
         // PropagateSacl is Propagate for the SACL (K4, K10, K16). Never-ACL-written children
         // (S:AI empty) and ones whose ID part matched what the directory passed down before
-        // follow; a protected SACL (S:P, sacl: [] and NFS-ACL-written objects included) does not
-        // follow and blocks its children from a later ancestor change until it is itself written;
-        // a mismatching ID part stays frozen.
+        // follow; an explicit-only SACL does not (no record says so; Q-EXP for the DACL); a
+        // protected SACL (S:P, sacl: [] and NFS-ACL-written objects included) does not follow and
+        // blocks its children from a later ancestor change until it is itself written; a
+        // mismatching ID part stays frozen.
         void PropagateSacl(string dir, List<Ace> oldSacl, List<Ace> newSacl)
         {
             foreach (var (rel, c) in Children(dir))
@@ -165,6 +166,9 @@ public class CheckerTests
                 var aces = c.Sacl?.ToList() ?? [];                       // never written: S:AI empty (K9)
                 var id = aces.Where(a => a.Inherited).ToList();
                 if (!id.SequenceEqual(ArrayInherit(oldSacl, c.IsDir))) continue;   // a frozen copy (K10)
+                // Explicit audit ACEs only: no record says this follows (K10 covers S:AI empty and
+                // matching ID parts), and the DACL's explicit-only objects do not (Q-EXP).
+                if (aces.Count > 0 && id.Count == 0) continue;
                 var newAces = aces.Where(a => !a.Inherited).Concat(ArrayInherit(newSacl, c.IsDir)).ToArray();
                 var updated = c;
                 // A write that changes nothing the child inherits leaves the child untouched; a
