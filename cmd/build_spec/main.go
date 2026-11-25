@@ -117,8 +117,8 @@ func registerFlags(fs *flag.FlagSet, errOut io.Writer) (*flag.FlagSet, *buildSpe
 		"where an unprivileged read empties inherited auditing, this can change the exemplars")
 	f.saclPlan = fs.String("sacl-plan", "", "print the SACL plan for this permissionreset spec as JSON on stdout and exit, for "+
 		"tools/set-saclonly/Set-SaclOnly.ps1; reads only the spec and takes no other flag or argument")
-	f.smbPlan = fs.String("smb-plan", "", "print the permissionreset-smb plan (schema 2: DACL and SACL) for this spec as JSON on "+
-		"stdout and exit; reads only the spec and takes no other flag or argument")
+	f.smbPlan = fs.String("smb-plan", "", "print the permissionreset-smb plan (schema 2 for a DACL-only spec; schema 3, DACL and SACL, when "+
+		"any rule sets sacl:) for this spec as JSON on stdout and exit; reads only the spec and takes no other flag or argument")
 	f.showVersion = fs.Bool("version", false, "print version and exit")
 	f.auth = cmdflags.RegisterAuth(fs, func(s string) string { return s + " (--transport=userspace only)" })
 

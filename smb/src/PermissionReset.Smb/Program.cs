@@ -172,6 +172,7 @@ static class Cli
         catch (PlanException) { throw; }   // the outer handler prints it and exits 1
         catch (Exception e) { return Fail(stderr, $"check: the plan's principals could not be prepared: {e.Message}", 1); }
 
+        foreach (var (name, sid) in checker.Principals) stderr.WriteLine($"check: principal {name} = {sid}");
         var summary = checker.Run(r => stdout.WriteLine(JsonSerializer.Serialize(r with { Path = FullPath(root, r.Path) }, Json)), workers);
 
         PrintSummary(stderr, "check", summary);

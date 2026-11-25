@@ -114,8 +114,12 @@ public sealed class Checker
     // (RuleSelector.RootName of the ROOT argument), which the rules match the root by.
     public Checker(Plan plan, ITree tree, string rootName, Func<string, string?> resolve, WalkOptions? options = null)
     {
+        // DESIGN-Q: smb/DESIGN-sacl-write.md 2.1 has phase 3 accept schema 3, but this slice
+        // builds only its plan checks (#78, 2.2); SACL classification and writes are another
+        // slice, and running a schema 3 plan under DACL-only meaning would misreport. Refused
+        // here until that slice lands.
         if (plan.Schema != Plan.SmbSchema)
-            throw new PlanException($"check needs a schema {Plan.SmbSchema} plan (build-spec --smb-plan); this one is schema {plan.Schema}");
+            throw new PlanException($"check needs a schema {Plan.SmbSchema} plan (a DACL-only build-spec --smb-plan; schema 3 SACL plans are not walkable yet); this one is schema {plan.Schema}");
         opt = options ?? new WalkOptions();
         if (opt.Apply && tree is not IWritableTree)
             throw new ArgumentException("apply needs a writable tree", nameof(tree));
@@ -124,12 +128,15 @@ public sealed class Checker
         rules = new RuleSelector(plan, rootName);
         var unresolved = new SortedSet<string>(StringComparer.Ordinal);
         var resolved = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        // Every distinct principal the plan names is resolved exactly once here, the miss cached
+        // too (#78); the plan's principal string is the cache key. A lookup that throws (a domain
+        // or trust failure, not just an unknown name) is an unresolved principal too: refused
+        // before any read, named in the message below.
         string? Sid(string principal, string planSid)
         {
             if (planSid.Length > 0) return planSid;
             if (resolved.TryGetValue(principal, out var known)) return known;
-            // A lookup that throws (a domain or trust failure, not just an unknown name) is an
-            // unresolved principal too: refused here, named in the message below, before any read.
+            if (unresolved.Contains(principal)) return null;
             string? s;
             try { s = resolve(principal); }
             catch { s = null; }
@@ -140,6 +147,10 @@ public sealed class Checker
         foreach (var r in plan.Rules.Prepend(plan.Default))
         {
             want[r] = r.Dacl?.Select(a => new Ace(a.WindowsType, a.WindowsFlags, a.WindowsMask, Sid(a.Principal, a.Sid) ?? "")).ToList();
+            // Principals that appear only in sacl: entries resolve here too (#78). Nothing is
+            // built from them yet: the SACL classification slice turns planRule.Sacl into per-rule
+            // lists, the way want holds the DACL ones.
+            foreach (var a in r.Sacl ?? []) Sid(a.Principal, a.Sid);
             ownerGroup[r] = (r.Owner.Length > 0 ? Sid(r.Owner, "") : null, r.Group.Length > 0 ? Sid(r.Group, "") : null);
             SetsOwnerOrGroup |= r.Owner.Length > 0 || r.Group.Length > 0;
         }

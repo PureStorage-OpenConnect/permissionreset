@@ -1,5 +1,7 @@
-# Golden input for TestRunSmbPlanGolden: the shapes permissionreset-smb has to
-# tell apart in a schema 2 plan.
+# Golden input for TestRunSmbPlanGolden: the sacl: shapes permissionreset-smb
+# has to tell apart -- absent, empty and listed -- which move the plan to
+# schema 3 (smb/DESIGN-sacl-write.md, 2.1). A DACL-only spec stays schema 2;
+# testdata/smbplan-dacl.yaml covers that.
 protocol: nfsv4
 exclude:
   - .snapshot

@@ -31,8 +31,9 @@ public readonly record struct Ace(int Type, byte Flags, uint Mask, string Sid)
 public static class Inheritance
 {
     // Creator SIDs are replaced by the creating account's SID when they are inherited; the result
-    // depends on who created the object, so it cannot be computed here.
-    static readonly HashSet<string> CreatorSids = ["S-1-3-0", "S-1-3-1", "S-1-3-2", "S-1-3-3"];
+    // depends on who created the object, so it cannot be computed here. Plan.CheckAces refuses
+    // every one in a sacl list (smb/DESIGN-sacl-write.md, 2.2 item 3).
+    public static readonly IReadOnlySet<string> CreatorSids = new HashSet<string> { "S-1-3-0", "S-1-3-1", "S-1-3-2", "S-1-3-3" };
 
     const byte AuditFlags = AceFlags.SuccessfulAccess | AceFlags.FailedAccess;
 

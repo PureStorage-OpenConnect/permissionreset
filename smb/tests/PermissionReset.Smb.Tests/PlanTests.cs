@@ -5,6 +5,7 @@ namespace PermissionReset.Smb.Tests;
 public class PlanTests
 {
     static string SmbGolden => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "testdata", "smbplan.golden.json"));
+    static string SmbDaclGolden => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "testdata", "smbplan-dacl.golden.json"));
     static string Golden => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "testdata", "saclplan.golden.json"));
 
     [Fact]
@@ -24,7 +25,7 @@ public class PlanTests
     }
 
     [Theory]
-    [InlineData("\"schema\": 1", "\"schema\": 3", "schema 3 is not supported")]
+    [InlineData("\"schema\": 1", "\"schema\": 4", "schema 4 is not supported")]
     [InlineData("\"sacl\": [", "\"dacl\": [], \"sacl\": [", "schema 1 plan has no dacl")]
     [InlineData("\"protocol\": \"nfsv4\"", "\"protocol\": \"posix\"", "protocol \"posix\"")]
     [InlineData("\"schema\": 1,", "\"schema\": 1, \"surprise\": true,", "not valid JSON")]
@@ -40,7 +41,7 @@ public class PlanTests
     public void LoadsTheSmbPlanGolden()
     {
         var p = Plan.Parse(SmbGolden);
-        Assert.Equal(Plan.SmbSchema, p.Schema);
+        Assert.Equal(Plan.SmbSaclSchema, p.Schema);         // a rule sets sacl: (2.1)
         Assert.True(p.Default.HasAcl);
         Assert.Equal(2, p.Default.Dacl!.Count);
         Assert.Equal(AceTypes.Allow, p.Default.Dacl[0].WindowsType);
@@ -48,6 +49,82 @@ public class PlanTests
         Assert.Null(p.Rules[0].Dacl);                       // sacl:-only rule
         Assert.Equal(AceTypes.Deny, p.Rules[1].Dacl![0].WindowsType);
         Assert.Empty(p.Rules[1].Sacl!);                     // sacl: []
+    }
+
+    [Fact]
+    public void LoadsASchema2DaclOnlyPlanWithUnchangedMeaning()
+    {
+        var p = Plan.Parse(SmbDaclGolden);
+        Assert.Equal(Plan.SmbSchema, p.Schema);
+        Assert.True(p.Default.HasAcl);
+        Assert.NotEmpty(p.Default.Dacl!);
+        Assert.False(p.Default.SaclSet);
+        Assert.Empty(p.Default.Sacl!);
+        Assert.DoesNotContain(p.Rules, r => r.SaclSet || r.Dacl is null);
+    }
+
+    // 2.1's schema rule: no schema 2 build ever wrote a sacl rule, and phase 2 refused one, so a
+    // hand-moved schema 2 SACL plan is never reinterpreted.
+    [Fact]
+    public void RefusesASchema2PlanWithSaclSet()
+    {
+        var e = Assert.Throws<PlanException>(() => Plan.Parse(ReplaceFirst(SmbGolden, "\"schema\": 3", $"\"schema\": {Plan.SmbSchema}")));
+        Assert.Contains("sacl: set", e.Message);
+        Assert.Contains("rebuild", e.Message);
+    }
+
+    // 2.2 item 2: every audit ACE carries SA, FA or both. The golden's one audit ACE flags are
+    // 0xC3 (OI|CI|SA|FA); dropping SA and FA leaves 0x03.
+    [Fact]
+    public void RefusesAnAuditAceThatAuditsNothing()
+    {
+        var e = Assert.Throws<PlanException>(() => Plan.Parse(ReplaceFirst(SmbGolden, "\"windows_flags\": 195", "\"windows_flags\": 3")));
+        Assert.Contains("neither SA nor FA", e.Message);
+    }
+
+    // 2.2 item 3: all four creator SIDs are refused in sacl.
+    [Theory]
+    [InlineData("S-1-3-0")]
+    [InlineData("S-1-3-1")]
+    [InlineData("S-1-3-2")]
+    [InlineData("S-1-3-3")]
+    public void RefusesACreatorSidInSacl(string sid)
+    {
+        var root = System.Text.Json.Nodes.JsonNode.Parse(SmbGolden)!.AsObject();
+        root["rules"]![0]!["sacl"]![0]!["sid"] = sid;
+        var e = Assert.Throws<PlanException>(() => Plan.Parse(root.ToJsonString()));
+        Assert.Contains($"creator SID {sid}", e.Message);
+    }
+
+    // A hand edit can also spell a creator SID as the principal, with no sid field.
+    [Fact]
+    public void RefusesACreatorSidSpelledAsThePrincipal()
+    {
+        var root = System.Text.Json.Nodes.JsonNode.Parse(SmbGolden)!.AsObject();
+        var ace = root["rules"]![0]!["sacl"]![0]!.AsObject();
+        ace["principal"] = "S-1-3-0";
+        ace["sid"] = "";
+        var e = Assert.Throws<PlanException>(() => Plan.Parse(root.ToJsonString()));
+        Assert.Contains("creator SID S-1-3-0", e.Message);
+    }
+
+    // 2.2 items 4 and 5.
+    [Theory]
+    [InlineData("contradictory", "sacl_set is false")]
+    [InlineData("missing", "has no sacl list")]
+    [InlineData("null", "has no sacl list")]
+    public void RefusesABrokenSaclPair(string what, string want)
+    {
+        var root = System.Text.Json.Nodes.JsonNode.Parse(SmbGolden)!.AsObject();
+        var rule = root["rules"]![0]!.AsObject();
+        switch (what)
+        {
+            case "contradictory": rule["sacl_set"] = false; break;
+            case "missing": rule.Remove("sacl"); break;
+            case "null": rule["sacl"] = null; break;
+        }
+        var e = Assert.Throws<PlanException>(() => Plan.Parse(root.ToJsonString()));
+        Assert.Contains(want, e.Message);
     }
 
     [Theory]

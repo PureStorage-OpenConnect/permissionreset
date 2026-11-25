@@ -1,0 +1,15 @@
+# Golden input for TestRunSmbPlanDaclOnlyGolden: a DACL-only spec stays
+# schema 2, the plan an smb-v0.1.x consumer still accepts
+# (smb/DESIGN-sacl-write.md, 2.1).
+protocol: nfsv4
+default:
+  acl:
+    - "A:fd:EVERYONE@:rxtncy"
+    - "A:fdg:smb-admins@example.net:rwaDdxtTnNcCoy"
+rules:
+  - match: {type: directory}
+    acl:
+      - "A:fd:EVERYONE@:rxtncy"
+  - match: {type: file}
+    acl:
+      - "A::EVERYONE@:rtncy"

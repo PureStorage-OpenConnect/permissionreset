@@ -199,6 +199,24 @@ public sealed class CheckCliTests : IDisposable
         Assert.Contains("SeBackupPrivilege", e);
     }
 
+    // #78: check prints the resolved principal -> SID table, as apply does.
+    [Fact]
+    public void PrintsTheResolvedPrincipalTable()
+    {
+        var named = Usual with
+        {
+            Default = new PlanRule("default", new PlanMatch("", ""), false, false, true, false, false, "", "", [],
+                [PA(A(0, ""), "user@example.net")]),
+            Rules = [],
+        };
+        var deps = new CheckDeps(_ => { }, _ => RightTree(), n => n == "user@example.net" ? Users : null);
+        var o = new StringWriter();
+        var e = new StringWriter();
+        int code = Cli.Run(["check", PlanFile(named), "R"], o, e, check: deps);
+        Assert.Equal(0, code);
+        Assert.Contains($"check: principal user@example.net = {Users}", e.ToString());
+    }
+
     [Fact]
     public void ASchema1PlanIsRefused()
     {

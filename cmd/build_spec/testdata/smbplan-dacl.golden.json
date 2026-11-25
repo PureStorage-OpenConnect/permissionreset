@@ -1,0 +1,111 @@
+{
+  "schema": 2,
+  "source": "testdata/smbplan-dacl.yaml",
+  "protocol": "nfsv4",
+  "exclude": {
+    "patterns": [],
+    "base": [],
+    "path": []
+  },
+  "default": {
+    "label": "default",
+    "match": {
+      "type": "",
+      "pattern": ""
+    },
+    "sacl_set": false,
+    "keep_dacl": false,
+    "has_acl": true,
+    "has_dacl": false,
+    "has_mode": false,
+    "owner": "",
+    "group": "",
+    "sacl": [],
+    "dacl": [
+      {
+        "line": "A:fd:EVERYONE@:rxtncy",
+        "nfs4_flags": 3,
+        "nfs4_mask": 1179817,
+        "windows_type": 0,
+        "windows_flags": 3,
+        "windows_mask": 1179817,
+        "principal": "EVERYONE@",
+        "group": false,
+        "sid": "S-1-1-0",
+        "sddl": "(A;OICI;0x1200a9;;;WD)"
+      },
+      {
+        "line": "A:fdg:smb-admins@example.net:rwaDdxtTnNcCoy",
+        "nfs4_flags": 67,
+        "nfs4_mask": 2032127,
+        "windows_type": 0,
+        "windows_flags": 3,
+        "windows_mask": 2032127,
+        "principal": "smb-admins@example.net",
+        "group": true,
+        "sid": "",
+        "sddl": ""
+      }
+    ]
+  },
+  "rules": [
+    {
+      "label": "rule[0]",
+      "match": {
+        "type": "directory",
+        "pattern": ""
+      },
+      "sacl_set": false,
+      "keep_dacl": false,
+      "has_acl": true,
+      "has_dacl": false,
+      "has_mode": false,
+      "owner": "",
+      "group": "",
+      "sacl": [],
+      "dacl": [
+        {
+          "line": "A:fd:EVERYONE@:rxtncy",
+          "nfs4_flags": 3,
+          "nfs4_mask": 1179817,
+          "windows_type": 0,
+          "windows_flags": 3,
+          "windows_mask": 1179817,
+          "principal": "EVERYONE@",
+          "group": false,
+          "sid": "S-1-1-0",
+          "sddl": "(A;OICI;0x1200a9;;;WD)"
+        }
+      ]
+    },
+    {
+      "label": "rule[1]",
+      "match": {
+        "type": "file",
+        "pattern": ""
+      },
+      "sacl_set": false,
+      "keep_dacl": false,
+      "has_acl": true,
+      "has_dacl": false,
+      "has_mode": false,
+      "owner": "",
+      "group": "",
+      "sacl": [],
+      "dacl": [
+        {
+          "line": "A::EVERYONE@:rtncy",
+          "nfs4_flags": 0,
+          "nfs4_mask": 1179785,
+          "windows_type": 0,
+          "windows_flags": 0,
+          "windows_mask": 1179785,
+          "principal": "EVERYONE@",
+          "group": false,
+          "sid": "S-1-1-0",
+          "sddl": "(A;;0x120089;;;WD)"
+        }
+      ]
+    }
+  ]
+}

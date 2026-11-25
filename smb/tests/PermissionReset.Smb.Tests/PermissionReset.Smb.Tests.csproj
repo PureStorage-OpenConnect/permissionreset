@@ -21,5 +21,6 @@
     <None Include="..\..\..\tools\set-saclonly\testdata\glob-vectors.json" Link="testdata\glob-vectors.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\..\cmd\build_spec\testdata\saclplan.golden.json" Link="testdata\saclplan.golden.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\..\cmd\build_spec\testdata\smbplan.golden.json" Link="testdata\smbplan.golden.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\cmd\build_spec\testdata\smbplan-dacl.golden.json" Link="testdata\smbplan-dacl.golden.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
