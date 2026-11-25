@@ -33,6 +33,7 @@ public class CheckerTests
     internal sealed class FakeTree(Dictionary<string, Obj> objs) : IWritableTree
     {
         public HashSet<string> ReadFails = [], ListFails = [], WriteFails = [], DeleteFails = [], SaclReadFails = [];
+        public bool RefuseSaclAccess;                  // K12: no audit bypass; SACL-bit reads/writes fail with error 5, nothing returned or stored
         public Action<string>? BeforeSaclRead;                 // runs before each read with the SACL
         public readonly List<string> SaclReads = [];
         public Func<IReadOnlyList<Ace>, bool, List<Ace>> ArrayInherit = Inheritance.Inherit;
@@ -64,6 +65,7 @@ public class CheckerTests
             if (withSacl)
             {
                 lock (SaclReads) SaclReads.Add(rel);
+                if (RefuseSaclAccess) throw new UnauthorizedAccessException("Access is denied.");
                 if (SaclReadFails.Contains(rel)) throw new IOException("A required privilege is not held by the client.");
                 BeforeSaclRead?.Invoke(rel);
             }
@@ -93,6 +95,7 @@ public class CheckerTests
         public void Write(string rel, uint info, byte[] sd)
         {
             if (WriteFails.Contains(rel)) throw new IOException("set security: Access is denied.");
+            if (RefuseSaclAccess && (info & SecurityInformation.Sacl) != 0) throw new UnauthorizedAccessException("set security: Access is denied.");
             var d = Descriptor.Decode(sd);
             lock (Objs)
             {
@@ -115,6 +118,10 @@ public class CheckerTests
                         Sacl = newSacl,
                         SaclProtected = (info & SecurityInformation.ProtectedSacl) != 0,
                         SaclEverWritten = true,
+                        // K11: the exposure of the AI bit follows protection at write time, so a
+                        // stale AI in ExtraControl (a created child carries one) does not leak in.
+                        ExtraControl = (ushort)((o.ExtraControl & ~Control.SaclAutoInherited)
+                            | ((info & SecurityInformation.ProtectedSacl) != 0 ? 0 : Control.SaclAutoInherited)),
                     };
                     Objs[rel] = o;
                     // A SACL write to a directory re-derives every unprotected descendant whose
