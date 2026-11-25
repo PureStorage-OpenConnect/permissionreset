@@ -47,18 +47,23 @@ A path that cannot be read still gets a line, with `error` naming the step and t
 `inspect` exits 0 when every path was read, 1 when any path failed or a privilege is missing (then
 it reads nothing and says which privilege on stderr), and 2 on a usage error.
 
-`plan` reads the JSON that `build-spec --smb-plan` (schema 2, DACL and SACL) or `--sacl-plan`
-(schema 1) writes. The spec has one parser, in Go; this tool never reads YAML. A plan with another schema version, another protocol, an unknown field or an
-unknown match type is refused rather than guessed at.
+`plan` reads the JSON that `build-spec --smb-plan` (schema 2, or schema 3 when any rule sets
+`sacl:`; both carry the DACL and the SACL shape) or `--sacl-plan` (schema 1) writes. The spec has
+one parser, in Go; this tool never reads YAML. A plan with another schema version, another
+protocol, an unknown field or an unknown match type is refused rather than guessed at, as is a
+schema 2 plan with a `sacl` rule (rebuild it as schema 3) and any schema 3 plan whose audit ACEs
+are malformed (no `SA`/`FA`, a creator SID, or a missing or contradictory `sacl` list).
 
-`check` takes a schema 2 plan (`build-spec --smb-plan SPEC.yaml`) and walks the tree top-down
-with backup intent, never following a reparse point. For each object it works out the stored form
-the reset wants (`inherits`, `explicit_plus_inherits` or `protected`; design section 2.1), reads the
+`check` takes a schema 2 plan (a DACL-only `build-spec --smb-plan SPEC.yaml`) and walks the tree
+top-down with backup intent, never following a reparse point. For each object it works out the
+stored form the reset wants (`inherits`, `explicit_plus_inherits` or `protected`; design section
+2.1), reads the
 DACL, owner and group, and prints one JSON line: `ok`, `write` (the object needs its own write),
 `follows` (it differs only because an ancestor will be written, after which the array re-derives
 it), `keep` (its rule has no `acl:`), `excluded`, `reparse` or `error`. A summary goes to stderr.
-It reads no SACL. Every principal the plan names is resolved to a SID on this host first, and the
-check is refused if one doesn't resolve. `--workers N` (default 16) sets the parallelism. Exit 0
+It reads no SACL. Every principal the plan names, `sacl:` entries included, is resolved once to a
+SID on this host first, the resolved principal-SID table is printed, and the check is refused if
+one doesn't resolve. `--workers N` (default 16) sets the parallelism. Exit 0
 when every object was checked (with `--validate`: and every one is `ok`), 1 otherwise, 2 on a
 usage error.
 
