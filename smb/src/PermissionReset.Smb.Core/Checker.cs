@@ -884,6 +884,10 @@ public sealed class Checker
                 drop = true;
                 break;
             }
+            // The read-back is the evidence of what is stored, failure included (K13): it is the
+            // record's after image even when the comparison below fails.
+            lastRead = afterThis;
+            anyReadBack = true;
             var g2 = isDacl
                 ? ReadbackDiff(daclDesired!, preThis, afterThis, owner ? wantOwner : preThis.Owner, group ? wantGroup : preThis.Group, daclInCall)
                 : SaclModel.ReadbackDiff(saclDesired!, preThis, afterThis);
@@ -898,8 +902,6 @@ public sealed class Checker
             }
             parts.AddRange(callParts);
             if (isDacl) daclFinal = Outcome.Written; else saclFinal = Outcome.Written;
-            lastRead = afterThis;
-            anyReadBack = true;
         }
         return new TwoPartWrite(daclFinal, daclDetail, saclFinal, saclDetail,
             parts.Count > 0 ? string.Join(",", parts) : null, before.Raw, anyReadBack ? lastRead.Raw : null,
