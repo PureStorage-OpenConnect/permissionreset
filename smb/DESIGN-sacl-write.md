@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Date | 2026-11-20, revised 2026-11-24 |
-| Status | **Draft for review. Design only; nothing here is built or qualified.** This extends `smb/DESIGN-write-path.md` (sections 2.5 and 8, phase 3). Section 11 records the maintainer's decisions of 2026-11-23 and 2026-11-24, and the rest of the text follows them. Section 13 lists the review findings on `e475693` and `1c5ca96` and how each was handled. |
+| Status | **Draft for review. Design only; nothing here is built or qualified.** This extends `smb/DESIGN-write-path.md` (sections 2.5 and 8, phase 3). Section 11 records the maintainer's decisions of 2026-11-23 and 2026-11-24, and the rest of the text follows them. Section 13 lists the review findings on `e475693` and `1c5ca96`, the maintainer's round 3 decisions of 2026-11-24, and how each was handled. |
 | Scope | FlashArray only. FlashBlade is out of scope: FlashBlade over SMB comes last, if at all (section 11, decision 9). Set-SaclOnly's retirement still needs FlashBlade covered (`docs/decision-flasharray-smb-20261107.md:66-71`), so this phase does not retire it, and that condition may never be met. |
 | Base | `main` @ `cd4ed1e`, which holds phase 2 (#73) and the walk changes in #74, #79 and #80. Code citations are paths and lines at that commit. |
 | Builds on | `smb/DESIGN-write-path.md`, `tools/set-saclonly/`, `benchmarks/qual-smb-check-700630b-20261116/`, `benchmarks/qual-smb-apply-e834ac8-20261119/`, and the private lab records named in section 1 |
@@ -100,6 +100,8 @@ only what it can't do, as it does today. An old schema 2 SACL plan is never rein
 
 ### 2.2 What must be added
 
+**Prerequisite: #78** (section 11, decision 20).
+
 Producer (`BuildSMB`):
 
 1. **Refuse the creator SIDs in `sacl:`: `OWNER@`, `GROUP@`, and anything that resolves to
@@ -144,6 +146,12 @@ directory's children:
   (after the parent's write).
 - An object holding a frozen `ID` audit copy is an error, and G1-SACL applies to it (4.4).
 - The object itself is never written.
+
+**A protected SACL with explicit ACEs under a rule with no `sacl:` key is `Keep`, never a
+`Write`.** A rule with no `sacl:` key leaves the SACL alone, as Set-SaclOnly does
+(`tools/set-saclonly/README.md:57-58`; section 11, decision 14), and the maintainer's decision of
+2026-10-21 stands: keep the protection flags, change only the ACEs. A rule with no `sacl:` key
+names no audit ACEs, so nothing about the SACL changes.
 
 The operator docs say plainly that a rule without `sacl:` doesn't mean "not audited" on FlashArray.
 
@@ -232,7 +240,8 @@ predicted, and written, as its own `Write`: N writes instead of one parent write
 propagation.
 
 This does not cover:
-- **A protected SACL**: it does not follow (K10). It is a `Write`.
+- **A protected SACL**: it does not follow (K10). Under a `sacl:` rule it is a `Write`; under a
+  rule with no `sacl:` key it is `Keep` (2.3).
 - **An unprotected, empty SACL (`S:AI` empty) under a parent whose compare-time SACL already passes
   ACEs down.** It is a mismatch freeze (K10) that **predates the run**: the parent got its ACEs by a
   path that did not propagate, mainly an NFS ACL write (K3) on a directory whose children were
@@ -252,8 +261,10 @@ This does not cover:
 inherited audit part from its **stored** SACL. The phase 1 fix applies to the SACL too: the stored
 inherited part is replaced by the re-derived one only when the directory provably tracks its parent
 and an ancestor's SACL will be written. Otherwise the stored SACL is passed down as it is. If the
-stored SACL holds an ACE type the model does not handle (K8), its children are not classified; they
-are reported as errors and not written.
+stored SACL holds an opaque ACE type the model does not handle (K8), its children's SACL parts are
+not classified; each such child's SACL part is reported as an error and not written, while its
+DACL part is classified and written on its own. The refusal is per part, as in 4.5 (section 11,
+decision 16).
 
 **The root.** Its `desired(parent).sacl` is read from the array as its stored `ID` audit ACEs, as
 for the DACL. A frozen `ID` copy on the root cannot be detected, so **`--root-sacl-protected`**
@@ -291,13 +302,20 @@ The return code is never taken as proof of what was stored. The array returned s
 dropping ACEs it doesn't store (K13), so **every write is followed by its G2 read-back**, with no
 mode that skips it.
 
+**Owner and group travel in the DACL call, never alone** (#79; section 11, decision 15). When a
+rule names an owner or a group, the object's DACL write call sets them together with the DACL.
+There is no owner-only or group-only write, so `--write-order` (4.2) orders that DACL call, owner
+and group included, against the SACL call.
+
 A combined `DACL|SACL` call would save one round trip on objects that need both. How the array treats
 a combined write is **UNVERIFIED** (Q-SACL-COMBINED), so phase 3 does not use one.
 
 ### 4.2 Order when both parts differ
 
 The order is a switch, because the right one is customer-specific (section 11, decision 3):
-**`--write-order=sacl-first|dacl-first`**, default **`sacl-first`**. Each write is followed by its
+**`--write-order=sacl-first|dacl-first`**, default **`sacl-first`**. When a rule names an owner or
+a group, they travel in the DACL call (4.1, per #79), and the switch orders that call, owner and
+group included, against the SACL call (section 11, decision 15). Each write is followed by its
 own G2 read-back. Neither order is atomic, and each leaves a window:
 
 | Order | Window if the second write fails |
@@ -352,7 +370,10 @@ but its `ID` part differs from `inh(desired(parent).sacl)`. So does an `S:AI` em
 this run wrote its parent, when the parent's compare-time SACL passed nothing down: it should have
 followed (K10). An `S:AI` empty SACL under a parent that **already** passed ACEs down at compare time
 is not G1; it is a frozen copy from before the run (3.2). The parent's compare-time read tells the
-two apart; no second read is needed. This applies to every classified object, including those with
+two apart; no second read is needed. On a `check` run or the first pass of `apply` that read is in
+memory; on a resume it is gone, and the checkpoint's record of each directory's compare-time
+SACL (7.1) tells the two apart instead (section 11, decision 13). This applies to
+every classified object, including those with
 no `sacl:` key (2.3). There is no override, as for the DACL G1. It fires on a frozen copy that
 predates the run too. A written or converted SACL with a matching `ID` part stays dynamic, and one with a mismatching
 `ID` part stays frozen (K10), so the guard is needed: a false stop costs a rerun while a missed
@@ -386,12 +407,17 @@ that were written, and its directory is not checkpointed.
 
 ### 4.5 Refusals before a write
 
-The SACL write is refused, and the object recorded as an error, when its stored SACL:
-- holds an ACE type the model does not handle (K8: mandatory label and the others, or any type
-  `Descriptor` doesn't decode). A rebuilt audit-only list would delete it. FlashArray drops object
-  and callback ACEs on write (K13), so these types may never be stored there. Whether the other
-  types can be stored is Q-SACL-OPAQUE;
+The SACL write is refused, and the object's SACL part recorded as an error, when its stored SACL:
+- holds an opaque ACE type the model does not handle (K8: mandatory label and the others, the
+  object and callback types 5, 7 and 9, or any type `Descriptor` doesn't decode). A rebuilt
+  audit-only list would delete it. FlashArray drops object and callback ACEs on write (K13), so
+  these types may never be stored there. Whether the other types can be stored is Q-SACL-OPAQUE;
 - would exceed 65,535 bytes once encoded, the encoder's limit. The array's own limit is Q-SACL-SIZE.
+
+**The refusal is per part** (section 11, decision 16): an opaque ACE type errors the SACL part
+only, and the object's DACL part still proceeds: it is written if it differs. A rebuilt DACL
+cannot delete an ACE it never names, and the SACL's opaque ACE is outside the DACL write. The
+object's recorded outcome is `Error`, since the SACL part is one of its two part verdicts (4.6).
 
 Both the DACL and the SACL are encoded and size-checked before either is written.
 
@@ -405,6 +431,8 @@ right. Phase 1's rule that a named owner or group difference is a `Write` even u
 applies (#79).
 
 ## 5. Privileges
+
+**Prerequisite: #78** (section 11, decision 20).
 
 | Privilege | Phase 3 use |
 |---|---|
@@ -440,6 +468,11 @@ on Purity//FA 6.10.7 it has none (K7, K12), so the order is a safeguard for othe
 arrays, not a known hazard over SMB. (`inspect` reads SACLs today without a probe; it is a
 diagnostic, and its README says so.)
 
+**The probe is a throwaway object, never the root** (section 11, decision 17), as in
+`internal/auditproof` (PS-02). It is the directory, subdirectory and file the preflight creates in
+step 1 under `--probe-dir` (or ROOT) and removes at the end. Its placeholder audit ACE names
+`EVERYONE@`. No write the probe needs ever touches the root or any other tree object.
+
 `apply` runs every step. `check` with a `sacl_set` rule runs steps 1, 2 and 7, the SACL bypass
 proof on a disposable probe, before any tree read, in the same way build-spec proves the bypass
 (PS-02, `internal/auditproof`). It uses `--probe-dir` or ROOT, as `apply` does. `check
@@ -453,8 +486,8 @@ proof on a disposable probe, before any tree read, in the same way build-spec pr
 and scenario S2b tests it.
 
 1. Create the probe directory, subdirectory and file (as phase 2).
-2. Write a protected SACL with the placeholder audit ACE and require it back (as phase 2, K5). The
-   bypass is now proven on data that is not the tree's.
+2. Write a protected SACL with the `EVERYONE@` placeholder audit ACE and require it back (as
+   phase 2, K5). The bypass is now proven on data that is not the tree's.
 3. **Only now**, read the root with its SACL and compute `desired(root).sacl`. Phase 2 computes the
    root's desired DACL before the probe; the SACL half moves here.
 4. Write the root's desired audit ACEs to the probe directory as an unprotected SACL, with `ID`
@@ -478,6 +511,11 @@ and scenario S2b tests it.
 
 A plan with no `sacl_set` rule runs phase 2's preflight unchanged.
 
+**The probe's writes, read-backs and removal are recorded** (section 11, decision 18). `apply`
+puts them in its evidence directory as a preflight shard. `check` takes an optional
+**`--evidence-dir`** for the same shard; without it, they go to a NOTE line plus the summary JSON
+(7.2).
+
 **What the probe does not prove:**
 - that a written SACL stays dynamic after later parent changes (Q-SACL-DYNAMIC);
 - that the tree's objects are in the never-written state the probe's children are in: an
@@ -496,8 +534,14 @@ v2 header binds:
 - the root;
 - `--root-protected` and `--root-sacl-protected`;
 - a SHA-256 of the resolved principal-to-SID table, so a name that resolves differently on resume
-  refuses the resume;
+  refuses the resume (**prerequisite: #78**; section 11, decision 20);
 - the `S:AI` rule as the preflight confirmed it.
+
+Beyond the header, checkpoint **v2 records each directory's compare-time SACL**, or its
+classification where the raw form cannot be recorded, before any write in that directory
+(section 11, decision 13). In memory, the parent's compare-time read tells a pre-run freeze (3.2) from a
+G1-SACL failure (4.4); on a resume that read is gone, and the record does it instead for every
+object the resume re-reads.
 
 `--write-order` is **not** bound (section 11, decision 11). A resume re-reads every object it does
 not skip and writes only what still differs, so a changed order affects only objects that still
@@ -505,7 +549,8 @@ need both parts.
 
 A directory is complete only when it and every file in it are right on **every** part the plan
 names. A directory with a two-write object that stopped half way is not complete; a resume rereads
-it and writes only what still differs.
+it and writes only what still differs. A persistent per-child error keeps its directory incomplete,
+and a resume re-reads the child (section 11, decision 19), following the Go tool's PS-11 rule.
 
 Resume still skips the files of a complete directory without reading them, as phase 2 does. That
 assumes the tree did not change between the runs. The assumption is stated in the operator docs, and
@@ -520,6 +565,10 @@ Phase 2's shard format is kept. Its before- and after-images are already read wi
 - `unknown` and partial outcomes as their own counts;
 - `sacl_forms` counts in the manifest, the `--write-order`, and the preflight line naming the SACL
   steps and the confirmed `S:AI` rule;
+- the preflight shard: the probe's write, read-back and removal (section 6). `apply` records it in
+  its evidence directory. `check` takes an optional `--evidence-dir`; with it, the shard goes
+  there, and without it the probe goes to a NOTE line plus the summary JSON (section 11, decision
+  18);
 - **each evidence line is flushed to stable storage before the next write starts.** Phase 2's shard
   is buffered, and a hard kill in qualification lost one before-image. For audit changes, which are
   compliance-sensitive, one flush per written object costs little next to two SMB round trips and a
@@ -534,6 +583,11 @@ before-image at all.
 **The phase 3 operator docs require an array snapshot before `apply`.** A per-object undo needs a
 durable intent journal, flushed before each write. It is not in phase 3; a separate design covers
 it for both the DACL and the SACL (#87; section 11, decision 8).
+
+**Resume.** The checkpoint's record of each directory's compare-time SACL (7.1) lets a
+resume tell a pre-run freeze (3.2) from a G1-SACL failure (4.4) on the objects it re-reads. A
+persistent per-child error keeps its directory incomplete, so the resume re-reads the child
+(7.1, PS-11).
 
 Any future restore writes parents before children and rechecks every `ID` ACE against its parent;
 otherwise a restored child becomes a frozen copy. The NFS `--restore-from` path does not apply:
@@ -590,6 +644,13 @@ last, if at all, so Set-SaclOnly may stay in service indefinitely.
 | skip when ACEs equal, control ignored | **replaced** by a raw compare including `S:P` |
 | `OWNER@`/`GROUP@` written as `CO`/`CG` | **refused**, with the other two creator SIDs (2.2) |
 | `sacl: []` clears, absent key leaves alone | **kept**, with `sacl: []` always `S:P` (2.3) |
+
+Two differences from Set-SaclOnly are intended, not qualifications to close (section 11, decision
+21). First, `sacl: []` on an unprotected object: Set-SaclOnly copies the object's own `S:P`/`S:AI`,
+so its empty SACL stays unprotected, while this design always writes present-empty `S:P` (2.3).
+Second, `OWNER@`/`GROUP@`: Set-SaclOnly maps them to `CO`/`CG`, while this design refuses them,
+with the other two creator SIDs (2.2). S-PAR's spec therefore excludes both cases; other scenarios
+cover them against this design's rules (section 10).
 
 Separately, `tools/set-saclonly/README.md:5-6` says an `acl:` run without `--sacl` deletes SACLs.
 That is out of date: the Go tool keeps each object's audit ACEs without `--sacl` (PS-04, root
@@ -657,7 +718,7 @@ the design before the product run.
 | S7 | A rule with both, on objects where only the SACL, only the DACL, or both differ; a fault injected between the two writes. **Run once under each `--write-order`.** | `parts` recorded correctly, in the chosen order; the half-written object is not checkpointed; a rerun converges. Under `dacl-first`, each DACL write's call and descriptor bytes equal phase 2's for the same object, and the NOTE was printed. |
 | S7b | S3's fixture again under the order S3 did not use | the same pass conditions as S3; the end state equals S3's |
 | S8 | **After** a successful run: two independent parent SACL changes, plus new files and directories created under written directories, **over SMB and over NFS** | unwritten and newly created descendants follow both changes. A matching state right after the run is not enough. |
-| S-PAR | One spec on two copies of one fixture: Set-SaclOnly on one, `permissionreset-smb apply` on the other | the **effective audit ACEs** are equal on the two copies (definition below). Bytes, `ID` flags and `S:P` are expected to differ wherever the computed form differs from Set-SaclOnly's copied form; each such difference is listed. |
+| S-PAR | One spec on two copies of one fixture: Set-SaclOnly on one, `permissionreset-smb apply` on the other. The spec excludes `sacl: []` on unprotected objects and `OWNER@`/`GROUP@`: Set-SaclOnly differs from this design on both by design (9.1; section 11, decision 21). Other scenarios cover those cases against this design's rules: S3 for `sacl: []`, the `--smb-plan` golden cases and the consumer tests for the creator SIDs. | the **effective audit ACEs** are equal on the two copies (definition below). Bytes, `ID` flags and `S:P` are expected to differ wherever the computed form differs from Set-SaclOnly's copied form; each such difference is listed. |
 | S9 | Events, if the lab array has an audit policy: allowed and denied SMB access by non-bypass identities, for `SA`-only, `FA`-only and both | events observed at the sink. Stored rules and delivered events are reported as separate verdicts. With no policy available, this is recorded as **unverified**, not skipped silently. |
 
 **Effective audit ACEs** (S-PAR; section 11, decision 11):
@@ -683,8 +744,9 @@ the next `smb-v*` release is qualified on its own assets in any case.
 
 ## 11. Maintainer decisions
 
-Robert decided these on 2026-11-23 (1 to 9) and 2026-11-24 (10 to 12), after reviewing the open
-choices in the first draft and the review of `e475693`. The rest of this text follows them.
+Robert decided these on 2026-11-23 (1 to 9) and 2026-11-24 (10 to 12, and the round 3 review
+decisions 13 to 21), after reviewing the open choices in the first draft and the reviews of
+`e475693` and `1c5ca96`. The rest of this text follows them.
 
 | # | Topic | Decision | Where it applies |
 |---|---|---|---|
@@ -700,6 +762,15 @@ choices in the first draft and the review of `e475693`. The rest of this text fo
 | 10 | Schema compatibility rule | **Confirmed as proposed:** `--smb-plan` emits schema 3 only when some rule sets `sacl:` (`[]` included), otherwise 2. Phase 3 builds accept schema 2 without `sacl_set`, plus schema 3. A schema 2 plan with `sacl_set` is refused with a "rebuild it" message. `smb-v0.1.0` refuses schema 3 as unknown. | 2.1; 2.2 item 6; 10 |
 | 11 | linux01-public's flags on decisions 1 to 9 | **Accepted:** (a) the design states that `sacl: []` writes every never-audited object in scope once. The dry run shows that count, and `apply` prints how many objects will lose audit ACEs. (b) `--write-order=dacl-first` prints a NOTE that new access can go unaudited if the SACL write fails, and the write order is **not** bound in the checkpoint. (c) All four creator SIDs (`S-1-3-0` to `S-1-3-3`) are refused in `sacl:`, in the producer and the consumer. (d) S-PAR's "effective audit ACEs" is defined as in section 10. | 2.2; 2.3; 4.2; 7.1; 10 |
 | 12 | Identity without the bypass | **Provision one.** win01-lab owns it and keeps it for future qualification runs. It is recorded in the lab repository only. | section 5; Q-SACL-AUTH; S1 |
+| 13 | Resume freeze detection (G1) | Robert, 2026-11-24: checkpoint v2 records each directory's compare-time SACL, or its classification, before any write in that directory. A resume uses that record to tell a pre-run freeze (3.2) from a G1-SACL failure (4.4). | 4.4; 7.1; 7.3 |
+| 14 | Protected SACL under no `sacl:` key (G2) | Robert, 2026-11-24: a protected SACL with explicit ACEs under a rule with no `sacl:` key is `Keep`, as in Set-SaclOnly (`tools/set-saclonly/README.md:57-58`). The 2026-10-21 decision stands: keep the protection flags, change only the ACEs, and where the rule names no ACEs the SACL does not change. | 2.3; 3.2 |
+| 15 | Owner and group in the DACL call (G3) | Robert, 2026-11-24: owner and group travel in the DACL call, never alone (per #79). `--write-order` orders that call, owner and group included, against the SACL call. | 4.1; 4.2 |
+| 16 | Opaque ACE types (G4) | Robert, 2026-11-24: an opaque ACE type (the object and callback types 5, 7 and 9, or any type `Descriptor` doesn't decode) errors the object's SACL part only. The DACL part proceeds and is written if it differs. | 3.2; 4.5 |
+| 17 | Probe object (G5) | Robert, 2026-11-24: the preflight probe is a throwaway object with an `EVERYONE@` placeholder audit ACE, never the root, as in `internal/auditproof` (PS-02). | 6 |
+| 18 | Probe evidence (G6) | Robert, 2026-11-24: `check` takes an optional `--evidence-dir`; the probe's write, read-back and removal go there as a preflight shard. Without it they go to a NOTE line plus the summary JSON. | 6; 7.2 |
+| 19 | Persistent per-child errors (G8) | Robert, 2026-11-24: a persistent per-child error keeps its directory incomplete, and a resume re-reads the child, following the Go tool's PS-11 rule. | 7.1; 7.3 |
+| 20 | #78 as prerequisite | Robert, 2026-11-24: #78 is a prerequisite for the producer and consumer checks (2.2), the privilege rules (5) and the checkpoint's principal table hash (7.1). | 2.2; 5; 7.1 |
+| 21 | S-PAR scope | Robert, 2026-11-24: S-PAR's spec excludes `sacl: []` on unprotected objects and `OWNER@`/`GROUP@`, because Set-SaclOnly differs from this design on both by design. Other scenarios cover those cases against this design's rules. | 9.1; 10 |
 
 The review findings on `e475693`, the lab findings and the K1 to K8 and section 8 rebuild were folded
 in as part of decision round 2. Section 13 lists them.
@@ -776,3 +847,17 @@ linux01-public's re-review (R2-1 to R2-7) and win01-lab's AUTH run:
 | R2-7 | `check` with a `sacl_set` rule now writes a probe | **Fixed**: stated as a contract change in 6, for the README status and operator docs; scenario S2b. |
 | W3 | win01-lab: without the bypass, SMB SACL reads and writes are refused with error 5 and change nothing | **Fixed**: K7, K12 and Q-SACL-AUTH answered; section 5's layer 2 reads error 5 on a SACL-bit open as "no bypass"; section 6's order is kept as a safeguard; S1 notes the identity's missing privilege. |
 | W4 | win01-lab and linux01-lab: R2-1's open item, NFS create under an already-audited parent | **Answered**: K18. Mode-only NFS creates match their SMB twins byte for byte and follow, so Q-SACL-ABSENT is closed and an NFS create is not a third cause of the pre-run freeze (3.2). S3's item is now a following check. |
+
+### 13.2 Round 3, Robert's decisions on 2026-11-24
+
+| # | Finding | Handling |
+|---|---|---|
+| G1 | Resume: telling a pre-run freeze from a G1-SACL failure | **Fixed**: checkpoint v2 records each directory's compare-time SACL (or its classification) before the write, and the resume uses that record (4.4, 7.1, 7.3). |
+| G2 | A protected SACL with explicit ACEs under a rule with no `sacl:` key | **Fixed**: it is `Keep` (`tools/set-saclonly/README.md:57-58`; Robert's 2026-10-21 decision: keep the protection flags, change only the ACEs) (2.3, 3.2). |
+| G3 | Where owner and group go in the two-write order | **Fixed**: owner and group travel in the DACL call, never alone (per #79), and `--write-order` orders that call against the SACL call (4.1, 4.2). |
+| G4 | An opaque ACE type (5, 7, 9) in the stored SACL | **Fixed**: the refusal is per part; the DACL part proceeds and only the SACL part errors (3.2, 4.5). |
+| G5 | What the preflight probe writes to | **Fixed**: the probe is a throwaway object with an `EVERYONE@` placeholder audit ACE, never the root, as in `internal/auditproof` (6). |
+| G6 | Where `check` records the probe | **Fixed**: `check` takes an optional `--evidence-dir`; the probe's write, read-back and removal go there as a preflight shard, else to a NOTE line plus the summary JSON (6, 7.2). |
+| G8 | A persistent per-child error and the checkpoint | **Fixed**: it keeps its directory incomplete, and a resume re-reads the child (PS-11) (7.1, 7.3). |
+| #78 | #78 as a prerequisite | **Fixed**: #78 is cited as a prerequisite for 2.2, section 5 and the checkpoint principal table (7.1). |
+| S-PAR | S-PAR's intended differences from Set-SaclOnly | **Fixed**: it excludes `sacl: []` on unprotected objects and `OWNER@`/`GROUP@` because Set-SaclOnly differs on both by design; other scenarios cover them against this design's rules (9.1, 10). |
