@@ -27,6 +27,13 @@ const Schema = 1
 // stays what --sacl-plan writes, because Set-SaclOnly reads only schema 1.
 const SchemaSMB = 2
 
+// SchemaSMBSacl is the version BuildSMB makes when any rule sets sacl: (sacl:
+// [] included): schema 2's shape under the SACL write semantics of
+// smb/DESIGN-sacl-write.md (2.1, decision 10). A plan no rule of which sets
+// sacl: stays schema 2, so a DACL-only plan still loads in smb-v0.1.x and an
+// old schema 2 SACL plan is never reinterpreted.
+const SchemaSMBSacl = 3
+
 // Windows ACE types for the DACL (MS-DTYP 2.4.4.1).
 const (
 	WindowsAllowType = 0
@@ -81,6 +88,12 @@ var wellKnown = map[string]struct{ sid, alias string }{
 	"OWNER@":    {"S-1-3-0", "CO"},
 	"GROUP@":    {"S-1-3-1", "CG"},
 }
+
+// creatorSIDs is S-1-3-0 to S-1-3-3 (creator owner, creator group, and the two
+// creator server SIDs), whose inherited meaning depends on who created each
+// object. smb/DESIGN-sacl-write.md (2.2 item 1, decision 11) refuses every one
+// in a sacl: rule.
+var creatorSIDs = map[string]bool{"S-1-3-0": true, "S-1-3-1": true, "S-1-3-2": true, "S-1-3-3": true}
 
 type Plan struct {
 	Schema   int     `json:"schema"`
@@ -175,13 +188,17 @@ func Build(s *spec.Spec, source string) (*Plan, error) {
 	return p, nil
 }
 
-// BuildSMB makes the schema 2 plan that permissionreset-smb reads. On top of
+// BuildSMB makes the plan permissionreset-smb reads: schema 3 when any rule
+// sets sacl:, schema 2 otherwise (smb/DESIGN-sacl-write.md, 2.1). On top of
 // Build it translates every rule's acl: lines to Rule.Dacl, and refuses what
 // the SMB write path cannot write faithfully (smb/DESIGN-write-path.md, 2.3):
 //   - an I (inherited) flag in any ACE: inheritance is computed, and a written
 //     ID ACE that does not match the parent is a frozen copy;
 //   - OWNER@ or GROUP@ in acl:: on Windows they become CREATOR OWNER/GROUP,
 //     which do not mean the object's owner or group;
+//   - a creator SID in sacl: (OWNER@, GROUP@, or a S-1-3-0 to S-1-3-3 the plan
+//     can record; smb/DESIGN-sacl-write.md, 2.2 item 1): the inherited SID
+//     depends on who created each child;
 //   - a numeric principal or owner/group: an SMB ACE needs a SID;
 //   - dacl: (a field no SMB rule defines).
 func BuildSMB(s *spec.Spec, source string) (*Plan, error) {
@@ -189,13 +206,21 @@ func BuildSMB(s *spec.Spec, source string) (*Plan, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.Schema = SchemaSMB
 	if err := smbRule(&p.Default, &s.Default); err != nil {
 		return nil, err
 	}
 	for i := range s.Rules {
 		if err := smbRule(&p.Rules[i], &s.Rules[i].RulePerms); err != nil {
 			return nil, err
+		}
+	}
+	p.Schema = SchemaSMB
+	if p.Default.SaclSet {
+		p.Schema = SchemaSMBSacl
+	}
+	for i := range p.Rules {
+		if p.Rules[i].SaclSet {
+			p.Schema = SchemaSMBSacl
 		}
 	}
 	return p, nil
@@ -250,6 +275,13 @@ func smbPrincipalOK(a ACE, dacl bool) error {
 	}
 	if dacl && (a.Principal == "OWNER@" || a.Principal == "GROUP@") {
 		return fmt.Errorf("%q: %s in a DACL is not supported over SMB: Windows has no principal for the object's own owner or group", a.Line, a.Principal)
+	}
+	// DESIGN-Q: 2.2 item 1 also means a name that *resolves* to S-1-3-0 to
+	// S-1-3-3; only Windows can resolve a name, and permissionreset-smb checks
+	// the recorded SID, so this build catches OWNER@/GROUP@ and the literal SID
+	// strings, and leaves a hand-resolved alias to the consumer.
+	if !dacl && (creatorSIDs[a.SID] || creatorSIDs[a.Principal]) {
+		return fmt.Errorf("%q: creator SID principal %s is not allowed in a sacl: rule: what it inherits as depends on who created each object (smb/DESIGN-sacl-write.md, 2.2)", a.Line, a.Principal)
 	}
 	if isNumeric(a.Principal) {
 		return fmt.Errorf("%q: numeric principal %s has no SID; name the account instead", a.Line, a.Principal)

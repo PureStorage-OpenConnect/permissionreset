@@ -233,7 +233,7 @@ default:
   sacl: []
 rules:
   - match: {type: directory, pattern: "audit*"}
-    sacl: ["U:fdS:OWNER@:w"]
+    sacl: ["U:fdS:EVERYONE@:w"]
   - match: {type: file}
     acl: ["A::admins@example.net:rwx"]
 `)
@@ -241,8 +241,8 @@ rules:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Schema != SchemaSMB {
-		t.Errorf("schema = %d, want %d", p.Schema, SchemaSMB)
+	if p.Schema != SchemaSMBSacl {
+		t.Errorf("schema = %d, want %d (a rule sets sacl:)", p.Schema, SchemaSMBSacl)
 	}
 	d := p.Default.Dacl
 	if len(d) != 2 {
@@ -255,7 +255,7 @@ rules:
 	if d[1].WindowsType != WindowsDenyType || !d[1].Group || d[1].SID != "" || d[1].Principal != "blocked@example.net" {
 		t.Errorf("dacl[1] = %+v", d[1])
 	}
-	// A sacl:-only rule has no Dacl; OWNER@ stays allowed in a SACL.
+	// A sacl:-only rule has no Dacl.
 	if p.Rules[0].Dacl != nil || len(p.Rules[0].Sacl) != 1 {
 		t.Errorf("rules[0] = %+v", p.Rules[0])
 	}
@@ -272,12 +272,45 @@ rules:
 	}
 }
 
+// A DACL-only spec stays schema 2 (a plan an smb-v0.1.x consumer still accepts);
+// any sacl: key, empty or listed, moves the whole plan to schema 3
+// (smb/DESIGN-sacl-write.md, 2.1).
+func TestBuildSMBSchema(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"nothing about sacl", "default:\n  acl: [\"A::EVERYONE@:r\"]\n", SchemaSMB},
+		{"default sets sacl: []", "default:\n  acl: [\"A::EVERYONE@:r\"]\n  sacl: []\n", SchemaSMBSacl},
+		{"only a rule sets sacl: []", "default:\n  acl: [\"A::EVERYONE@:r\"]\nrules:\n  - match: {type: file}\n    sacl: []\n", SchemaSMBSacl},
+		{"a rule lists sacl ACEs", "default:\n  acl: [\"A::EVERYONE@:r\"]\nrules:\n  - match: {type: file}\n    sacl: [\"U:S:EVERYONE@:rw\"]\n", SchemaSMBSacl},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := mustParse(t, "protocol: nfsv4\n"+tt.body)
+			p, err := BuildSMB(s, "s.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p.Schema != tt.want {
+				t.Errorf("schema = %d, want %d", p.Schema, tt.want)
+			}
+		})
+	}
+}
+
 func TestBuildSMBRefuses(t *testing.T) {
 	tests := []struct{ name, body, want string }{
 		{"inherited flag in acl", "default:\n  acl: [\"A:I:admins@example.net:r\"]\n", "I (inherited)"},
 		{"inherited flag in sacl", "default:\n  sacl: [\"U:IS:EVERYONE@:r\"]\n", "I (inherited)"},
 		{"OWNER@ in acl", "default:\n  acl: [\"A::OWNER@:r\"]\n", "OWNER@ in a DACL"},
 		{"GROUP@ in acl", "default:\n  acl: [\"A:g:GROUP@:r\"]\n", "GROUP@ in a DACL"},
+		// 2.2 item 1: all four creator SIDs are refused in a sacl: rule.
+		{"OWNER@ in sacl", "default:\n  sacl: [\"U:S:OWNER@:w\"]\n", "creator SID"},
+		{"GROUP@ in sacl", "default:\n  sacl: [\"U:gS:GROUP@:w\"]\n", "creator SID"},
+		{"S-1-3-2 in sacl", "default:\n  sacl: [\"U:S:S-1-3-2:w\"]\n", "creator SID"},
+		{"S-1-3-3 in sacl", "default:\n  sacl: [\"U:S:S-1-3-3:w\"]\n", "creator SID"},
 		{"numeric in acl", "default:\n  acl: [\"A::1000:r\"]\n", "numeric principal"},
 		{"numeric in sacl", "default:\n  sacl: [\"U:S:1000:r\"]\n", "numeric principal"},
 		{"numeric owner", "default:\n  acl: [\"A::admins@example.net:r\"]\n  owner: \"1000\"\n", "numeric id"},

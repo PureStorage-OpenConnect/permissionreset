@@ -917,6 +917,47 @@ func TestRunSmbPlanGolden(t *testing.T) {
 	}
 }
 
+func TestRunSmbPlanDaclOnlyGolden(t *testing.T) {
+	var out, errBuf bytes.Buffer
+	if code := run([]string{"--smb-plan", "testdata/smbplan-dacl.yaml"}, &out, &errBuf, deps{}); code != 0 {
+		t.Fatalf("exit %d, stderr:\n%s", code, errBuf.String())
+	}
+	golden := filepath.Join("testdata", "smbplan-dacl.golden.json")
+	if *updateGolden {
+		if err := os.WriteFile(golden, out.Bytes(), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, w := out.String(), strings.ReplaceAll(string(want), "\r\n", "\n"); got != w {
+		t.Errorf("plan differs from %s:\n--- got\n%s\n--- want\n%s", golden, got, w)
+	}
+}
+
+// A creator SID in sacl: is refused by BuildSMB (smb/DESIGN-sacl-write.md, 2.2
+// item 1; the remaining cases are tested in internal/saclplan). The flag
+// surface must report the refusal cleanly.
+func TestRunSmbPlanRefusesCreatorSidInSacl(t *testing.T) {
+	dir := t.TempDir()
+	specPath := filepath.Join(dir, "creator.yaml")
+	if err := os.WriteFile(specPath, []byte("protocol: nfsv4\ndefault:\n  sacl: [\"U:S:OWNER@:rw\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errBuf bytes.Buffer
+	if code := run([]string{"--smb-plan", specPath}, &out, &errBuf, deps{}); code == 0 {
+		t.Fatalf("exit 0, want non-zero; stdout:\n%s", out.String())
+	}
+	if out.Len() != 0 {
+		t.Errorf("stdout must stay empty on error, got %q", out.String())
+	}
+	if !strings.Contains(errBuf.String(), "creator SID") {
+		t.Errorf("stderr %q does not mention a creator SID refusal", errBuf.String())
+	}
+}
+
 func TestRunSmbPlanErrors(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, body string) string {
