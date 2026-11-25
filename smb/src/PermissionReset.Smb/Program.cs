@@ -15,12 +15,18 @@ static class Cli
           inspect [--no-sacl] PATH...   print each object's raw security descriptor as JSON, one line
                                         per path: owner, group, control flags, DACL and SACL as
                                         stored, and the raw bytes. Read-only.
-          check [--validate] [--workers N] [--root-protected] PLAN.json ROOT
+          check [--validate] [--workers N] [--root-protected] [--probe-dir DIR] [--evidence-dir DIR]
+                [--accept-unproven-read] PLAN.json ROOT
                                         walk ROOT and say, per object, whether its DACL is what the
                                         schema 2 plan wants (ok), needs its own write (write), or
                                         will be right once an ancestor is written (follows). JSON
-                                        lines on stdout, a summary on stderr. Writes nothing.
-                                        --validate exits 1 on any object that isn't ok.
+                                        lines on stdout, a summary on stderr. Writes nothing to the
+                                        tree. --validate exits 1 on any object that isn't ok.
+                                        A plan with a sacl: rule also enables SeSecurityPrivilege
+                                        and proves the audit bypass on a disposable probe under
+                                        --probe-dir (or ROOT), before any tree object is read;
+                                        --accept-unproven-read skips that proof with a NOTE. The
+                                        probe's events go to --evidence-dir, else to NOTE lines.
           apply [--workers N] [--root-protected] [--probe-dir DIR] [--checkpoint FILE [--resume]]
                 [--evidence-dir DIR] PLAN.json ROOT
                                         the same walk, writing each object whose DACL (or named
@@ -136,19 +142,24 @@ static class Cli
     // and 2 on a usage error.
     static int Check(string[] args, TextWriter stdout, TextWriter stderr, CheckDeps? deps)
     {
-        bool validate = false, rootProtected = false;
+        bool validate = false, rootProtected = false, acceptUnprovenRead = false;
         int workers = 16;
+        string? probeDir = null, evidenceDir = null;
         var pos = new List<string>();
         for (int i = 0; i < args.Length; i++)
         {
             var a = args[i];
+            string? Value() => i + 1 < args.Length ? args[++i] : null;
             if (a == "--validate") validate = true;
             else if (a == "--root-protected") rootProtected = true;
+            else if (a == "--accept-unproven-read") acceptUnprovenRead = true;
             else if (a == "--workers")
             {
                 if (i + 1 >= args.Length || !int.TryParse(args[++i], out workers) || workers < 1)
                     return Fail(stderr, "check: --workers needs a positive number");
             }
+            else if (a == "--probe-dir") { if ((probeDir = Value()) is null) return Fail(stderr, "check: --probe-dir needs a directory"); }
+            else if (a == "--evidence-dir") { if ((evidenceDir = Value()) is null) return Fail(stderr, "check: --evidence-dir needs a directory"); }
             else if (a.StartsWith('-')) return Fail(stderr, $"check: unknown option {a}");
             else pos.Add(a);
         }
@@ -163,12 +174,11 @@ static class Cli
         try { deps.EnablePrivilege("SeBackupPrivilege"); }
         catch (Win32Exception e) { return Fail(stderr, $"check: {e.Message} (Win32 error {e.NativeErrorCode})", 1); }
         var root = pos[1];
-        // Phase 3 (smb/DESIGN-sacl-write.md, section 6): no tree object's SACL is read before a probe
-        // proves the audit bypass, and the probe is not wired into check yet. Until it is, a plan
-        // with a sacl: rule is refused here, before anything is read.
-        var saclRules = plan.Rules.Prepend(plan.Default).Where(r => r.SaclSet).Select(r => r.Label).ToList();
-        if (saclRules.Count > 0)
-            return Fail(stderr, $"check: rule(s) {string.Join(", ", saclRules)} set sacl:, and this build does not yet prove the audit bypass before reading SACLs (phase 3); use a plan without sacl: here", 1);
+        // Phase 3 plumbing (design 5 and 6), before any tree read: a plan with a sacl: rule needs
+        // SeSecurityPrivilege and the probe's bypass proof first. The walk below still refuses
+        // schema 3 — S-C's merge lifts that, and then hands the probe the root's SACL here.
+        if (CheckSaclPreflight(plan, deps, root, probeDir, evidenceDir, acceptUnprovenRead, stderr) is { } refusedCheck)
+            return refusedCheck;
         // Principal resolution happens inside the Checker's constructor, before any tree read. A
         // lookup failure that the Checker could not classify as an unresolved principal (a thrown
         // domain/trust error is folded in; this is the belt for anything else) is still refused,
@@ -189,6 +199,56 @@ static class Cli
         bool failed = summary.Count(Outcome.Error) > 0 || summary.NotProcessed > 0 || summary.Stop is not null;
         bool differs = summary.Count(Outcome.Write) + summary.Count(Outcome.Follows) > 0;
         return failed || (validate && differs) ? 1 : 0;
+    }
+
+    // CheckSaclPreflight is the phase 3 check preflight for a plan whose rules set sacl: (design 5
+    // and 6). Layer 1 enables SeSecurityPrivilege, exit 1 naming it, before any evidence directory
+    // or probe exists. Layers 2 and 3 are the check-mode probe (design 6, steps 1, 2 and 7's
+    // cleanup): the bypass proof on a disposable probe, before any tree read. Without a writable
+    // probe location the refusal exits 1 with nothing left behind; --accept-unproven-read skips
+    // the proof with a NOTE. The probe's events go to --evidence-dir as a preflight shard, else to
+    // NOTE lines (decision 18). A plan with no sacl: rule does none of this. Null to proceed with
+    // the walk; an exit code otherwise. S-D keeps Checker's schema 3 refusal; when S-C lifts it,
+    // this helper gains the root's SACL delegate and apply's RootAcl-equivalent.
+    static int? CheckSaclPreflight(Plan plan, CheckDeps deps, string root, string? probeDir, string? evidenceDir, bool acceptUnprovenRead, TextWriter stderr)
+    {
+        if (!plan.Rules.Prepend(plan.Default).Any(r => r.SaclSet)) return null;
+        try { deps.EnablePrivilege("SeSecurityPrivilege"); }
+        catch (Win32Exception e) { return Fail(stderr, $"check: {e.Message} (Win32 error {e.NativeErrorCode}); nothing was read", 1); }
+        if (acceptUnprovenRead)
+        {
+            stderr.WriteLine("check: NOTE: --accept-unproven-read: the tree's SACLs are read without a proven audit bypass; a read the array mishandles is not caught (design 6, PS-02)");
+            return null;
+        }
+        List<ProbeEvent>? collected = evidenceDir is null ? [] : null;
+        using var shard = evidenceDir is null ? null : new ProbeShard(evidenceDir);
+        ProbeResult probe;
+        // Check mode never calls RootSacl (steps 3 to 6 are apply's): the delegate makes any such
+        // call an explicit failure, so no tree SACL can be read before the proof. rootAces is
+        // unused the same way (the DACL steps are apply's too).
+        try
+        {
+            var probeTree = probeDir is null ? deps.Tree(root) : deps.Tree(probeDir);
+            probe = Preflight.Run(probeTree, "", [],
+                new SaclProbe(() => throw new InvalidOperationException("check runs the bypass proof only; the root's SACL is never read here (design 6)"),
+                    ProbeMode.Check, shard is not null ? shard.Record : collected!.Add));
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            probe = new ProbeResult(false, $"the probe location {probeDir ?? root}: {e.Message}", "");
+        }
+        if (collected is not null)
+        {
+            stderr.WriteLine("check: NOTE: the preflight probe events (no --evidence-dir; decision 18):");
+            foreach (var ev in collected) stderr.WriteLine($"check: NOTE:   {ProbeShard.Line(ev)}");
+        }
+        if (!probe.Passed)
+        {
+            stderr.WriteLine($"permissionreset-smb: check: preflight refused: probe {probe.Probe}: {probe.Detail}; nothing in the tree was read");
+            return 1;
+        }
+        stderr.WriteLine($"check: {probe.Detail}");
+        return null;
     }
 
     // FullPath names an object in the root's own separator style, so \\array\share\dept gives
