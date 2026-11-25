@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-11-20, revised 2026-11-24 |
 | Status | **Draft for review. Design only; nothing here is built or qualified.** This extends `smb/DESIGN-write-path.md` (sections 2.5 and 8, phase 3). Section 11 records the maintainer's decisions of 2026-11-23 and 2026-11-24, and the rest of the text follows them. Section 13 lists the review findings on `e475693` and `1c5ca96`, the maintainer's round 3 decisions of 2026-11-24, and how each was handled. |
-| Scope | FlashArray only. FlashBlade is out of scope: FlashBlade over SMB comes last, if at all (section 11, decision 9). Set-SaclOnly's retirement still needs FlashBlade covered (`docs/decision-flasharray-smb-20261107.md:66-71`), so this phase does not retire it, and that condition may never be met. |
+| Scope | FlashArray only. FlashBlade is out of scope: FlashBlade over SMB comes last, if at all (section 11, decision 9). Set-SaclOnly retires for FlashArray once this phase is released (`smb-v0.2.0`), and stays supported, frozen (fixes only), for SMB-written FlashBlade data until FlashBlade over SMB is decided (`docs/decision-flasharray-smb-20261107.md:69-77`, section 2.5 as amended). |
 | Base | `main` @ `cd4ed1e`, which holds phase 2 (#73) and the walk changes in #74, #79 and #80. Code citations are paths and lines at that commit. |
 | Builds on | `smb/DESIGN-write-path.md`, `tools/set-saclonly/`, `benchmarks/qual-smb-check-700630b-20261116/`, `benchmarks/qual-smb-apply-e834ac8-20261119/`, and the private lab records named in section 1 |
 
@@ -374,8 +374,8 @@ two apart; no second read is needed. On a `check` run or the first pass of `appl
 memory; on a resume it is gone, and the checkpoint's record of each directory's compare-time
 SACL (7.1) tells the two apart instead (section 11, decision 13). This applies to
 every classified object, including those with
-no `sacl:` key (2.3). There is no override, as for the DACL G1. It fires on a frozen copy that
-predates the run too. A written or converted SACL with a matching `ID` part stays dynamic, and one with a mismatching
+no `sacl:` key (2.3). There is no override, as for the DACL G1. It fires on a non-empty frozen
+`ID` copy that predates the run too. A written or converted SACL with a matching `ID` part stays dynamic, and one with a mismatching
 `ID` part stays frozen (K10), so the guard is needed: a false stop costs a rerun while a missed
 freeze is silent.
 
@@ -629,9 +629,11 @@ answered.
 
 ### 9.1 Set-SaclOnly
 
-Its retirement stays held until a `permissionreset-smb` release is qualified for SACL writes on
-FlashArray **and** FlashBlade. The FlashArray half does not retire it. FlashBlade over SMB comes
-last, if at all, so Set-SaclOnly may stay in service indefinitely.
+It retires **for FlashArray** once this phase is released (`smb-v0.2.0`, qualified on FlashArray);
+from then on `permissionreset-smb` is the supported SMB SACL path there. It stays supported,
+frozen (fixes only), for SMB-written FlashBlade data until FlashBlade over SMB is decided
+(decision record, section 2.5, as amended). FlashBlade over SMB comes last, if at all, so
+Set-SaclOnly may stay in service for FlashBlade indefinitely.
 
 | Set-SaclOnly behaviour | Phase 3 |
 |---|---|

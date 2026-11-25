@@ -272,9 +272,9 @@ unwritten children). Q-OWN and Q2 remain open.
 3. **SACL** on FlashArray, with computed SACL inheritance and Set-SaclOnly's strict checks
    (`DESIGN-sacl-write.md`). There is no parity mode; qualification compares the two tools on
    effective audit ACEs (scenario S-PAR). FlashBlade is out of scope: FlashBlade over SMB comes
-   last, if at all (2026-11-23). Set-SaclOnly is retired only after a release is qualified for SACL
-   writes on FlashArray and on FlashBlade (decision record, section 2.5), so this phase does not
-   retire it.
+   last, if at all (2026-11-23). Set-SaclOnly retires for FlashArray once this phase is released
+   (`smb-v0.2.0`), and stays supported, frozen, for SMB-written FlashBlade data until FlashBlade
+   over SMB is decided (decision record, section 2.5, as amended).
 4. **`smb-v0.1.0`** when phase 2 is qualified: the tag (the `smb-v*` release workflow is built), a
    COMPATIBILITY.md row, and the platform-to-tool split in the operator docs.
 
