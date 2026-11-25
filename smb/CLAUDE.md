@@ -37,7 +37,8 @@ Rules:
   reruns at `959c505` and on the released exe (`README.md` status). A change to the write path
   after `959c505` needs its own hardware run before the next `smb-v*` tag. Every
   write goes through G1 and G2 (section 5); never add a path that writes without them, and never add
-  an override for either. SACL writes are phase 3: `apply` refuses plans with `sacl:` until then.
+  an override for either. SACL writes (phase 3) are built but unqualified on hardware; a change to
+  the write path needs its own hardware run before the next `smb-v*` tag.
 - `Inheritance.Inherit`'s table test is the prediction the Q-INH hardware run checks. If the array
   disagrees, change the function and the table together, and record why.
 - Never parse YAML here. Spec meaning lives in Go (`internal/saclplan`); extend the plan schema
