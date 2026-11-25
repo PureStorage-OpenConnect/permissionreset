@@ -229,6 +229,57 @@ public class SaclWalkTests
     }
 
     [Fact]
+    public void AWriteErrorWithAFailingReadBackIsUnknownAndStopsTheRun()
+    {
+        // 4.4: a write API error is not proof that nothing changed (K13), so the object is read
+        // back; if that read fails too, what is stored is unknown and the run stops.
+        var tree = TwoPartTree();
+        tree.BeforeSaclRead = rel =>
+        {
+            // The second SACL read of x.txt is its pre-write read; make the write after it and
+            // every read after that fail.
+            if (rel == "x.txt" && tree.SaclReads.Count(r => r == "x.txt") == 2)
+            {
+                tree.WriteFails.Add("x.txt");
+                tree.ReadFails.Add("x.txt");
+            }
+        };
+        var (recs, s) = Apply(AuditedPlan(), tree);
+        Assert.False(s.Complete);
+        Assert.Contains("unknown", s.Stop);
+        var r = At(recs, "x.txt");
+        Assert.Equal(Outcome.Error, r.Outcome);
+        Assert.Contains("unknown", r.Detail);
+        Assert.Null(r.Parts);
+        Assert.Empty(tree.Writes);
+    }
+
+    [Fact]
+    public void TheSecondPreWriteCheckCatchesAChangeBetweenTheTwoWrites()
+    {
+        // 4.2: under sacl-first, the DACL write's pre-write check compares the DACL against the
+        // compare-time read; a change between the two writes means nothing more is written, an
+        // error, not a guard.
+        var tree = TwoPartTree();
+        tree.BeforeSaclRead = rel =>
+        {
+            // The fourth SACL read of x.txt is the second write's pre-write read (compare, first
+            // pre-write, first G2 read-back before it): the DACL moved between the two writes.
+            if (rel == "x.txt" && tree.SaclReads.Count(r => r == "x.txt") == 4)
+                lock (tree.Objs) tree.Objs["x.txt"] = tree.Objs["x.txt"] with { Dacl = [A(0, Admins, 0x1f01ff)] };
+        };
+        var (recs, s) = Apply(AuditedPlan(), tree);
+        Assert.Null(s.Stop);
+        var r = At(recs, "x.txt");
+        Assert.Equal(Outcome.Error, r.Outcome);
+        Assert.Equal(Outcome.Written, r.SaclOutcome);
+        Assert.Equal(Outcome.Error, r.DaclOutcome);
+        Assert.Contains("changed between the first write and the second", r.Detail);
+        Assert.Equal("sacl", r.Parts);
+        Assert.Single(tree.Writes);                                // the SACL only
+    }
+
+    [Fact]
     public void AProtectedKeptSaclIsKeep()
     {
         var plan = MakeSaclPlan(
