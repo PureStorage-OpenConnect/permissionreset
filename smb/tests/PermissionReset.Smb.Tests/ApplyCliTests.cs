@@ -229,11 +229,24 @@ public sealed class ApplyCliTests : IDisposable
     [Fact]
     public void APlanThatSetsSaclIsRefused()
     {
-        var plan = Usual with { Default = Usual.Default with { SaclSet = true } };
+        var plan = Usual with { Schema = Plan.SmbSaclSchema, Default = Usual.Default with { SaclSet = true } };
         var tree = Flattened();
         var r = Run(tree, "apply", PlanFile(plan), "R");
         Assert.Equal(1, r.Code);
         Assert.Contains("writes no SACL", r.Err);
+        Assert.Empty(tree.Writes);
+    }
+
+    // smb/DESIGN-sacl-write.md 2.1: a schema 2 plan with a sacl rule predates this tool and is
+    // refused at load, not reinterpreted.
+    [Fact]
+    public void ASchema2PlanThatSetsSaclIsRefusedWithARebuildMessage()
+    {
+        var plan = Usual with { Default = Usual.Default with { SaclSet = true } };
+        var tree = Flattened();
+        var r = Run(tree, "apply", PlanFile(plan), "R");
+        Assert.Equal(1, r.Code);
+        Assert.Contains("rebuild", r.Err);
         Assert.Empty(tree.Writes);
     }
 

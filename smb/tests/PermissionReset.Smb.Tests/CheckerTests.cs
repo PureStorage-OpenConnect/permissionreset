@@ -632,6 +632,44 @@ public class CheckerTests
         Assert.Throws<PlanException>(() => new Checker(plan with { Schema = Plan.SaclSchema }, new FakeTree([]), "root", _ => "S-1-1-0"));
     }
 
+    // #78: one lookup per distinct principal, over DACL, ownership and sacl:-only names, the miss
+    // cached as well. Principals that appear only in sacl: entries are resolved.
+    [Fact]
+    public void ResolvesEachDistinctPrincipalOnceAndSaclOnlyOnesToo()
+    {
+        var named = new PlanRule("default", new PlanMatch("", ""), false, false, true, false, false, "owner@example.net", "", [],
+            [PA(A(0, ""), "user@example.net"), PA(A(0, ""), "user@example.net")]);
+        var again = new PlanRule("rule[0]", new PlanMatch("file", "*.log"), false, false, true, false, false, "", "", [],
+            [PA(A(0, ""), "user@example.net")]);
+        var saclOnly = new PlanRule("rule[1]", new PlanMatch("file", "*.db"), true, true, false, false, false, "", "",
+            [new PlanAce("line", 0, 0, AceTypes.Audit, AceFlags.SuccessfulAccess, 0x1f01ff, "audit@example.net", false, "", "")]);
+        var plan = new Plan(Plan.SmbSchema, "t", "nfsv4", new PlanExclude([], [], []), named, [again, saclOnly]);
+        var calls = new Dictionary<string, int>(StringComparer.Ordinal);
+        string? Resolve(string name)
+        {
+            calls[name] = calls.GetValueOrDefault(name) + 1;
+            return name switch
+            {
+                "user@example.net" => Users,
+                "audit@example.net" => Admins,
+                "owner@example.net" => Other,
+                _ => null,
+            };
+        }
+
+        var missing = new PlanRule("rule[2]", new PlanMatch("file", "*.tmp"), false, false, true, false, false, "", "", [],
+            [PA(A(0, ""), "missing@example.net"), PA(A(0, ""), "missing@example.net")]);
+        var bad = plan with { Rules = [.. plan.Rules, missing] };
+        Assert.Throws<PlanException>(() => new Checker(bad, new FakeTree([]), "root", Resolve));
+        Assert.All(calls, kv => Assert.Equal(1, kv.Value));      // the unresolved one is looked up once, too
+
+        calls.Clear();
+        var checker = new Checker(plan, new FakeTree([]), "root", Resolve);
+        Assert.Equal(3, checker.Principals.Count);
+        Assert.Equal(Admins, checker.Principals["audit@example.net"]);   // named only in sacl:
+        Assert.All(calls, kv => Assert.Equal(1, kv.Value));
+    }
+
     [Fact]
     public void ParallelWalkSeesEveryObjectOnce()
     {

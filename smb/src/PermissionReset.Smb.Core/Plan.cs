@@ -15,8 +15,10 @@ public sealed record Plan(
     [property: JsonPropertyName("rules")] IReadOnlyList<PlanRule> Rules)
 {
     // Schema 1 is what `build-spec --sacl-plan` writes (SACLs only, for Set-SaclOnly); schema 2 is
-    // `build-spec --smb-plan`, which adds each rule's DACL. A schema 1 plan is still read, by `plan`.
-    public const int SaclSchema = 1, SmbSchema = 2;
+    // `build-spec --smb-plan` for a spec no rule of which sets sacl:; schema 3 is the same shape
+    // when any rule does, under the SACL write semantics of smb/DESIGN-sacl-write.md (2.1,
+    // decision 10). A schema 1 plan is still read, by `plan`.
+    public const int SaclSchema = 1, SmbSchema = 2, SmbSaclSchema = 3;
 
     public static Plan Parse(string json)
     {
@@ -30,8 +32,8 @@ public sealed record Plan(
             throw new PlanException($"plan is not valid JSON: {e.Message}", e);
         }
         if (p is null) throw new PlanException("plan is empty");
-        if (p.Schema is not (SaclSchema or SmbSchema))
-            throw new PlanException($"plan schema {p.Schema} is not supported (this build reads schemas {SaclSchema} and {SmbSchema}); use a matching build-spec");
+        if (p.Schema is not (SaclSchema or SmbSchema or SmbSaclSchema))
+            throw new PlanException($"plan schema {p.Schema} is not supported (this build reads schemas {SaclSchema}, {SmbSchema} and {SmbSaclSchema}); use a matching build-spec");
         if (p.Protocol != "nfsv4")
             throw new PlanException($"plan protocol \"{p.Protocol}\" is not supported; only nfsv4 specs translate to SMB");
         CheckPresent(p);
@@ -92,6 +94,7 @@ public sealed record Plan(
 
     // CheckAces refuses a rule whose ACEs don't fit its schema. build-spec never writes such a plan;
     // the check is here so that a hand-edited or mismatched one is refused, not misread.
+    // The schema 3 checks are smb/DESIGN-sacl-write.md, 2.2 items 2 to 6.
     static void CheckAces(int schema, PlanRule r)
     {
         if (schema == SaclSchema)
@@ -99,6 +102,14 @@ public sealed record Plan(
             if (r.Dacl is not null) throw new PlanException($"plan rule {r.Label}: a schema 1 plan has no dacl");
             return;
         }
+        // 2.1's schema rule: schema 2 SACLS were refused by every build that wrote a schema 2
+        // plan; that meaning is never reinterpreted.
+        if (schema == SmbSchema && r.SaclSet)
+            throw new PlanException($"plan rule {r.Label}: a schema {SmbSchema} plan with sacl: set is refused (no schema {SmbSchema} build wrote one, and phase 2 refused it); rebuild the plan with this build's build-spec --smb-plan");
+        if (schema == SmbSaclSchema && r.Sacl is null)
+            throw new PlanException($"plan rule {r.Label}: has no sacl list; a schema {SmbSaclSchema} plan always carries one (empty when the rule names no sacl:)");
+        if (!r.SaclSet && r.Sacl?.Count > 0)
+            throw new PlanException($"plan rule {r.Label}: holds sacl ACEs but sacl_set is false; build-spec never writes that pair");
         if (r.HasAcl != r.Dacl is not null)
             throw new PlanException($"plan rule {r.Label}: has_acl is {r.HasAcl.ToString().ToLowerInvariant()} but dacl is {(r.Dacl is null ? "absent" : "present")}");
         foreach (var a in r.Dacl ?? [])
@@ -114,6 +125,14 @@ public sealed record Plan(
                 throw new PlanException($"plan rule {r.Label}: sacl ACE \"{a.Line}\" has type {a.WindowsType}, want audit (2)");
             if ((a.WindowsFlags & AceFlags.Inherited) != 0)
                 throw new PlanException($"plan rule {r.Label}: sacl ACE \"{a.Line}\" carries ID; inheritance is computed, not planned");
+            if ((a.WindowsFlags & (AceFlags.SuccessfulAccess | AceFlags.FailedAccess)) == 0)
+                throw new PlanException($"plan rule {r.Label}: sacl ACE \"{a.Line}\" has neither SA nor FA; an audit ACE that audits nothing is refused (a hand-edited ACE is the only source)");
+            // DESIGN-Q: 2.2 item 3 also covers a name that *resolves* to a creator SID, like the
+            // producer (saclplan.go); only Windows can resolve a name, so this checks the SID the
+            // plan records and the literal SID strings. Inheritance.Inherit still throws on the
+            // four SIDs after resolution, whatever the path that put one here.
+            if (Inheritance.CreatorSids.Contains(a.Sid) || Inheritance.CreatorSids.Contains(a.Principal))
+                throw new PlanException($"plan rule {r.Label}: sacl ACE \"{a.Line}\" names the creator SID {(a.Sid.Length > 0 ? a.Sid : a.Principal)}; what it inherits as depends on who created each object, so it is refused");
         }
     }
 
