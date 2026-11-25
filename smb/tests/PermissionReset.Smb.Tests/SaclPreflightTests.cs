@@ -133,6 +133,22 @@ public class SaclPreflightTests : IDisposable
     }
 
     [Fact]
+    public void AChangedDaclOnTheProbeFileAcrossTheSaclStepsRefuses()
+    {
+        // Step 6 covers the whole probe: step 5 writes the subdirectory and the file too.
+        var tree = Tree();
+        tree.AfterWrite = rel =>
+        {
+            if (rel == "px/f" && tree.Objs[rel].SaclEverWritten)
+                tree.Objs[rel] = tree.Objs[rel] with { Protected = true };
+        };
+        var r = Preflight.Run(tree, "", RootDacl, new SaclProbe(() => [], ProbeMode.Apply), name: "px");
+        Assert.False(r.Passed);
+        Assert.Contains("px/f", r.Detail);
+        Assert.Contains("K2", r.Detail);
+    }
+
+    [Fact]
     public void ACleanupFailureRefuses()
     {
         var tree = Tree();

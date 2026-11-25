@@ -219,15 +219,30 @@ public static class Preflight
     // protected placeholder, step 3 obtains the root's desired SACL only now, step 4 writes it to
     // the probe dir unprotected and checks the children followed (G1 on known data), step 5
     // confirms K11's S:AI rule and K9 on known data, step 7 runs the phase 2 DACL steps. Step 6
-    // runs throughout: owner, group, DACL bytes and DACL control bits are compared with the
-    // baseline after each SACL step (K2: a SACL-only write leaves everything else alone). Error 5
+    // runs throughout: the probe directory's, subdirectory's and file's owner, group, DACL bytes
+    // and DACL control bits are compared with their baselines after steps 4 and 5 (K2: a SACL-only write leaves everything else alone). Error 5
     // on any SACL-bit access is layer 2's "no audit bypass" (design 5, K12).
     static string? CheckWithSacl(IWritableTree t, string dir, string sub, string file, List<Ace> aces, SaclProbe sp, Action<ProbeEvent>? sink)
     {
-        // The baseline is read without the SACL: no SACL-bit access happens before the proof.
-        var baselineRaw = t.Read(dir, withSacl: false).Descriptor;
-        sink?.Invoke(ProbeEvent.Of("read", dir, null, baselineRaw, "the step 6 baseline: owner, group and DACL before the SACL steps"));
-        var baseline = Descriptor.Decode(baselineRaw);
+        // The baselines are read without the SACL: no SACL-bit access happens before the proof.
+        // Step 6 covers the whole probe, since step 5 writes the subdirectory and the file.
+        var probe = new[] { dir, sub, file };
+        var baselines = new Dictionary<string, Descriptor>();
+        byte[]? baselineRaw = null;
+        foreach (var rel in probe)
+        {
+            var raw = t.Read(rel, withSacl: false).Descriptor;
+            sink?.Invoke(ProbeEvent.Of("read", rel, null, raw, "the step 6 baseline: owner, group and DACL before the SACL steps"));
+            baselines[rel] = Descriptor.Decode(raw);
+            baselineRaw ??= raw;
+        }
+        string? Drift()
+        {
+            foreach (var rel in probe)
+                if (OwnerDaclDrift(baselines[rel], Descriptor.Decode(t.Read(rel, withSacl: true).Descriptor)) is { } d)
+                    return $"the probe's {d} on {rel} did not stay unchanged across the SACL steps (K2; design 6, step 6)";
+            return null;
+        }
         try
         {
             var why = ProveBypass(t, dir, baselineRaw, sink);
@@ -238,13 +253,11 @@ public static class Preflight
 
             var (why4, passes) = CheckRootPropagation(t, dir, sub, file, rootWanted, sink);
             if (why4 is not null) return why4;
-            if (OwnerDaclDrift(baseline, Descriptor.Decode(t.Read(dir, withSacl: true).Descriptor)) is { } d1)
-                return $"the probe's {d1} did not stay unchanged across the SACL steps (K2; design 6, step 6)";
+            if (Drift() is { } d1) return d1;
 
             var why5 = CheckSaclControl(t, sub, file, passes, sink);
             if (why5 is not null) return why5;
-            if (OwnerDaclDrift(baseline, Descriptor.Decode(t.Read(dir, withSacl: true).Descriptor)) is { } d2)
-                return $"the probe's {d2} did not stay unchanged across the SACL steps (K2; design 6, step 6)";
+            if (Drift() is { } d2) return d2;
         }
         catch (Exception e) when (IsAccessDenied(e)) { return NoBypass(e); }
 
@@ -376,8 +389,11 @@ public static class Preflight
     static string NoBypass(Exception e) =>
         $"the array refused a SACL access on the probe with access denied: the identity lacks the array's audit bypass (K12; design 5, layer 2): {e.Message}";
 
-    // IsAccessDenied recognizes layer 2's signal. Core stays portable (smb/CLAUDE.md), so it
-    // matches the HRESULT every access-denied exception carries, never a Win32 type.
+    // IsAccessDenied recognizes layer 2's signal: Win32 error 5. Win32Tree throws
+    // Win32Exception(5), whose HResult is E_FAIL, not 0x80070005, so the native code is matched.
+    // Win32Exception is System.ComponentModel, portable on every platform; Core still makes no
+    // Win32 call (smb/CLAUDE.md).
     static bool IsAccessDenied(Exception e) =>
-        e is UnauthorizedAccessException || e.HResult == unchecked((int)0x80070005);
+        e is UnauthorizedAccessException || e is System.ComponentModel.Win32Exception { NativeErrorCode: 5 }
+        || e.HResult == unchecked((int)0x80070005);
 }

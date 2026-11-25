@@ -65,7 +65,7 @@ public class CheckerTests
             if (withSacl)
             {
                 lock (SaclReads) SaclReads.Add(rel);
-                if (RefuseSaclAccess) throw new UnauthorizedAccessException("Access is denied.");
+                if (RefuseSaclAccess) throw new System.ComponentModel.Win32Exception(5, "open: Access is denied.");   // as Win32Tree throws it
                 if (SaclReadFails.Contains(rel)) throw new IOException("A required privilege is not held by the client.");
                 BeforeSaclRead?.Invoke(rel);
             }
@@ -95,7 +95,7 @@ public class CheckerTests
         public void Write(string rel, uint info, byte[] sd)
         {
             if (WriteFails.Contains(rel)) throw new IOException("set security: Access is denied.");
-            if (RefuseSaclAccess && (info & SecurityInformation.Sacl) != 0) throw new UnauthorizedAccessException("set security: Access is denied.");
+            if (RefuseSaclAccess && (info & SecurityInformation.Sacl) != 0) throw new System.ComponentModel.Win32Exception(5, "set security: Access is denied.");
             var d = Descriptor.Decode(sd);
             lock (Objs)
             {
