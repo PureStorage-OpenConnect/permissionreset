@@ -153,4 +153,7 @@ public sealed record Manifest(
     IReadOnlyList<string> Reasons,
     string Status = "",
     long Records = 0,
-    IReadOnlyList<ManifestShard>? Shards = null);
+    IReadOnlyList<ManifestShard>? Shards = null,
+    // --write-order as apply ran it (design 4.2: the order is recorded in the manifest; it is not
+    // bound in the checkpoint, decision 11).
+    string? WriteOrder = null);

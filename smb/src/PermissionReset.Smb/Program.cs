@@ -15,23 +15,29 @@ static class Cli
           inspect [--no-sacl] PATH...   print each object's raw security descriptor as JSON, one line
                                         per path: owner, group, control flags, DACL and SACL as
                                         stored, and the raw bytes. Read-only.
-          check [--validate] [--workers N] [--root-protected] [--probe-dir DIR] [--evidence-dir DIR]
+          check [--validate] [--workers N] [--root-protected] [--root-sacl-protected]
+                [--write-order sacl-first|dacl-first] [--probe-dir DIR] [--evidence-dir DIR]
                 [--accept-unproven-read] PLAN.json ROOT
-                                        walk ROOT and say, per object, whether its DACL is what the
-                                        schema 2 plan wants (ok), needs its own write (write), or
-                                        will be right once an ancestor is written (follows). JSON
-                                        lines on stdout, a summary on stderr. Writes nothing to the
-                                        tree. --validate exits 1 on any object that isn't ok.
+                                        walk ROOT and say, per object, whether its DACL (and SACL,
+                                        when a rule sets sacl:) is what the plan wants (ok), needs
+                                        its own write (write), or will be right once an ancestor is
+                                        written (follows). JSON lines on stdout, a summary on
+                                        stderr. Writes nothing to the tree. --validate exits 1 on
+                                        any object that isn't ok.
                                         A plan with a sacl: rule also enables SeSecurityPrivilege
                                         and proves the audit bypass on a disposable probe under
                                         --probe-dir (or ROOT), before any tree object is read;
                                         --accept-unproven-read skips that proof with a NOTE. The
                                         probe's events go to --evidence-dir, else to NOTE lines.
-          apply [--workers N] [--root-protected] [--probe-dir DIR] [--checkpoint FILE [--resume]]
+          apply [--workers N] [--root-protected] [--root-sacl-protected]
+                [--write-order sacl-first|dacl-first] [--probe-dir DIR] [--checkpoint FILE [--resume]]
                 [--evidence-dir DIR] PLAN.json ROOT
                                         the same walk, writing each object whose DACL (or named
-                                        owner/group) differs, top-down, and reading every write
-                                        back. A disposable probe proves the write path first.
+                                        owner/group, or SACL when a rule sets sacl:) differs,
+                                        top-down, and reading every write back. A disposable probe
+                                        proves the write path first, including the audit bypass on
+                                        a sacl: plan. --write-order dacl-first writes access before
+                                        auditing on a two-part object; a NOTE says what that risks.
                                         Stops on the first guard failure (G1, G2).
           plan PLAN.json                validate a `build-spec --smb-plan` (or --sacl-plan) file and summarize it.
           version                       print the version.
@@ -142,7 +148,8 @@ static class Cli
     // and 2 on a usage error.
     static int Check(string[] args, TextWriter stdout, TextWriter stderr, CheckDeps? deps)
     {
-        bool validate = false, rootProtected = false, acceptUnprovenRead = false;
+        bool validate = false, rootProtected = false, rootSaclProtected = false, acceptUnprovenRead = false;
+        WriteOrder order = WriteOrder.SaclFirst;
         int workers = 16;
         string? probeDir = null, evidenceDir = null;
         var pos = new List<string>();
@@ -152,7 +159,13 @@ static class Cli
             string? Value() => i + 1 < args.Length ? args[++i] : null;
             if (a == "--validate") validate = true;
             else if (a == "--root-protected") rootProtected = true;
+            else if (a == "--root-sacl-protected") rootSaclProtected = true;   // independent of --root-protected (decision 4)
             else if (a == "--accept-unproven-read") acceptUnprovenRead = true;
+            else if (a == "--write-order")
+            {
+                if (Value() is not ("sacl-first" or "dacl-first")) return Fail(stderr, "check: --write-order needs sacl-first or dacl-first");
+                order = args[i] == "dacl-first" ? WriteOrder.DaclFirst : WriteOrder.SaclFirst;
+            }
             else if (a == "--workers")
             {
                 if (i + 1 >= args.Length || !int.TryParse(args[++i], out workers) || workers < 1)
@@ -174,19 +187,20 @@ static class Cli
         try { deps.EnablePrivilege("SeBackupPrivilege"); }
         catch (Win32Exception e) { return Fail(stderr, $"check: {e.Message} (Win32 error {e.NativeErrorCode})", 1); }
         var root = pos[1];
-        // Phase 3 plumbing (design 5 and 6), before any tree read: a plan with a sacl: rule needs
-        // SeSecurityPrivilege and the probe's bypass proof first. The walk below still refuses
-        // schema 3 — S-C's merge lifts that, and then hands the probe the root's SACL here.
-        if (CheckSaclPreflight(plan, deps, root, probeDir, evidenceDir, acceptUnprovenRead, stderr) is { } refusedCheck)
-            return refusedCheck;
-        // Principal resolution happens inside the Checker's constructor, before any tree read. A
-        // lookup failure that the Checker could not classify as an unresolved principal (a thrown
-        // domain/trust error is folded in; this is the belt for anything else) is still refused,
-        // never a crash.
+        // Every plan and principal check comes before any probe or read (design 2.2): principal
+        // resolution and the creator-SID refusal happen inside the Checker's constructor, before
+        // any tree read. A lookup failure that the Checker could not classify as an unresolved
+        // principal (a thrown domain/trust error is folded in; this is the belt for anything else)
+        // is still refused, never a crash.
         Checker checker;
-        try { checker = new Checker(plan, deps.Tree(root), RuleSelector.RootName(root), deps.Resolve, new WalkOptions(RootProtected: rootProtected)); }
+        try { checker = new Checker(plan, deps.Tree(root), RuleSelector.RootName(root), deps.Resolve, new WalkOptions(RootProtected: rootProtected, Order: order, RootSaclProtected: rootSaclProtected)); }
         catch (PlanException) { throw; }   // the outer handler prints it and exits 1
         catch (Exception e) { return Fail(stderr, $"check: the plan's principals could not be prepared: {e.Message}", 1); }
+        // Phase 3 plumbing (design 5 and 6), after the plan checks and before the walk: a plan
+        // with a sacl: rule needs SeSecurityPrivilege and the probe's bypass proof before any
+        // tree object's SACL is read.
+        if (CheckSaclPreflight(plan, deps, root, probeDir, evidenceDir, acceptUnprovenRead, stderr) is { } refusedCheck)
+            return refusedCheck;
 
         foreach (var (name, sid) in checker.Principals) stderr.WriteLine($"check: principal {name} = {sid}");
         var summary = checker.Run(r => stdout.WriteLine(JsonSerializer.Serialize(r with { Path = FullPath(root, r.Path) }, Json)), workers);
@@ -208,8 +222,7 @@ static class Cli
     // probe location the refusal exits 1 with nothing left behind; --accept-unproven-read skips
     // the proof with a NOTE. The probe's events go to --evidence-dir as a preflight shard, else to
     // NOTE lines (decision 18). A plan with no sacl: rule does none of this. Null to proceed with
-    // the walk; an exit code otherwise. S-D keeps Checker's schema 3 refusal; when S-C lifts it,
-    // this helper gains the root's SACL delegate and apply's RootAcl-equivalent.
+    // the walk; an exit code otherwise.
     static int? CheckSaclPreflight(Plan plan, CheckDeps deps, string root, string? probeDir, string? evidenceDir, bool acceptUnprovenRead, TextWriter stderr)
     {
         if (!plan.Rules.Prepend(plan.Default).Any(r => r.SaclSet)) return null;
@@ -282,7 +295,8 @@ static class Cli
     // guard stop or an incomplete walk; 2 on a usage error.
     static int Apply(string[] args, TextWriter stdout, TextWriter stderr, CheckDeps? deps)
     {
-        bool rootProtected = false, resume = false;
+        bool rootProtected = false, rootSaclProtected = false, resume = false;
+        WriteOrder order = WriteOrder.SaclFirst;
         int workers = 16;
         string? probeDir = null, checkpointPath = null, evidenceDir = null;
         var pos = new List<string>();
@@ -291,6 +305,12 @@ static class Cli
             var a = args[i];
             string? Value() => i + 1 < args.Length ? args[++i] : null;
             if (a == "--root-protected") rootProtected = true;
+            else if (a == "--root-sacl-protected") rootSaclProtected = true;   // independent of --root-protected (decision 4)
+            else if (a == "--write-order")
+            {
+                if (Value() is not ("sacl-first" or "dacl-first")) return Fail(stderr, "apply: --write-order needs sacl-first or dacl-first");
+                order = args[i] == "dacl-first" ? WriteOrder.DaclFirst : WriteOrder.SaclFirst;
+            }
             else if (a == "--resume") resume = true;
             else if (a == "--workers")
             {
@@ -314,14 +334,9 @@ static class Cli
         var planSha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(planBytes)).ToLowerInvariant();
         var plan = Plan.Parse(planBytes);
 
-        // Phase 2 writes DACLs (and named owners/groups) only. A rule with sacl: would have its audit
-        // ACEs silently not applied, so the plan is refused (design 8, phase 3).
-        var withSacl = plan.Rules.Prepend(plan.Default).Where(r => r.SaclSet).Select(r => r.Label).ToList();
-        if (withSacl.Count > 0)
-            return Fail(stderr, $"apply: rule(s) {string.Join(", ", withSacl)} set sacl:, and this build writes no SACL (phase 3); use Set-SaclOnly for audit ACEs, and a plan without sacl: here", 1);
-
         var tree = deps.Tree(root);
-        var checker = new Checker(plan, tree, RuleSelector.RootName(root), deps.Resolve, new WalkOptions(Apply: true, RootProtected: rootProtected));
+        var checker = new Checker(plan, tree, RuleSelector.RootName(root), deps.Resolve,
+            new WalkOptions(Apply: true, RootProtected: rootProtected, Order: order, RootSaclProtected: rootSaclProtected));
         var privileges = new List<string> { "SeBackupPrivilege", "SeSecurityPrivilege" };
         try
         {
@@ -350,14 +365,31 @@ static class Cli
         Manifest Manifest(string preflight, CheckSummary s, IReadOnlyList<string> reasons) => new(
             Guid.NewGuid().ToString("N"), "permissionreset-smb", typeof(Cli).Assembly.GetName().Version?.ToString(3) ?? "unknown",
             root, planPath, planSha, rootProtected, checker.Principals, privileges, preflight,
-            OutcomeCounts(s), FormCounts(s), s.NotProcessed, s.Resumed, s.Stop, reasons);
+            OutcomeCounts(s), FormCounts(s), s.NotProcessed, s.Resumed, s.Stop, reasons,
+            WriteOrder: order == WriteOrder.DaclFirst ? "dacl-first" : "sacl-first");
+
+        // dacl-first's NOTE, once, before any write (design 4.2, decision 11): the probe below
+        // writes only the disposable object, but the flag orders the walk's tree writes.
+        if (order == WriteOrder.DaclFirst)
+            stderr.WriteLine("apply: NOTE: --write-order dacl-first: each two-part object's access policy is written before its auditing, so if its SACL write fails after its DACL write, new access can go unaudited");
 
         // Preflight (design 4): the probe, before anything in the tree is written or has its SACL read.
+        // On a sacl: plan it runs section 6's full SACL preflight: the bypass proof, the root's
+        // desired SACL only after step 2 (checker.RootSacl runs inside the probe), and the
+        // decision-18 preflight shard in the evidence directory. A plan without a sacl: rule runs
+        // phase 2's preflight unchanged.
         ProbeResult probe;
         try
         {
             var probeTree = probeDir is null ? tree : deps.Tree(probeDir);
-            probe = Preflight.Run(probeTree, "", checker.RootAcl());
+            if (checker.SaclMode)
+            {
+                using var probeShard = evidenceDir is null ? null : new ProbeShard(evidenceDir);
+                probe = Preflight.Run(probeTree, "", checker.RootAcl(),
+                    new SaclProbe(checker.RootSacl, ProbeMode.Apply, probeShard is null ? null : probeShard.Record));
+            }
+            else
+                probe = Preflight.Run(probeTree, "", checker.RootAcl());
         }
         catch (Exception e) when (e is not OutOfMemoryException) { probe = new ProbeResult(false, $"read the root: {e.Message}", ""); }
         if (!probe.Passed)
