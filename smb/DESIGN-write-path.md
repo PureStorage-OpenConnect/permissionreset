@@ -278,9 +278,9 @@ unwritten children). Q-OWN and Q2 remain open.
 - Repairing ownership of objects the spec does not name an owner for.
 - Concurrency limits or pacing for the array's controller. Q2 decides whether that is needed.
 - FlashBlade DACLs. FlashBlade stays on the NFSv4 tool for DACLs (decision record, section 2);
-  running this tool's DACL path on FlashBlade is not designed or tested. FlashBlade SACLs are not
-  left out: Set-SaclOnly's retirement waits on them (phase 3, decision record section 2.5), and
-  their design comes with phase 3.
+  running this tool's DACL path on FlashBlade is not designed or tested. FlashBlade SACLs are left
+  out too: Set-SaclOnly stays supported, frozen, for SMB-written FlashBlade data until FlashBlade
+  over SMB is decided (decision record, section 2.5, amended 2026-11-25).
 - `CREATOR OWNER` and `CREATOR GROUP` placeholders, object-type ACEs, and conditional ACEs: refused
   if the plan names them, and preserved byte for byte only where the tool does not write.
 

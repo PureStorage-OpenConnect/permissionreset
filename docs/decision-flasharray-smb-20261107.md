@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Date | 2026-11-07. Section 8 question 1 partly answered the same day; questions 1 and 3 answered 2026-11-12; sections 4–7 accepted 2026-11-15; Set-SaclOnly's retirement condition (section 2.5) amended 2026-11-16. |
+| Date | 2026-11-07. Section 8 question 1 partly answered the same day; questions 1 and 3 answered 2026-11-12; sections 4–7 accepted 2026-11-15; Set-SaclOnly's retirement condition (section 2.5) amended 2026-11-16 and again 2026-11-25; the NFSv4 tool's FlashArray deprecation (section 2.2) decided 2026-11-25. |
 | Status | **Accepted:** FlashArray work leaves the NFSv4 tool (section 2), and the name, layout, version tags and CI (sections 4–7, maintainer confirmation 2026-11-15). **Started (2026-11-09):** a read-only `smb/` scaffold (PR #38). **Built:** the `smb-v*` release workflow (section 6, `.github/workflows/release-smb.yml`; no tag pushed yet) and the Set-SaclOnly Pester job (section 7, CI job `saclonly-pester`). |
 | Scope | Where FlashArray DACL and SACL work lives, what it is built on, and how it shares this repository with the NFSv4 tool. Not a design for the new tool. |
 
@@ -55,20 +55,28 @@ so it never parses YAML.
 2. **The NFSv4 tool keeps its current FlashArray behavior and guards.** The qualified scope in
    COMPATIBILITY.md stays as recorded, and the refusals (unmapped principals, flattening, and
    audited objects once PR #35 merges) stay. Operator docs will point FlashArray users to the new
-   tool once it exists. Whether to later refuse FlashArray outright, as the userspace transport
-   already does, is a separate decision, taken once the new tool has a qualified release.
+   tool once it exists. **FlashArray deprecation (decided 2026-11-25, maintainer decision):** once
+   `smb-v0.2.0`, the permissionreset-smb release with SACL writes, is out, the NFSv4 tool prints a
+   deprecation NOTE on FlashArray targets that points to permissionreset-smb. A later major version
+   of the NFSv4 tool refuses FlashArray outright, as the userspace transport already does. Until
+   `smb-v0.2.0` ships, nothing changes.
 3. **FlashBlade stays on the NFSv4 tool.** FlashBlade evaluates NFSv4-written ACLs for SMB clients,
    and it has no SMB multichannel, so an SMB repair path there could not perform
    (field-preview/known-limitations.md).
 4. **The new tool lives in this repository** (section 5). The two tools share the spec format,
    rule semantics, evidence format, test vectors and qualification process. Most of the knowledge is
    there, not in the code.
-5. **Set-SaclOnly stays the supported SMB SACL path until the new tool covers it on both arrays.**
-   Set-SaclOnly also writes SACLs on SMB-written FlashBlade data (RISKS.md #11, #12), so a FlashArray
-   qualification alone would leave that case without a supported tool. It is retired only once
-   permissionreset-smb has a release qualified for SACL writes on FlashArray **and on FlashBlade**,
-   and then it is not maintained as a second Windows tool. (Amended 2026-11-16, maintainer
-   decision.) This does not move FlashBlade DACL work to the new tool: item 3 stands.
+5. **Set-SaclOnly retires per array.** (Amended 2026-11-25, maintainer decision. This replaces
+   the 2026-11-16 condition, which held retirement until a release was qualified for SACL writes on
+   FlashArray **and** FlashBlade.)
+   - **FlashArray:** Set-SaclOnly retires for FlashArray once permissionreset-smb's SACL write is
+     released (`smb-v0.2.0`, qualified on FlashArray). From then on, permissionreset-smb is the
+     supported SMB SACL path on FlashArray.
+   - **FlashBlade:** Set-SaclOnly also writes SACLs on SMB-written FlashBlade data (RISKS.md #11,
+     #12). It stays supported for that case, frozen (fixes only, no new features), until FlashBlade
+     over SMB is decided. FlashBlade over SMB comes last, if at all, so this may last indefinitely.
+
+   This does not move FlashBlade DACL work to the new tool: item 3 stands.
 6. **The Go `protocol: smb` backend (`smbcacls`, one process per object) is not this direction.** It
    stays rejected at spec load (docs/transports.md) and can be removed in a later cleanup.
 
@@ -107,7 +115,7 @@ path. The new tool gets one top-level directory:
 ```
 cmd/, internal/          NFSv4 tool, build-spec, generate-tree, sweep (unchanged)
 smb/                     permissionreset-smb: .NET solution, tests, README
-tools/set-saclonly/      unchanged until permissionreset-smb is qualified for SACLs on FA and FB (2.5), then removed
+tools/set-saclonly/      retired for FA once permissionreset-smb's SACL write is released; frozen for SMB-written FB data (2.5)
 docs/                    shared: spec-guide.md, evidence.md, this record
 benchmarks/              shared: entries name tool, transport and platform
 ```
@@ -130,7 +138,7 @@ The shared contract is behavioral, not code:
 The tools release on different schedules, so the versions are independent. `permissionreset` keeps
 plain `vX.Y.Z` tags. `permissionreset-smb` uses `smb-vX.Y.Z`, starting at `smb-v0.1.0`. The current
 release workflow triggers on `v*`, which `smb-v*` does not match, so the new tool gets its own
-release workflow and archive (`.github/workflows/release-smb.yml`, packed by `smb/release/pack.ps1`). The existing archives keep shipping Set-SaclOnly until it is retired (section 2.5).
+release workflow and archive (`.github/workflows/release-smb.yml`, packed by `smb/release/pack.ps1`). The existing archives keep shipping Set-SaclOnly while it is supported for FlashBlade (section 2.5).
 
 ## 7. CI (accepted)
 
