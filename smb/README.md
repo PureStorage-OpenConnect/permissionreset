@@ -67,7 +67,7 @@ covers the SACL and the record carries the two part verdicts (`dacl_outcome`, `s
 Then `check` enables `SeSecurityPrivilege` and proves the audit bypass on a disposable probe
 (under `--probe-dir`, else ROOT) before any tree SACL is read; without a writable probe location
 it exits 1, and `--accept-unproven-read` skips the proof with a NOTE. The probe's events go to
-`--evidence-dir` as a preflight shard (`preflight-shard-000001.log`, bound in `apply`'s manifest), else to NOTE lines and a `{"probe": ...}` JSON line on stdout. Every principal the plan names, `sacl:` entries included, is resolved once to a
+`--evidence-dir` as a preflight shard (`preflight-shard-000001.log`, bound in `apply`'s manifest; it opens with step 1's `PROBE-CREATE` lines for the probe directory, subdirectory and file), else to NOTE lines and a `{"probe": ...}` JSON line on stdout. Every principal the plan names, `sacl:` entries included, is resolved once to a
 SID on this host first, the resolved principal-SID table is printed, and the check is refused if
 one doesn't resolve. `--workers N` (default 16) sets the parallelism. Exit 0
 when every object was checked (with `--validate`: and every one is `ok`), 1 otherwise, 2 on a

@@ -70,6 +70,18 @@ public class SaclPreflightTests : IDisposable
     }
 
     [Fact]
+    public void CheckModeRecordsStep1First()
+    {
+        // Finding b in check mode, the mode the bypass proof runs in: the shard opens with step 1.
+        var tree = Tree();
+        var events = new List<ProbeEvent>();
+        var r = Preflight.Run(tree, "", RootDacl, new SaclProbe(() => [], ProbeMode.Check, events.Add), name: "px");
+        Assert.True(r.Passed, r.Detail);
+        Assert.Equal(["px", "px/d", "px/f"], events.Where(e => e.Kind == "create").Select(e => e.Rel).ToList());
+        Assert.Equal("create", events[0].Kind);
+    }
+
+    [Fact]
     public void NoBypassRefusesAndRemovesTheProbe()
     {
         // K12, design 5 layer 2: error 5 on the SACL write is "no audit bypass".
@@ -197,6 +209,11 @@ public class SaclPreflightTests : IDisposable
         Assert.Contains(events, e => e.Kind == "remove" && e.Rel == "px/f");
         Assert.Contains(events, e => e.Kind == "remove" && e.Rel == "px/d");
         Assert.Contains(events, e => e.Kind == "remove" && e.Rel == "px");
+        // Step 1 (win01-lab's #93 probe, finding b): the three creations come first, in order.
+        Assert.Equal([("create", "px"), ("create", "px/d"), ("create", "px/f")],
+            events.Take(3).Select(e => (e.Kind, e.Rel)).ToList());
+        Assert.Equal(3, events.Count(e => e.Kind == "create"));
+        Assert.StartsWith("PROBE-CREATE: px: step 1:", ProbeShard.Line(events[0]));
         Assert.All(events.Where(e => e.Kind == "write"), e => Assert.False(string.IsNullOrEmpty(e.AfterB64)));
         Assert.Equal(events.Count, events.Select(e => ProbeShard.Line(e)).Distinct().Count());   // every line renders
     }

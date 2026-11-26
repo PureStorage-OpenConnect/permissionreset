@@ -10,7 +10,7 @@ public enum ProbeMode { Apply, Check }
 
 // ProbeEvent is one recorded probe operation (section 11, decision 18): a write (its before-image
 // when there is one, and the read-back), a check read, or a removal. The base64 fields are the raw
-// self-relative descriptor bytes. Kind is "write", "read" or "remove".
+// self-relative descriptor bytes. Kind is "create" (step 1), "write", "read" or "remove".
 public sealed record ProbeEvent(string Kind, string Rel, string? BeforeB64, string? AfterB64, string? Detail)
 {
     public static ProbeEvent Of(string kind, string rel, byte[]? before = null, byte[]? after = null, string? detail = null) =>
@@ -86,10 +86,17 @@ public static class Preflight
         string? result = null;
         try
         {
+            // Step 1 (design 6): the probe's directory, subdirectory and file. Each creation is an
+            // event of its own, recorded as soon as it succeeds, so the shard shows every object
+            // the probe made before any write to it, and a removal event always has a create event
+            // before it (decision 18; win01-lab's #93 probe, finding b).
             t.CreateDirectory(dir);
             made = true;
+            sink?.Invoke(ProbeEvent.Of("create", dir, detail: "step 1: created the probe directory"));
             t.CreateDirectory(sub);
+            sink?.Invoke(ProbeEvent.Of("create", sub, detail: "step 1: created the probe subdirectory"));
             t.CreateFile(file);
+            sink?.Invoke(ProbeEvent.Of("create", file, detail: "step 1: created the probe file"));
             result = sacl switch
             {
                 null => Check(t, dir, sub, file, aces, sink),

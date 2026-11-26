@@ -219,7 +219,7 @@ static class Cli
         foreach (var (name, sid) in checker.Principals) stderr.WriteLine($"check: principal {name} = {sid}");
         var summary = checker.Run(r => stdout.WriteLine(JsonSerializer.Serialize(r with { Path = FullPath(root, r.Path) }, Json)), workers);
 
-        PrintSummary(stderr, "check", summary);
+        PrintSummary(stderr, "check", summary, checker.SaclMode);
         if (summary.Stop is not null) stderr.WriteLine($"check: stopped: {summary.Stop}; the check is incomplete");
         if (summary.NotProcessed > 0) stderr.WriteLine($"check: {summary.NotProcessed} director(ies) could not be read, listed or classified, so what is below them was not checked; the check is incomplete");
         var nothing = checker.SaclMode && !acceptUnprovenRead
@@ -317,10 +317,15 @@ static class Cli
         ["protected"] = s.CountSacl(Form.Protected),
     };
 
-    static void PrintSummary(TextWriter stderr, string cmd, CheckSummary s)
+    // PrintSummary's forms: line counts the desired DACL forms, as in phase 2. On a plan with a
+    // sacl: rule a sacl forms: line follows with the desired SACL forms, so a keep_dacl run, whose
+    // DACL forms are all zero, still shows what it wrote (win01-lab's #93 probe, finding a).
+    static void PrintSummary(TextWriter stderr, string cmd, CheckSummary s, bool saclMode)
     {
         stderr.WriteLine($"{cmd}: {string.Join(", ", OutcomeCounts(s).Select(kv => $"{kv.Key} {kv.Value}"))}");
         stderr.WriteLine($"{cmd}: forms: {string.Join(", ", FormCounts(s).Select(kv => $"{kv.Key} {kv.Value}"))}");
+        if (saclMode)
+            stderr.WriteLine($"{cmd}: sacl forms: {string.Join(", ", SaclFormCounts(s).Select(kv => $"{kv.Key} {kv.Value}"))}");
     }
 
     // Apply exits 0 when the preflight passed and every object was reached and is right (written
@@ -471,7 +476,7 @@ static class Cli
             evidence?.Record(r, path);
         }, workers, checkpoint);
 
-        PrintSummary(stderr, "apply", summary);
+        PrintSummary(stderr, "apply", summary, checker.SaclMode);
         var reasons = new List<string>();
         if (summary.Stop is not null) reasons.Add(summary.Stop);
         if (summary.Count(Outcome.Error) > 0) reasons.Add($"{summary.Count(Outcome.Error)} object(s) failed");

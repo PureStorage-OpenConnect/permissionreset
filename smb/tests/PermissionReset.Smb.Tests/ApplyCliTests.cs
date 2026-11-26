@@ -314,6 +314,28 @@ public sealed class ApplyCliTests : IDisposable
     }
 
     [Fact]
+    public void TheSummaryCountsSaclFormsOnASaclPlanOnly()
+    {
+        // win01-lab's #93 probe, finding a: the forms: line counts DACL forms only, so a keep_dacl
+        // run showed all zeros. A plan with a sacl: rule adds a sacl forms: line after it, in check
+        // and in apply; a plan without one prints the phase 2 summary unchanged.
+        foreach (var cmd in new[] { "check", "apply" })
+        {
+            var r = Run(NeverAudited(), cmd, PlanFile(AuditedPlan()), @"\\array\share\dept");
+            Assert.True(r.Code == 0, r.Err);
+            var forms = r.Err.Split('\n').ToList();
+            int d = forms.FindIndex(l => l.StartsWith($"{cmd}: forms: "));
+            int sl = forms.FindIndex(l => l.StartsWith($"{cmd}: sacl forms: "));
+            Assert.True(d >= 0 && sl == d + 1, r.Err);
+            Assert.Matches(@"inherits [1-9]", forms[sl]);       // a and a/f.txt inherit the root's audit ACEs
+            Assert.Matches(@"protected [1-9]", forms[sl]);      // the root
+        }
+        var plain = Run(NeverAudited(), "check", PlanFile(Usual), "R");
+        Assert.Contains("check: forms: ", plain.Err);
+        Assert.DoesNotContain("sacl forms:", plain.Err);
+    }
+
+    [Fact]
     public void ApplyWithASaclPlanAndNoEvidenceDirPrintsTheProbeEventsAsNotes()
     {
         // Decision 18: without an evidence directory the probe's writes, read-backs and removals
