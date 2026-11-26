@@ -355,7 +355,8 @@ models F1-F3. Where it departs from or settles the text above:
   `--root-protected`, then one JSON string per complete directory (the directory and every file in
   it right). `--resume` requires the header to match; without it an existing file is refused. A
   complete directory is still read and listed (its children need its desired DACL, and its
-  subdirectories are not covered), but its files are skipped.
+  subdirectories are not covered), but its files are skipped. Phase 3 replaced this v1 format with
+  checkpoint v2 (`DESIGN-sacl-write.md` 7.1), and a phase 3 build never resumes a v1 file.
 - **Evidence (6).** `--evidence-dir` (new or empty) holds one uncompressed `shard-000001.log` and
   `manifest.json`, in docs/evidence.md's shape (status and reasons, shard name, SHA-256, size and
   record count), plus run id, version, root, plan path and SHA-256, the principal table, privileges,

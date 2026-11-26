@@ -101,8 +101,15 @@ write — and is recorded in the manifest. `--root-sacl-protected` (on `check` t
 root's SACL **Protected**, independently of `--root-protected`.
 `--root-protected` (on `check` too) makes the root **Protected**, for a root whose inherited ACEs may
 be a frozen copy. `--checkpoint FILE` records complete directories (a directory and all its files
-right); `--resume` skips their files on the next run, and refuses a checkpoint from another plan or
-root. `--evidence-dir DIR` (new or empty) writes `shard-000001.log` (one line per object: `OK: set
+right on every part the plan names) in a v2 checkpoint; on a plan with a `sacl:` rule it also
+records each directory's compare-time SACL before any write in that directory. `--resume` skips the
+files of complete directories on the next run, schema 3 plans included, and uses the recorded
+compare-time SACLs to tell a frozen copy from before the first run (a `Write`) from a child that
+should have followed that run's parent write (G1-SACL). It refuses a checkpoint whose plan, root,
+`--root-protected`, `--root-sacl-protected`, resolved principal table or `S:AI` rule differ, and it
+never resumes a v1 checkpoint from an earlier build: remove it and rerun without `--resume`. Resume
+assumes the tree did not change between the runs; run `check --validate` afterwards as the
+independent proof (`DESIGN-sacl-write.md` 7.1). `--evidence-dir DIR` (new or empty) writes `shard-000001.log` (one line per object: `OK: set
 dacl PATH (form)` with the raw descriptor `before=` and `after=` in base64, `SAME:`, `SKIP:`,
 `EXCLUDE:`, `ERR:`) and `manifest.json` (complete or incomplete and why, the shard's SHA-256, the
 principal table, privileges, preflight result and counts). `apply` needs SeBackupPrivilege and

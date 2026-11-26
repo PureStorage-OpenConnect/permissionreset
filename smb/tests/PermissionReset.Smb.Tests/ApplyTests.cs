@@ -420,8 +420,11 @@ public class ApplyTests
     sealed class MemCheckpoint(params string[] done) : ICheckpoint
     {
         public readonly HashSet<string> Set = [.. done];
+        public readonly Dictionary<string, IReadOnlyList<Ace>> Sacls = new(StringComparer.Ordinal);
         public bool IsDone(string rel) => Set.Contains(rel);
         public void Done(string rel) { lock (Set) Set.Add(rel); }
+        public bool TryGetCompareSacl(string rel, out IReadOnlyList<Ace> sacl) => Sacls.TryGetValue(rel, out sacl!);
+        public void RecordCompareSacl(string rel, IReadOnlyList<Ace> sacl) { lock (Set) Sacls.TryAdd(rel, sacl); }
     }
 
     [Fact]
@@ -493,10 +496,98 @@ public class ApplyTests
         finally { File.Delete(f); }
     }
 
+    // ---- checkpoint v2 (smb/DESIGN-sacl-write.md 7.1, decision 13) ------------------------------------
+
+    [Fact]
+    public void ANewCheckpointGetsTheV2HeaderAndAV1FileIsRefused()
+    {
+        var f = Path.Combine(Path.GetTempPath(), $"smbcp-{Guid.NewGuid():N}");
+        try
+        {
+            using (var cp = new FileCheckpoint(f, "id", resume: false))
+            {
+                cp.Start();
+                cp.Done("a");
+            }
+            Assert.StartsWith("permissionreset-smb checkpoint v2 ", File.ReadLines(f).First());
+            using var again = new FileCheckpoint(f, "id", resume: true);
+            Assert.Equal(1, again.Loaded);
+
+            var v1 = f + "-v1";
+            File.WriteAllText(v1, "permissionreset-smb checkpoint v1 id\n\"a\"\n");
+            var e = Assert.Throws<PlanException>(() => new FileCheckpoint(v1, "id", resume: true));
+            Assert.Contains("checkpoint v1", e.Message);
+            Assert.Contains("never resumes a v1 checkpoint", e.Message);
+            Assert.Contains("--resume", e.Message);
+            File.Delete(v1);
+        }
+        finally { File.Delete(f); File.Delete(f + "-v1"); }
+    }
+
+    [Fact]
+    public void ACheckpointWithAChangedRootSaclProtectedIsRefused()
+    {
+        var f = Path.Combine(Path.GetTempPath(), $"smbcp-{Guid.NewGuid():N}");
+        const string id = "plan=x root=R root-protected=False root-sacl-protected=False principals=h sai-rule=none";
+        try
+        {
+            using (var cp = new FileCheckpoint(f, id, resume: false)) cp.Start();
+            var e = Assert.Throws<PlanException>(() => new FileCheckpoint(f, id.Replace("root-sacl-protected=False", "root-sacl-protected=True"), resume: true));
+            Assert.Contains("belongs to another run", e.Message);
+            Assert.Contains("--root-sacl-protected", e.Message);
+            using var original = new FileCheckpoint(f, id, resume: true);   // the right identity still loads
+            Assert.Equal(0, original.Loaded);
+        }
+        finally { File.Delete(f); }
+    }
+
+    [Fact]
+    public void CompareSaclRecordsRoundTripThroughAResume()
+    {
+        var f = Path.Combine(Path.GetTempPath(), $"smbcp-{Guid.NewGuid():N}");
+        var aces = new List<Ace>
+        {
+            new(AceTypes.Audit, 0x1b, 1179817, "S-1-1-0"),
+            new(AceTypes.Audit, 0x5b, 0x1f01ff, "S-1-5-21-1-2-3-1001"),
+        };
+        try
+        {
+            using (var cp = new FileCheckpoint(f, "id", resume: false))
+            {
+                Assert.Throws<InvalidOperationException>(() => cp.RecordCompareSacl("x", []));
+                cp.Start();
+                cp.Done("a");
+                cp.RecordCompareSacl("", aces);
+                cp.RecordCompareSacl("", [new Ace(AceTypes.Allow, 0, 1, Other)]);   // first wins
+                cp.RecordCompareSacl("e", []);                                       // S:AI empty
+            }
+            File.AppendAllText(f, "{\"dir\":\"tor");                              // a torn record line
+            using var again = new FileCheckpoint(f, "id", resume: true);
+            Assert.Equal(1, again.Loaded);
+            Assert.True(again.IsDone("a"));
+            Assert.True(again.TryGetCompareSacl("", out var got));
+            Assert.Equal(aces, got);                                                       // ACE fields exact
+            Assert.True(again.TryGetCompareSacl("e", out var empty));
+            Assert.Empty(empty);
+            Assert.False(again.TryGetCompareSacl("tor", out _));                         // dropped
+            // Done lines and records mix, and a duplicate record is not written again.
+            Assert.Contains(File.ReadLines(f), l => l.StartsWith("{\"dir\":"));
+            int lines = File.ReadLines(f).Count();
+            again.Start();
+            again.RecordCompareSacl("", [new Ace(AceTypes.Allow, 0, 1, Other)]);
+            Assert.Equal(lines, File.ReadLines(f).Count());
+            Assert.True(again.TryGetCompareSacl("", out var kept));
+            Assert.Equal(aces, kept);
+        }
+        finally { File.Delete(f); }
+    }
+
     sealed class FailingCheckpoint : ICheckpoint
     {
         public bool IsDone(string rel) => false;
         public void Done(string rel) => throw new IOException("There is not enough space on the disk.");
+        public bool TryGetCompareSacl(string rel, out IReadOnlyList<Ace> sacl) { sacl = []; return false; }
+        public void RecordCompareSacl(string rel, IReadOnlyList<Ace> sacl) => throw new IOException("There is not enough space on the disk.");
     }
 
     [Fact]

@@ -389,7 +389,16 @@ static class Cli
         // checkpoint is only checked (and, with --resume, loaded) here; its file is written once the
         // preflight passes, so a refused preflight leaves none and the same command can be rerun.
         if (evidenceDir is not null) Evidence.CheckDir(evidenceDir);
-        using var checkpoint = checkpointPath is null ? null : new FileCheckpoint(checkpointPath, $"plan={planSha} root={root} root-protected={rootProtected}", resume);
+        // Checkpoint v2 binds the run's identity (7.1): the plan digest, the root, both root
+        // protection flags, the resolved principal table (a name resolving differently on resume
+        // refuses the resume, decision 20) and the S:AI rule the preflight confirms (4.3). The
+        // checker exists at this point, so the table is resolved; Principals is a sorted
+        // dictionary, and its ordinal key order is what is hashed. --write-order is deliberately
+        // not bound (decision 11): a resume re-reads everything it does not skip.
+        var principalsHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(string.Join("", checker.Principals.Select(kv => $"{kv.Key}={kv.Value}\n"))))).ToLowerInvariant();
+        using var checkpoint = checkpointPath is null ? null : new FileCheckpoint(checkpointPath,
+            $"plan={planSha} root={root} root-protected={rootProtected} root-sacl-protected={rootSaclProtected} principals={principalsHash} sai-rule={(checker.SaclMode ? "protected-clear,unprotected-set" : "none")}", resume);
         using var evidence = evidenceDir is null ? null : new Evidence(evidenceDir);
 
         foreach (var (name, sid) in checker.Principals) stderr.WriteLine($"apply: principal {name} = {sid}");

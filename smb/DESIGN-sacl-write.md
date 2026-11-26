@@ -557,6 +557,22 @@ classification where the raw form cannot be recorded, before any write in that d
 G1-SACL failure (4.4); on a resume that read is gone, and the record does it instead for every
 object the resume re-reads.
 
+As built (S-E): the header is `permissionreset-smb checkpoint v2` followed by the plan's SHA-256,
+the root, both root flags, `principals=` (the SHA-256 of the sorted `name=sid` lines of the
+resolved principal table) and `sai-rule=protected-clear,unprotected-set` (`none` on a plan without a
+`sacl:` rule). A v1 file is refused on `--resume` with a message to remove it and rerun without
+`--resume`. Each directory's record is one JSON line, `{"dir": …, "sacl": [ACEs]}`, appended and
+flushed before the directory's own write and before any of its children is read. The first record
+for a directory wins, so a chain of resumes keeps the first run's pre-write state. The recorded SACL
+is the directory's **pre-run** SACL: its own compare read, except when it followed this run's
+ancestor write by propagation (unprotected, its `ID` part equal to what the parent passes now, and
+the parent now passing something other than at compare time). Then it is its explicit part followed
+by what the parent passed down at compare time. The same pre-run value is what the walk hands the
+children in memory, so a grandchild of a written directory that should have followed and did not
+stops on G1-SACL in the first run too, not only on a resume (#92 review question Q1). A directory
+holding an opaque SACL ACE is recorded with its modeled ACEs only; it is never written (4.5), so a
+resume's fresh read of it is unchanged.
+
 `--write-order` is **not** bound (section 11, decision 11). A resume re-reads every object it does
 not skip and writes only what still differs, so a changed order affects only objects that still
 need both parts.
@@ -566,7 +582,8 @@ names. A directory with a two-write object that stopped half way is not complete
 it and writes only what still differs. A persistent per-child error keeps its directory incomplete,
 and a resume re-reads the child (section 11, decision 19), following the Go tool's PS-11 rule.
 
-Resume still skips the files of a complete directory without reading them, as phase 2 does. That
+Resume still skips the files of a complete directory without reading them, as phase 2 does, on
+schema 3 plans too: complete means right on both parts. That
 assumes the tree did not change between the runs. The assumption is stated in the operator docs, and
 `check --validate` after a resume is the independent proof.
 

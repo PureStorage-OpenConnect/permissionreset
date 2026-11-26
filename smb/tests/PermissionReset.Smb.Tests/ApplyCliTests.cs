@@ -142,7 +142,7 @@ public sealed class ApplyCliTests : IDisposable
         r = Run(tree, "apply", "--checkpoint", cp, plan, "R");
         Assert.Equal(0, r.Code);
         Assert.Contains("apply: complete", r.Err);
-        Assert.StartsWith("permissionreset-smb checkpoint v1 ", File.ReadLines(cp).First());
+        Assert.StartsWith("permissionreset-smb checkpoint v2 ", File.ReadLines(cp).First());
     }
 
     [Fact]
@@ -399,6 +399,40 @@ public sealed class ApplyCliTests : IDisposable
         var plan = PlanFile(Usual);
         Assert.Equal(0, Run(tree, "check", "--validate", plan, "R").Code);
         Assert.Equal(1, Run(tree, "check", "--validate", "--root-protected", plan, "R").Code);
+    }
+
+    // ---- phase 3: checkpoint v2 (smb/DESIGN-sacl-write.md 7.1) -----------------------------------------
+
+    [Fact]
+    public void ASaclPlanCheckpointResumesAndItsHeaderBindsTheRun()
+    {
+        var cp = Temp("cp");
+        var plan = PlanFile(AuditedPlan());
+        var tree = NeverAudited();
+        Assert.Equal(0, Run(tree, "apply", "--checkpoint", cp, plan, "R").Code);
+        var header = File.ReadLines(cp).First();
+        Assert.Contains("checkpoint v2 ", header);
+        Assert.Contains("root-sacl-protected=False", header);
+        Assert.Contains("principals=", header);
+        Assert.Contains("sai-rule=protected-clear,unprotected-set", header);
+        Assert.Contains(File.ReadLines(cp), l => l.StartsWith("{\"dir\":"));   // the per-directory records
+
+        var resumed = Run(tree, "apply", "--checkpoint", cp, "--resume", plan, "R");
+        Assert.Equal(0, resumed.Code);
+        Assert.Contains("apply: complete", resumed.Err);
+    }
+
+    [Fact]
+    public void AV1CheckpointIsRefusedOnResumeAndNothingIsWritten()
+    {
+        var cp = Temp("cp");
+        File.WriteAllText(cp, "permissionreset-smb checkpoint v1 plan=x root=R root-protected=False\n\"\"\n");
+        var tree = NeverAudited();
+        var r = Run(tree, "apply", "--checkpoint", cp, "--resume", PlanFile(AuditedPlan()), "R");
+        Assert.Equal(1, r.Code);
+        Assert.Contains("checkpoint v1", r.Err);
+        Assert.Contains("never resumes a v1 checkpoint", r.Err);
+        Assert.False(TreeWritten(tree));
     }
 
     [Theory]

@@ -26,12 +26,17 @@ public interface IWritableTree : ITree
 }
 
 // ICheckpoint records directories that are complete: the directory and every file in it are right
-// (design 3.4). On resume, a complete directory is still read and listed, so its subdirectories
-// are found and its children get its desired DACL, but its files are not read again.
+// (design 3.4), on every part the plan names (smb/DESIGN-sacl-write.md, 7.1). On resume, a
+// complete directory is still read and listed, so its subdirectories are found and its children
+// get its desired DACL, but its files are not read again. The compare-time SACL record is v2's
+// per-directory trace of what the directory passed down before any write of this run (7.1,
+// decision 13); on a resume it takes the place of the in-memory compare-time read.
 public interface ICheckpoint
 {
     bool IsDone(string rel);
     void Done(string rel);
+    bool TryGetCompareSacl(string rel, out IReadOnlyList<Ace> sacl);
+    void RecordCompareSacl(string rel, IReadOnlyList<Ace> sacl);
 }
 
 public readonly record struct TreeEntry(string Name, bool IsDir, bool IsReparse);
@@ -213,6 +218,10 @@ public sealed class Checker
     string? stop;
     readonly object stopGate = new();
 
+    // apply's checkpoint, set by Run so Visit can read and write the per-directory compare-time
+    // SACL records (7.1, decision 13).
+    ICheckpoint? walkCheckpoint;
+
     bool Stopped => Volatile.Read(ref stop) is not null;
 
     void Stop(CheckSummary s, string why)
@@ -232,6 +241,7 @@ public sealed class Checker
     // and can close its evidence with the reason.
     public CheckSummary Run(Action<CheckRecord> emit, int workers = 1, ICheckpoint? checkpoint = null)
     {
+        walkCheckpoint = checkpoint;
         var summary = new CheckSummary();
         var gate = new object();
         void Emit(CheckRecord r)
@@ -274,13 +284,14 @@ public sealed class Checker
                         Interlocked.Increment(ref summary.NotProcessed);
                         continue;
                     }
-                    // DESIGN-Q: in saclMode a v1 checkpoint's done-directories are not trusted to
-                    // skip files — complete in v1 means right on the DACL only, and a resume must
-                    // still tell a pre-run freeze from G1-SACL on the objects it re-reads, which
-                    // needs the compare-time SACL the v1 format does not record. Checkpoint v2
-                    // (smb/DESIGN-sacl-write.md 7.1, decision 13) is a later slice; until it lands
-                    // a saclMode apply re-reads every file.
-                    bool resumed = opt.Apply && !SaclMode && checkpoint?.IsDone(n.Rel) == true;
+                    // Checkpoint v2 (7.1, decision 13): a done directory is right on every part the
+                    // plan names — done(ok) already requires both part verdicts right — so in
+                    // saclMode too its files are skipped as phase 2 skips them. Every object the
+                    // resume still reads tells a pre-run freeze from G1-SACL against the directory's
+                    // compare-time SACL record. G8 (decision 19): a file with a persistent error
+                    // keeps its directory incomplete (filesRight already counts it), so the resume
+                    // re-reads it.
+                    bool resumed = opt.Apply && checkpoint?.IsDone(n.Rel) == true;
                     bool filesRight = true;
                     foreach (var e in entries)
                     {
@@ -429,6 +440,30 @@ public sealed class Checker
         {
             return Fail(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Error, e.Message));
         }
+        // The directory's pre-run SACL (7.1, decision 13): what it passed down before any write of
+        // this run. Its own compare read is that already on a resume (a checkpoint record wins, and
+        // is the only compare-time read a resume has) and on a parent that was not written; under a
+        // parent written this run, a directory that followed the write by propagation now stores
+        // the parent's post-write output, so what it passed at compare time is reconstructed as its
+        // explicit part plus the parent's compare-time output — otherwise a grandchild that should
+        // have followed this run and did not reads as a plain Write instead of G1-SACL (#92 review
+        // question Q1, closed here; the DESIGN-Q that opened it stood at the Classify call below).
+        // A directory holding an opaque SACL ACE (4.5) is recorded with its modeled ACEs only —
+        // storedSaclAces skips them — and is never written, so its fresh read on resume is
+        // unchanged and matches the record.
+        IReadOnlyList<Ace>? recordedSacl = null;
+        List<Ace>? preRunSacl = null;
+        if (isDir && SaclMode)
+        {
+            if (walkCheckpoint?.TryGetCompareSacl(rel, out recordedSacl) == true)
+                preRunSacl = recordedSacl.ToList();
+            else if (opt.Apply && parent is not null && storedSacl is not null && !storedSaclProtected
+                && storedSaclAces.Where(a => a.Inherited).SequenceEqual(parentSaclNow)
+                && !parentSaclNow.SequenceEqual(parentSaclCompare))
+                preRunSacl = storedSaclAces.Where(a => !a.Inherited).Concat(parentSaclCompare).ToList();
+            else
+                preRunSacl = storedSaclAces;
+        }
         bool ancestorWrites = parent?.AncestorWrites ?? false;
         bool saclAncestorWrites = parent?.SaclAncestorWrites ?? false;
 
@@ -504,11 +539,11 @@ public sealed class Checker
                 // unclassifiable; the DACL part stands on its own.
                 sp = new SaclPart(null, Outcome.Error, "parent's SACL holds an opaque ACE; cannot classify");
             else
-                // DESIGN-Q (accepted in #92 review, design question 1): in apply the compare-time
-                // SACL of an object under an ancestor written this run already reflects that
-                // write, so a child that should have followed and did not reads as a plain Write,
-                // not a G1-SACL stop. The object still ends right; checkpoint v2's per-directory
-                // record (7.1) is where this closes. G1-SACL does not fire in every such case.
+                // The compare-time SACL the classifier tells a pre-run freeze from G1-SACL against
+                // is each directory's pre-run SACL (7.1): reconstructed in memory under a parent
+                // written this run, read from the checkpoint on a resume. That closes #92 review
+                // question Q1 — a grandchild of a directory written this run that should have
+                // followed and did not stops on G1-SACL in the first run, not only on a resume.
                 sp = SaclClassifier.Classify(parent is null, opt.Apply, opt.RootSaclProtected, wantedSacl,
                     inheritedSacl, parentSaclNow, parentSaclCompare, storedSacl, storedSaclProtected, saclAncestorWrites);
             if (wantedSacl is not null && sp is { Form: not null })
@@ -581,12 +616,29 @@ public sealed class Checker
                 storedNowSacl = storedSaclAces;
             }
             var saw = !opt.Apply && (saclAncestorWrites || sp!.Outcome == Outcome.Write);
-            return new Node(rel, acl, storedNowAcl, aw, saclForChildren, storedNowSacl, storedSaclAces, saw, saclOpaque);
+            return new Node(rel, acl, storedNowAcl, aw, saclForChildren, storedNowSacl, preRunSacl!, saw, saclOpaque);
         }
 
         // ---- apply: guards, then the writes ------------------------------------------------------
         if (opt.Apply)
         {
+            // Decision 13, 7.1: classification is done, and this directory's pre-run SACL goes to
+            // the checkpoint before the G1/G1-SACL guards and before any write of the directory —
+            // its children are only written later, so every write inside the directory comes after
+            // its record too. First record wins, so a resume never overwrites an earlier run's
+            // state. A record that cannot be written stops the run the way a failed Done does:
+            // refuse later, when a resume would misread a freeze, beats writing now without the
+            // record behind it.
+            if (isDir && SaclMode && walkCheckpoint is not null && recordedSacl is null)
+            {
+                try { walkCheckpoint.RecordCompareSacl(rel, preRunSacl!); }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    var why = $"could not record {Show(rel)}'s compare-time SACL in the checkpoint: {e.Message}. No further writes were started.";
+                    Stop(summary, why);
+                    return Fail(Rec(Outcome.Error, Detail(why, why), dacOut: Outcome.Error, sacOut: Outcome.Error));
+                }
+            }
             if (g1Dacl is not null)
             {
                 Stop(summary, g1Dacl);
