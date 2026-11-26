@@ -580,6 +580,7 @@ public class ApplyTests
             int lines = File.ReadLines(f).Count();
             again.Start();
             again.RecordCompareSacl("", [new Ace(AceTypes.Allow, 0, 1, Other)]);
+            again.Dispose();                     // Windows refuses a read while the writer holds the file
             Assert.Equal(lines, File.ReadLines(f).Count());
             Assert.True(again.TryGetCompareSacl("", out var kept));
             Assert.Equal(aces, kept);
