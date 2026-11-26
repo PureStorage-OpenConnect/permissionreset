@@ -423,7 +423,11 @@ The SACL write is refused, and the object's SACL part recorded as an error, when
   these types may never be stored there. Whether the other types can be stored is Q-SACL-OPAQUE;
 - holds an Allow or Deny ACE (type 0 or 1), or any other non-audit type. The model writes audit
   ACEs only, so a rebuilt list would delete it the same way; it is refused as opaque;
-- would exceed 65,535 bytes once encoded, the encoder's limit. The array's own limit is Q-SACL-SIZE.
+- would make the write's self-relative descriptor exceed 65,536 bytes once encoded, the array's
+  limit (Q-SACL-SIZE). The limit is on the whole descriptor, not on each ACL: a SACL-only write
+  holds at most 65,516 bytes of ACL after the 20-byte header, and a DACL call that also carries
+  owner or group has that much less room. The 16-bit ACL size field (65,535) is looser and never
+  the binding limit.
 
 **The refusal is per part** (section 11, decision 16): an opaque ACE type errors the SACL part
 only, and the object's DACL part still proceeds: it is written if it differs. A rebuilt DACL
@@ -663,7 +667,7 @@ the records in section 1 settle. **Blocks** is what stays blocked until the open
 | Q-SACL-IDENTITY | Are audit ACEs naming unmapped, deleted, foreign-domain or array-local SIDs stored unchanged? Does a SACL-only write on an object whose DACL names such SIDs leave the DACL byte-identical? | the DACL half for Set-SaclOnly's write (`benchmarks/sacl-unmapped-sid-20261020/`) | `sacl:`-only rules on damaged trees |
 | Q-SACL-SCOPE | Does a parent SACL change reach excluded subtrees and `Keep` subtrees under it? | **Answered for what is stored** (K15): excluded and left objects show the parent's inheritable ACEs. Open: nothing for the design; the operator docs state it. | nothing |
 | Q-SACL-OPAQUE | Does FlashArray store mandatory label, resource attribute or scoped policy ACEs over SMB? | **Partly answered** (K13): object and callback ACEs are dropped on write. Open: the three K8 types. | whether 4.5's refusal can fire in practice |
-| Q-SACL-SIZE | The largest SACL and the largest combined descriptor the array accepts. Is an over-size write refused cleanly, with both ACLs unchanged? | encoder limit 65,535 bytes | the error path |
+| Q-SACL-SIZE | The largest SACL and the largest combined descriptor the array accepts. Is an over-size write refused cleanly, with both ACLs unchanged? | **Partly answered** (phase 3 qualification): the limit is 65,536 bytes of self-relative descriptor per write, so 65,516 bytes of ACL in a SACL-only write; ACLs of 65,520-65,532 bytes, which a 65,535-per-ACL check passed, are refused with error 87. The encoder now checks the descriptor (4.5). Open: whether both ACLs are unchanged after the refusal. | the error path |
 | Q-SACL-COMBINED | Is one `DACL\|SACL` write equivalent to two single-part writes, including when it fails? | open | nothing in phase 3; a later optimisation |
 
 Q-OWN (design section 7) also gates the creator SIDs in `sacl:`, which stay refused until it is

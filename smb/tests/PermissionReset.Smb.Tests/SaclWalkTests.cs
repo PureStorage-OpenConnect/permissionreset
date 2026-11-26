@@ -383,7 +383,7 @@ public class SaclWalkTests
     [Fact]
     public void AnOversizeSaclWritesNothingForThatPart()
     {
-        // 4.5's last row: beyond the encoder's 65,535 bytes the SACL write is refused before
+        // 4.5's last row: beyond a 65,536-byte descriptor the SACL write is refused before
         // anything is sent; the DACL part still proceeds.
         var big = Enumerable.Range(0, 2000).Select(i => AU(OI | CI | SA | FA, Users, (uint)(0x1000 + i))).ToArray();
         var plan = MakeSaclPlan(
@@ -399,11 +399,52 @@ public class SaclWalkTests
         Assert.Equal(Outcome.Written, r.DaclOutcome);
         Assert.Equal(Outcome.Error, r.SaclOutcome);
         Assert.Contains("encode sacl", r.Detail);
-        Assert.Contains("65535", r.Detail);
+        Assert.Contains("65536-byte limit", r.Detail);
         Assert.Null(s.Stop);
         var w = Assert.Single(tree.Writes);                        // only the DACL went out
         Assert.Equal("dacl", r.Parts);
         Assert.Equal(SecurityInformation.Dacl | SecurityInformation.ProtectedDacl, w.Info);
+    }
+
+    [Theory]
+    [InlineData(65516, false)]                                     // descriptor 65,536: written
+    [InlineData(65520, true)]                                      // Q4's band: refused at encode
+    [InlineData(65524, true)]
+    [InlineData(65528, true)]
+    [InlineData(65532, true)]
+    public void TheSaclLimitIsTheDescriptorsInEitherOrder(int aclBytes, bool refused)
+    {
+        // Q4: the array's limit is 65,536 bytes of descriptor, so a single-part SACL write holds
+        // at most 65,516 bytes of ACL. The refusal is the SACL part's alone, in either order.
+        var big = DescriptorBuilderTests.AuditAcesOfSize(aclBytes, OI | CI | SA | FA);
+        foreach (var order in new[] { WriteOrder.SaclFirst, WriteOrder.DaclFirst })
+        {
+            var plan = MakeSaclPlan(
+                SaclRule("rule[0]", "directory", "", DirWant, big),
+                SaclRule("rule[1]", "file", "", FileWant, [AuditFile]));
+            var tree = new FakeTree(new()
+            {
+                [""] = new(true, [A(OI | CI, Other)], true),       // DACL differs too
+            });
+            var (recs, s) = Apply(plan, tree, new WalkOptions(Apply: true, Order: order));
+            Assert.Null(s.Stop);
+            var r = At(recs, "");
+            Assert.Equal(Outcome.Written, r.DaclOutcome);
+            if (refused)
+            {
+                Assert.Equal(Outcome.Error, r.SaclOutcome);
+                Assert.Contains($"encode sacl: descriptor is {aclBytes + 20} bytes", r.Detail);
+                Assert.Equal("dacl", r.Parts);
+                Assert.Equal(SecurityInformation.Dacl | SecurityInformation.ProtectedDacl, Assert.Single(tree.Writes).Info);
+            }
+            else
+            {
+                Assert.Equal(Outcome.Written, r.SaclOutcome);
+                Assert.Equal(order == WriteOrder.SaclFirst ? "sacl,dacl" : "dacl,sacl", r.Parts);
+                var sacl = Assert.Single(tree.SentWrites, w => (w.Info & SecurityInformation.Sacl) != 0);
+                Assert.Equal(DescriptorBuilder.MaxDescriptorSize, sacl.Sd.Length);
+            }
+        }
     }
 
     [Fact]

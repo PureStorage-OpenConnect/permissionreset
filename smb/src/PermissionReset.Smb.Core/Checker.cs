@@ -775,8 +775,8 @@ public sealed class Checker
         // protected one without it. When only owner or group is written, the control word is
         // ignored and the stored DACL bits are expected unchanged.
         ushort control = desired.Protected ? Control.DaclProtected : Control.DaclAutoInherited;
-        // Encoding happens before anything is sent, so a SID it cannot encode or a DACL past the
-        // 64 KiB ACL limit fails this object and writes nothing.
+        // Encoding happens before anything is sent, so a SID it cannot encode or a descriptor past the
+        // array's 65,536-byte limit fails this object and writes nothing.
         byte[] sd;
         try { sd = DescriptorBuilder.Build(control, owner ? wantOwner : null, group ? wantGroup : null, null, dacl ? desired.Aces : null); }
         catch (Exception e) when (e is not OutOfMemoryException) { return new WriteResult(partList, before.Raw, null, $"encode {partList}: {e.Message}; nothing was written", false); }
@@ -840,7 +840,7 @@ public sealed class Checker
         bool group = daclCall && wantGroup is not null && wantGroup != before.Group;
 
         // 4.5: both descriptors are encoded and size-checked before either is sent, so a SID the
-        // encoder rejects or a SACL past the 64 KiB limit errors one part and writes nothing for it.
+        // encoder rejects or a descriptor past the 65,536-byte limit errors one part and writes nothing for it.
         uint daclInfo = 0;
         byte[]? daclSd = null;
         string? daclEncode = null;
