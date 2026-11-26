@@ -448,6 +448,9 @@ public sealed class Checker
         // explicit part plus the parent's compare-time output — otherwise a grandchild that should
         // have followed this run and did not reads as a plain Write instead of G1-SACL (#92 review
         // question Q1, closed here; the DESIGN-Q that opened it stood at the Classify call below).
+        // A frozen copy that equals the parent's post-write output reads the same as a follower and
+        // is taken for one; its S:AI empty child then stops on G1-SACL rather than being written as a
+        // pre-run freeze. The error is toward the stop, and a fresh run converges (7.1).
         // A directory holding an opaque SACL ACE (4.5) is recorded with its modeled ACEs only —
         // storedSaclAces skips them — and is never written, so its fresh read on resume is
         // unchanged and matches the record.

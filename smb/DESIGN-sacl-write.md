@@ -573,6 +573,16 @@ stops on G1-SACL in the first run too, not only on a resume (#92 review question
 holding an opaque SACL ACE is recorded with its modeled ACEs only; it is never written (4.5), so a
 resume's fresh read of it is unchanged.
 
+One state cannot be told apart this way (PR #95 review, finding 1). A directory may hold a frozen
+copy of its inherited audit ACEs that happens to equal what its parent passes after this run's
+write. It did not follow, but its fresh read is byte for byte what a follower holds. The walk takes
+it for a follower, so its S:AI empty child stops on G1-SACL instead of being written as a pre-run
+freeze. The error is toward the stop, which writes nothing more. The frozen directory's record holds
+the reconstructed value, so a `--resume` stops in the same place again. A fresh run without
+`--resume` converges: the parent is then right and not written, nothing is reconstructed, and the
+child is a plain `Write`. Telling the two states apart needs every descendant directory's SACL read
+before the ancestor's write. Below the first level that is the whole subtree, so it is not done.
+
 `--write-order` is **not** bound (section 11, decision 11). A resume re-reads every object it does
 not skip and writes only what still differs, so a changed order affects only objects that still
 need both parts.

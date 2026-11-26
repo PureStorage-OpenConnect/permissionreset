@@ -668,6 +668,34 @@ public class SaclWalkTests
         Assert.Single(tree.Writes);                                // the root, before the guard fired
     }
 
+    [Fact]
+    public void AFrozenCopyThatEqualsTheNewOutputIsTakenForAFollowerAndStopsOnG1Sacl()
+    {
+        // The state the in-memory reconstruction cannot tell apart (PR #95 review, finding 1). The
+        // root passed nothing before the run. C holds a frozen copy of its inherited audit ACEs that
+        // equals what the root passes after this run's write. G reads S:AI empty. C did not follow
+        // (its inherited part never matched what the root passed), so G is really a pre-run freeze,
+        // a Write. But C's fresh read is the same bytes a follower would hold, so the walk takes C
+        // for a follower and G for a child that should have followed: G1-SACL. The walk resolves
+        // this toward the stop, which writes nothing below the root. A fresh run without --resume
+        // converges, because the root is then right and not written, so nothing is reconstructed.
+        var frozen = Inheritance.Inherit([AuditDir], childIsDir: true).ToArray();
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["c"] = new(true, DirInherited, false, Sacl: frozen, SaclEverWritten: true),
+            ["c/g"] = new(true, DirInherited, false, SaclEverWritten: true),
+        });
+        var (recs, s) = Apply(AuditedPlan(), tree);
+        Assert.False(s.Complete);
+        Assert.StartsWith("G1-SACL:", s.Stop);
+        Assert.Contains("G1-SACL:", At(recs, "c/g").Detail);
+        Assert.Single(tree.Writes);                                // the root only
+        var (again, s2) = Apply(AuditedPlan(), tree);
+        Assert.Null(s2.Stop);
+        Assert.Equal(Outcome.Written, At(again, "c/g").Outcome);   // the pre-run freeze, rewritten
+    }
+
     // ---- resume in saclMode, checkpoint v2 (7.1, decision 13) ------------------------------------------------
 
     sealed class MemCheckpoint(params string[] done) : ICheckpoint

@@ -90,10 +90,13 @@ public sealed class FileCheckpoint : ICheckpoint, IDisposable
         var aces = new List<Ace>();
         foreach (var e in sa.EnumerateArray())
         {
+            // Each number is checked for kind first: TryGet* throws InvalidOperationException, not
+            // JsonException, on a value that is not a number (a damaged "flags": null), and the line
+            // must be dropped, not crash the load.
             if (e.ValueKind != JsonValueKind.Object
-                || !e.TryGetProperty("type", out var t) || !t.TryGetInt32(out int type)
-                || !e.TryGetProperty("flags", out var f) || !f.TryGetByte(out byte flags)
-                || !e.TryGetProperty("mask", out var m) || !m.TryGetUInt32(out uint mask)
+                || !e.TryGetProperty("type", out var t) || t.ValueKind != JsonValueKind.Number || !t.TryGetInt32(out int type)
+                || !e.TryGetProperty("flags", out var f) || f.ValueKind != JsonValueKind.Number || !f.TryGetByte(out byte flags)
+                || !e.TryGetProperty("mask", out var m) || m.ValueKind != JsonValueKind.Number || !m.TryGetUInt32(out uint mask)
                 || !e.TryGetProperty("sid", out var s) || s.ValueKind != JsonValueKind.String || s.GetString() is not string sid)
                 return false;
             aces.Add(new Ace(type, flags, mask, sid));
@@ -149,7 +152,12 @@ public sealed class FileCheckpoint : ICheckpoint, IDisposable
             // First wins: an earlier run's pre-write state is the truth.
             if (!compareSacl.TryAdd(rel, sacl)) return;
             w.WriteLine(JsonSerializer.Serialize(new { dir = rel, sacl }, Camel));
+            // Unlike a lost done line, which costs only a rewalk, a lost record is a wrong verdict:
+            // the array keeps the directory's write while a resume falls back to its fresh read and
+            // can take a child that failed to follow for a pre-run freeze. So the record goes to
+            // stable storage before the write it precedes, the 7.2 rule for evidence lines.
             w.Flush();
+            if (w.BaseStream is FileStream fs) fs.Flush(flushToDisk: true);
         }
     }
 

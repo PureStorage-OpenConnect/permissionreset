@@ -561,6 +561,9 @@ public class ApplyTests
                 cp.RecordCompareSacl("", [new Ace(AceTypes.Allow, 0, 1, Other)]);   // first wins
                 cp.RecordCompareSacl("e", []);                                       // S:AI empty
             }
+            // A record with a field of the wrong kind is dropped like a torn one, not a crash.
+            File.AppendAllText(f, "{\"dir\":\"bad\",\"sacl\":[{\"type\":2,\"flags\":null,\"mask\":1,\"sid\":\"S-1-1-0\"}]}\n");
+            File.AppendAllText(f, "{\"dir\":\"str\",\"sacl\":[{\"type\":\"2\",\"flags\":3,\"mask\":1,\"sid\":\"S-1-1-0\"}]}\n");
             File.AppendAllText(f, "{\"dir\":\"tor");                              // a torn record line
             using var again = new FileCheckpoint(f, "id", resume: true);
             Assert.Equal(1, again.Loaded);
@@ -570,6 +573,8 @@ public class ApplyTests
             Assert.True(again.TryGetCompareSacl("e", out var empty));
             Assert.Empty(empty);
             Assert.False(again.TryGetCompareSacl("tor", out _));                         // dropped
+            Assert.False(again.TryGetCompareSacl("bad", out _));                         // null number dropped
+            Assert.False(again.TryGetCompareSacl("str", out _));                         // string number dropped
             // Done lines and records mix, and a duplicate record is not written again.
             Assert.Contains(File.ReadLines(f), l => l.StartsWith("{\"dir\":"));
             int lines = File.ReadLines(f).Count();
