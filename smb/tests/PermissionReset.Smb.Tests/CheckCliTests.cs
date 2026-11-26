@@ -252,17 +252,54 @@ public sealed class CheckCliTests : IDisposable
     public void UsageErrorsExitTwo(params string[] args) =>
         Assert.Equal(2, Run(RightTree(), null, args).Code);
 
-    // smb/DESIGN-sacl-write.md 6: no tree SACL is read before the probe proves the audit bypass.
-    // Until check runs that probe, a plan with a sacl: rule is refused before any read.
+    // smb/DESIGN-sacl-write.md 6: a plan with a sacl: rule is no longer refused; check runs the
+    // probe's bypass proof first, and no tree SACL is read before the probe's step 2 write.
     [Fact]
-    public void APlanThatSetsSaclIsRefusedBeforeAnyRead()
+    public void APlanThatSetsSaclRunsTheProbeBeforeAnyTreeSaclRead()
     {
         var plan = Usual with { Schema = Plan.SmbSaclSchema, Default = Usual.Default with { SaclSet = true } };
         var tree = WrongTree();
+        int writesBeforeRootSaclRead = -1;
+        tree.BeforeSaclRead = rel => { if (rel == "" && writesBeforeRootSaclRead < 0) writesBeforeRootSaclRead = tree.Writes.Count; };
         var (code, _, err) = Run(tree, null, "check", PlanFile(plan), @"\\array\share\dept");
-        Assert.Equal(1, code);
-        Assert.Contains("set sacl:", err);
-        Assert.Empty(tree.SaclReads);
-        Assert.Empty(tree.Writes);
+        Assert.Equal(0, code);
+        Assert.DoesNotContain("set sacl:", err);
+        Assert.True(writesBeforeRootSaclRead > 0);
+        // Before that read, the probe's step 2 proof had already gone out: a SACL write on a
+        // probe object, never on the root (decision 17).
+        Assert.Contains(tree.Writes[..writesBeforeRootSaclRead],
+            w => w.Rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal) && (w.Info & SecurityInformation.Sacl) != 0);
+    }
+
+    // Decision 18 (G6): without --evidence-dir the probe's write, read-back and removal go to NOTE
+    // lines and to one probe record on stdout, ahead of the walk's records.
+    [Fact]
+    public void WithoutAnEvidenceDirTheProbeGoesToNotesAndAProbeRecord()
+    {
+        var plan = Usual with { Schema = Plan.SmbSaclSchema, Default = Usual.Default with { SaclSet = true } };
+        var (code, @out, err) = Run(WrongTree(), null, "check", PlanFile(plan), @"\\array\share\dept");
+        Assert.Equal(0, code);
+        Assert.Contains("check: NOTE: the preflight probe events", err);
+        Assert.Contains("PROBE-REMOVE", err);
+        Assert.Contains("nothing in the tree was written (the preflight probe was created and removed)", err);
+        var lines = @out.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        using var p = System.Text.Json.JsonDocument.Parse(lines[0]);
+        var probe = p.RootElement.GetProperty("probe");
+        Assert.True(probe.GetProperty("passed").GetBoolean());
+        var kinds = probe.GetProperty("events").EnumerateArray().Select(e => e.GetProperty("kind").GetString()).ToList();
+        Assert.Contains("write", kinds);
+        Assert.Contains("remove", kinds);
+        Assert.All(lines.Skip(1), l => Assert.Contains("\"path\":", l));
+    }
+
+    // #93 review (6): check writes nothing in the tree, so --write-order cannot have been
+    // validated by it; a NOTE says so rather than accepting the flag silently.
+    [Fact]
+    public void WriteOrderOnCheckPrintsANoteThatItHasNoEffect()
+    {
+        var (code, _, err) = Run(RightTree(), null, "check", "--write-order", "dacl-first", PlanFile(Usual), "R");
+        Assert.Equal(0, code);
+        Assert.Contains("check: NOTE: --write-order has no effect on check", err);
+        Assert.DoesNotContain("no effect", Run(RightTree(), null, "check", PlanFile(Usual), "R").Err);
     }
 }

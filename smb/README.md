@@ -15,13 +15,14 @@ targeted because the change after `2e0ad61` only alters how the plan file is rea
 access. Earlier records: `apply` at `e834ac8`
 ([record](../benchmarks/qual-smb-apply-e834ac8-20261119/RESULTS.md)), `inspect` and `check`
 read-only at `700630b` ([results](../benchmarks/qual-smb-check-700630b-20261116/RESULTS.md)).
-Each release is qualified on its own assets. SACL writes (phase 3) are not built.
+Each release is qualified on its own assets. SACL writes (phase 3) are built but not qualified on hardware;
+a change to the write path needs its own hardware run before the next `smb-v*` tag.
 
 | Platform | Tool |
 |---|---|
 | FlashBlade, NFS-written data | `permissionreset` (repository root) |
 | FlashArray, any data | `permissionreset-smb` (this directory) |
-| SMB-written data, SACL only | `tools/set-saclonly/` until `permissionreset-smb` covers it |
+| SMB-written data, SACL only | `tools/set-saclonly/` (`permissionreset-smb`'s SACL writes are built but unqualified) |
 
 ## Commands
 
@@ -61,7 +62,12 @@ stored form the reset wants (`inherits`, `explicit_plus_inherits` or `protected`
 DACL, owner and group, and prints one JSON line: `ok`, `write` (the object needs its own write),
 `follows` (it differs only because an ancestor will be written, after which the array re-derives
 it), `keep` (its rule has no `acl:`), `excluded`, `reparse` or `error`. A summary goes to stderr.
-It reads no SACL. Every principal the plan names, `sacl:` entries included, is resolved once to a
+It reads no SACL — except with a schema 3 plan (any rule sets `sacl:`), where the compare read
+covers the SACL and the record carries the two part verdicts (`dacl_outcome`, `sacl_outcome`).
+Then `check` enables `SeSecurityPrivilege` and proves the audit bypass on a disposable probe
+(under `--probe-dir`, else ROOT) before any tree SACL is read; without a writable probe location
+it exits 1, and `--accept-unproven-read` skips the proof with a NOTE. The probe's events go to
+`--evidence-dir` as a preflight shard (`preflight-shard-000001.log`, bound in `apply`'s manifest), else to NOTE lines and a `{"probe": ...}` JSON line on stdout. Every principal the plan names, `sacl:` entries included, is resolved once to a
 SID on this host first, the resolved principal-SID table is printed, and the check is refused if
 one doesn't resolve. `--workers N` (default 16) sets the parallelism. Exit 0
 when every object was checked (with `--validate`: and every one is `ok`), 1 otherwise, 2 on a
@@ -85,7 +91,14 @@ preflight writes nothing in the tree. During the walk two guards stop the run, w
   either auto-inherited bit, or a read-back that fails.
 
 After a stop no new write or directory starts; the run reports `stopped` and not-processed counts
-and exits 1. A plan whose rules set `sacl:` is refused (SACL writes are phase 3; use Set-SaclOnly).
+and exits 1. With a schema 3 plan (any rule sets `sacl:`), `apply` writes SACLs too: the preflight
+then proves the audit bypass, the root's desired audit ACEs on the probe's children and the
+recorded `S:AI` rule before any tree SACL is read; the probe's events are the
+`preflight-shard-000001.log` in the evidence directory. A two-part object (DACL and SACL both
+differ) gets one write per part, in `--write-order` order: `sacl-first` (default) or `dacl-first`,
+which prints a NOTE once — new access can go unaudited if a SACL write fails after its DACL
+write — and is recorded in the manifest. `--root-sacl-protected` (on `check` too) forces the
+root's SACL **Protected**, independently of `--root-protected`.
 `--root-protected` (on `check` too) makes the root **Protected**, for a root whose inherited ACEs may
 be a frozen copy. `--checkpoint FILE` records complete directories (a directory and all its files
 right); `--resume` skips their files on the next run, and refuses a checkpoint from another plan or

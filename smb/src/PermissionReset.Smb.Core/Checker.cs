@@ -331,6 +331,22 @@ public sealed class Checker
         return aces.Select(a => a!.Value).ToList();
     }
 
+    // RootSacl is the SACL the root's children will inherit from once the root is right: its
+    // desired SACL (its rule's sacl:, the ID audit ACEs it stores now as the inherited input, and
+    // --root-sacl-protected), or its stored SACL when its rule has no sacl: key (2.3: a kept SACL
+    // still passes to the children). Unlike RootAcl it reads the root WITH its SACL, so the
+    // preflight calls it only after step 2 has proven the audit bypass (3.2; design 6, step 3).
+    public List<Ace> RootSacl()
+    {
+        var stored = Descriptor.Decode(tree.Read("", withSacl: true).Descriptor);
+        var wanted = wantSacl[rules.Select("", true).Rule!];
+        if (wanted is not null)
+            return SaclModel.DesiredForSacl(wanted, StoredInheritedSacl(stored), isRoot: true, opt.RootSaclProtected).Aces.ToList();
+        var aces = (stored.Sacl?.Aces ?? []).Select(Ace.FromView).ToList();
+        if (aces.Any(a => a is null)) throw new NotSupportedException("the root's SACL holds an ACE type a reset does not model (smb/DESIGN-sacl-write.md 4.5)");
+        return aces.Select(a => a!.Value).ToList();
+    }
+
     Desired DesiredFor(List<Ace> wanted, List<Ace> inherited, bool isRoot) =>
         isRoot && opt.RootProtected ? new Desired(Form.Protected, wanted.ToList(), true) : Desired.Classify(wanted, inherited);
 

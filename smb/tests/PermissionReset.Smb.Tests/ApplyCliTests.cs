@@ -89,6 +89,8 @@ public sealed class ApplyCliTests : IDisposable
         using var m = JsonDocument.Parse(File.ReadAllText(Path.Combine(ev, "manifest.json")));
         Assert.Equal("complete", m.RootElement.GetProperty("status").GetString());
         Assert.Equal(3, m.RootElement.GetProperty("records").GetInt64());
+        Assert.Single(m.RootElement.GetProperty("shards").EnumerateArray());   // a phase 2 manifest is unchanged
+        Assert.False(m.RootElement.TryGetProperty("sacl_forms", out _));
         var shard = m.RootElement.GetProperty("shards")[0];
         Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(Path.Combine(ev, Evidence.ShardName)))).ToLowerInvariant(),
             shard.GetProperty("sha256").GetString());
@@ -226,15 +228,155 @@ public sealed class ApplyCliTests : IDisposable
         Assert.False(Directory.Exists(ev));
     }
 
-    [Fact]
-    public void APlanThatSetsSaclIsRefused()
+    // ---- phase 3: sacl: plans (smb/DESIGN-sacl-write.md sections 4.2, 5, 6, 7.2) ------------------
+
+    const byte OI = AceFlags.ObjectInherit, CI = AceFlags.ContainerInherit, ID = AceFlags.Inherited,
+        SA = AceFlags.SuccessfulAccess, FA = AceFlags.FailedAccess;
+
+    static Ace AU(byte flags, string sid) => new(AceTypes.Audit, flags, 0x1, sid);
+    static readonly Ace AuditDir = AU(OI | CI | SA | FA, Users);
+    static readonly Ace AuditFile = AU(SA | FA, Users);
+
+    // A schema 3 plan: phase 2's DACLs plus one ambient audit ACE per kind.
+    static Plan AuditedPlan()
     {
-        var plan = Usual with { Schema = Plan.SmbSaclSchema, Default = Usual.Default with { SaclSet = true } };
-        var tree = Flattened();
-        var r = Run(tree, "apply", PlanFile(plan), "R");
+        static PlanAce AUP(Ace a) => new("line", 0, 0, a.Type, a.Flags, a.Mask, "", false, a.Sid, "");
+        PlanRule R(string label, string type, Ace[] dacl, Ace[] sacl) =>
+            new(label, new PlanMatch(type, ""), true, false, true, false, false, "", "",
+                sacl.Select(AUP).ToList(), dacl.Select(a => PA(a)).ToList());
+        return new Plan(Plan.SmbSaclSchema, "t.yaml", "nfsv4", new PlanExclude(["skip"], ["skip"], []),
+            new PlanRule("default", new PlanMatch("", ""), false, false, true, false, false, "", "", [],
+                FileWant.Select(a => PA(a)).ToList()),
+            [R("rule[0]", "directory", DirWant, [AuditDir]), R("rule[1]", "file", FileWant, [AuditFile])]);
+    }
+
+    // DACLs right, SACLs never audited (S:AI empty, K9).
+    static FakeTree NeverAudited() => new(new()
+    {
+        [""] = new(true, DirWant, true),
+        ["a"] = new(true, DirInherited, false),
+        ["a/f.txt"] = new(false, FileInherited, false),
+    });
+
+    // x.txt needs both parts: its DACL is explicit-only and its SACL is S:P with an audit ACE the
+    // rule does not name.
+    static FakeTree TwoPart() => new(new()
+    {
+        [""] = new(true, DirWant, true, Sacl: [AuditDir], SaclProtected: true, SaclEverWritten: true),
+        ["x.txt"] = new(false, [A(0, Other)], false, Sacl: [AU(SA | FA, Other)], SaclProtected: true, SaclEverWritten: true),
+    });
+
+    [Fact]
+    public void ApplyWithASaclPlanRunsTheProbeThenWritesTheRootSaclOnce()
+    {
+        // The wired apply end to end: design 6's full preflight runs (the decision-18 shard lands
+        // in the evidence directory), the root's SACL is written once, and the never-written
+        // children follow it (K10).
+        var tree = NeverAudited();
+        int writesBeforeRootSaclRead = -1;
+        tree.BeforeSaclRead = rel => { if (rel == "" && writesBeforeRootSaclRead < 0) writesBeforeRootSaclRead = tree.Writes.Count; };
+        var ev = Temp("ev");
+        var r = Run(tree, "apply", "--evidence-dir", ev, PlanFile(AuditedPlan()), @"\\array\share\dept");
+        Assert.True(r.Code == 0, r.Err);
+        Assert.Contains("preflight passed", r.Err);
+        Assert.Contains("apply: complete", r.Err);
+        Assert.DoesNotContain(tree.Objs.Keys, k => k.StartsWith(Preflight.Prefix));
+        // checker.RootSacl ran only inside the probe, after step 2's bypass proof.
+        Assert.True(writesBeforeRootSaclRead > 0);
+        Assert.Contains(tree.Writes[..writesBeforeRootSaclRead],
+            w => w.Rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal) && (w.Info & SecurityInformation.Sacl) != 0);
+        var w = Assert.Single(tree.Writes.Where(x => !x.Rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal)));
+        Assert.Equal("", w.Rel);
+        Assert.Equal(SecurityInformation.Sacl | SecurityInformation.ProtectedSacl, w.Info);
+        Assert.Contains("\"sacl_outcome\":\"written\"", r.Out);
+        var shard = File.ReadAllText(Path.Combine(ev, ProbeShard.ShardName));
+        Assert.Contains("PROBE-WRITE", shard);
+        Assert.Contains("PROBE-REMOVE", shard);
+        using var m = JsonDocument.Parse(File.ReadAllText(Path.Combine(ev, "manifest.json")));
+        Assert.Equal("complete", m.RootElement.GetProperty("status").GetString());
+        Assert.Equal("sacl-first", m.RootElement.GetProperty("write_order").GetString());
+        // 7.2: the preflight shard is bound in the manifest beside the walk's shard.
+        var shards = m.RootElement.GetProperty("shards").EnumerateArray().ToList();
+        Assert.Equal(2, shards.Count);
+        var pre = shards[0];
+        Assert.Equal(ProbeShard.ShardName, pre.GetProperty("name").GetString());
+        var bytes = File.ReadAllBytes(Path.Combine(ev, ProbeShard.ShardName));
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant(), pre.GetProperty("sha256").GetString());
+        Assert.Equal(bytes.Length, pre.GetProperty("size").GetInt64());
+        Assert.Equal(shard.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length, pre.GetProperty("records").GetInt64());
+        Assert.Equal(Evidence.ShardName, shards[1].GetProperty("name").GetString());
+        // 7.2: sacl_forms counts on a sacl: plan.
+        var sf = m.RootElement.GetProperty("sacl_forms");
+        Assert.True(sf.GetProperty("protected").GetInt64() >= 1);       // the root
+        Assert.True(sf.GetProperty("inherits").GetInt64() >= 1);        // its never-written children
+        // Decision 18: with an evidence directory the probe is not also printed to stdout.
+        Assert.DoesNotContain("\"probe\":", r.Out);
+    }
+
+    [Fact]
+    public void ApplyWithASaclPlanAndNoEvidenceDirPrintsTheProbeEventsAsNotes()
+    {
+        // Decision 18: without an evidence directory the probe's writes, read-backs and removals
+        // still reach the operator, as NOTE lines.
+        var r = Run(NeverAudited(), "apply", PlanFile(AuditedPlan()), @"\\array\share\dept");
+        Assert.True(r.Code == 0, r.Err);
+        Assert.Contains("apply: NOTE: the preflight probe events", r.Err);
+        Assert.Contains("PROBE-WRITE", r.Err);
+        Assert.Contains("PROBE-REMOVE", r.Err);
+        // ...and to one machine-readable probe record on stdout, ahead of the walk's records.
+        var first = r.Out.Split('\n', StringSplitOptions.RemoveEmptyEntries)[0];
+        using var p = JsonDocument.Parse(first);
+        var probe = p.RootElement.GetProperty("probe");
+        Assert.True(probe.GetProperty("passed").GetBoolean());
+        var kinds = probe.GetProperty("events").EnumerateArray().Select(e => e.GetProperty("kind").GetString()).ToList();
+        Assert.Contains("write", kinds, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("remove", kinds, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void WriteOrderDaclFirstPrintsTheNoteOnceAndWritesAccessBeforeAuditing()
+    {
+        // 4.2: the switch orders one two-part object's two writes; dacl-first says what it risks,
+        // once, before any write (decision 11).
+        int Notes(Result r) => r.Err.Split('\n').Count(l => l.Contains("NOTE: --write-order dacl-first"));
+        var daclFirst = TwoPart();
+        var r1 = Run(daclFirst, "apply", "--write-order", "dacl-first", PlanFile(AuditedPlan()), "R");
+        Assert.Equal(0, r1.Code);
+        Assert.Equal(1, Notes(r1));
+        Assert.Equal(SecurityInformation.Dacl | SecurityInformation.UnprotectedDacl,
+            daclFirst.Writes.First(w => w.Rel == "x.txt").Info);
+
+        var saclFirst = TwoPart();
+        var r2 = Run(saclFirst, "apply", PlanFile(AuditedPlan()), "R");
+        Assert.Equal(0, r2.Code);
+        Assert.Equal(0, Notes(r2));
+        Assert.Equal(SecurityInformation.Sacl | SecurityInformation.UnprotectedSacl,
+            saclFirst.Writes.First(w => w.Rel == "x.txt").Info);
+    }
+
+    [Theory]
+    [InlineData("apply")]
+    [InlineData("check")]
+    public void WriteOrderRejectsAnUnknownValue(string cmd) =>
+        Assert.Equal(2, Run(Flattened(), cmd, "--write-order", "bogus", "plan.json", "R").Code);
+
+    [Fact]
+    public void ApplyRefusesWhenTheProbeFindsNoAuditBypass()
+    {
+        // K12/design 5 layer 2 on the wired path: the full preflight stops at step 2, and nothing
+        // in the tree is written.
+        var tree = NeverAudited();
+        tree.RefuseSaclAccess = true;
+        var r = Run(tree, "apply", PlanFile(AuditedPlan()), "R");
         Assert.Equal(1, r.Code);
-        Assert.Contains("writes no SACL", r.Err);
-        Assert.Empty(tree.Writes);
+        Assert.Contains("audit bypass", r.Err);
+        Assert.Contains("nothing in the tree was written", r.Err);
+        // No walk record; only decision 18's probe record (no --evidence-dir), which says it failed.
+        using (var p = JsonDocument.Parse(Assert.Single(r.Out.Split('\n', StringSplitOptions.RemoveEmptyEntries))))
+            Assert.False(p.RootElement.GetProperty("probe").GetProperty("passed").GetBoolean());
+        Assert.False(TreeWritten(tree));
+        Assert.DoesNotContain(tree.Writes, w => (w.Info & SecurityInformation.Sacl) != 0);   // K12: no SACL was stored
+        Assert.DoesNotContain(tree.Objs.Keys, k => k.StartsWith(Preflight.Prefix));
     }
 
     // smb/DESIGN-sacl-write.md 2.1: a schema 2 plan with a sacl rule predates this tool and is
