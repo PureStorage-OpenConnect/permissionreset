@@ -406,6 +406,82 @@ public class SaclWalkTests
         Assert.Equal(SecurityInformation.Dacl | SecurityInformation.ProtectedDacl, w.Info);
     }
 
+    [Fact]
+    public void ADirectoryRefusedAtEncodeDropsItsSubtree()
+    {
+        // 4.5, #92 review Q2: the root's SACL is refused at encode, so the root does not hold
+        // what its children would be classified against; its subtree is dropped, as phase 2
+        // drops it on any write error. Without the drop f.txt would be written against the
+        // root's unwritten desired SACL.
+        var big = Enumerable.Range(0, 2000).Select(i => AU(OI | CI | SA | FA, Users, (uint)(0x1000 + i))).ToArray();
+        var plan = MakeSaclPlan(
+            SaclRule("rule[0]", "directory", "", DirWant, big),
+            SaclRule("rule[1]", "file", "", FileWant, [AuditFile]));
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, [A(OI | CI, Other)], true),
+            ["f.txt"] = new(false, [A(0, Other)], false),
+        });
+        var (recs, s) = Apply(plan, tree);
+        Assert.Null(s.Stop);
+        var r = At(recs, "");
+        Assert.Equal(Outcome.Written, r.DaclOutcome);
+        Assert.Equal(Outcome.Error, r.SaclOutcome);
+        Assert.DoesNotContain(recs, x => x.Path == "f.txt");
+        Assert.Equal("", Assert.Single(tree.Writes).Rel);
+        Assert.Equal(1, s.NotProcessed);
+    }
+
+    // ---- a sacl:-only directory rule keeps phase 2's DACL refusals (#92 review finding 1) -----------
+
+    static Plan SaclOnlyDirPlan() => MakeSaclPlan(
+        SaclRule("rule[k]", "directory", "k", null, [AuditDir]),
+        SaclRule("rule[0]", "directory", "", DirWant, [AuditDir]),
+        SaclRule("rule[1]", "file", "", FileWant, [AuditFile]));
+
+    [Fact]
+    public void AnUnmodeledDaclAceOnASaclOnlyDirectoryIsRefusedBeforeItsSaclIsWritten()
+    {
+        // k has no acl:, so its children inherit its stored DACL, which holds an ACE type a reset
+        // does not model. Its SACL part is a Write (a pre-run freeze under an audited root), but
+        // the DACL refusal comes first: nothing is written to k and its subtree is dropped.
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true, Sacl: [AuditDir], SaclProtected: true, SaclEverWritten: true),
+            ["k"] = new(true, [A(OI | CI, Users), new Ace(0x11, 0, 0x3, "S-1-16-4096")], true),
+            ["k/f.txt"] = new(false, FileInherited, false),
+        });
+        var (recs, s) = Apply(SaclOnlyDirPlan(), tree);
+        Assert.Null(s.Stop);
+        var k = At(recs, "k");
+        Assert.Equal(Outcome.Error, k.Outcome);
+        Assert.Equal(Outcome.Error, k.DaclOutcome);
+        Assert.Equal(Outcome.Error, k.SaclOutcome);
+        Assert.Contains("an ACE type a reset does not model", k.Detail);
+        Assert.Contains("sacl: not written", k.Detail);
+        Assert.DoesNotContain(recs, x => x.Path == "k/f.txt");
+        Assert.Empty(tree.Writes);
+        Assert.Equal(1, s.NotProcessed);
+    }
+
+    [Fact]
+    public void AnAbsentDaclOnASaclOnlyDirectoryIsRefusedBeforeItsSaclIsWritten()
+    {
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true, Sacl: [AuditDir], SaclProtected: true, SaclEverWritten: true),
+            ["k"] = new(true, null, false),
+            ["k/f.txt"] = new(false, FileInherited, false),
+        });
+        var (recs, s) = Apply(SaclOnlyDirPlan(), tree);
+        Assert.Null(s.Stop);
+        var k = At(recs, "k");
+        Assert.Equal(Outcome.Error, k.SaclOutcome);
+        Assert.Contains("its DACL is absent", k.Detail);
+        Assert.DoesNotContain(recs, x => x.Path == "k/f.txt");
+        Assert.Empty(tree.Writes);
+    }
+
     // ---- the two-write order (4.2) ------------------------------------------------------------------
 
     [Fact]
