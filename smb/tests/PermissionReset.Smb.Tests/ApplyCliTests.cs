@@ -89,6 +89,8 @@ public sealed class ApplyCliTests : IDisposable
         using var m = JsonDocument.Parse(File.ReadAllText(Path.Combine(ev, "manifest.json")));
         Assert.Equal("complete", m.RootElement.GetProperty("status").GetString());
         Assert.Equal(3, m.RootElement.GetProperty("records").GetInt64());
+        Assert.Single(m.RootElement.GetProperty("shards").EnumerateArray());   // a phase 2 manifest is unchanged
+        Assert.False(m.RootElement.TryGetProperty("sacl_forms", out _));
         var shard = m.RootElement.GetProperty("shards")[0];
         Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(Path.Combine(ev, Evidence.ShardName)))).ToLowerInvariant(),
             shard.GetProperty("sha256").GetString());
@@ -293,6 +295,22 @@ public sealed class ApplyCliTests : IDisposable
         using var m = JsonDocument.Parse(File.ReadAllText(Path.Combine(ev, "manifest.json")));
         Assert.Equal("complete", m.RootElement.GetProperty("status").GetString());
         Assert.Equal("sacl-first", m.RootElement.GetProperty("write_order").GetString());
+        // 7.2: the preflight shard is bound in the manifest beside the walk's shard.
+        var shards = m.RootElement.GetProperty("shards").EnumerateArray().ToList();
+        Assert.Equal(2, shards.Count);
+        var pre = shards[0];
+        Assert.Equal(ProbeShard.ShardName, pre.GetProperty("name").GetString());
+        var bytes = File.ReadAllBytes(Path.Combine(ev, ProbeShard.ShardName));
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant(), pre.GetProperty("sha256").GetString());
+        Assert.Equal(bytes.Length, pre.GetProperty("size").GetInt64());
+        Assert.Equal(shard.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length, pre.GetProperty("records").GetInt64());
+        Assert.Equal(Evidence.ShardName, shards[1].GetProperty("name").GetString());
+        // 7.2: sacl_forms counts on a sacl: plan.
+        var sf = m.RootElement.GetProperty("sacl_forms");
+        Assert.True(sf.GetProperty("protected").GetInt64() >= 1);       // the root
+        Assert.True(sf.GetProperty("inherits").GetInt64() >= 1);        // its never-written children
+        // Decision 18: with an evidence directory the probe is not also printed to stdout.
+        Assert.DoesNotContain("\"probe\":", r.Out);
     }
 
     [Fact]
@@ -305,6 +323,14 @@ public sealed class ApplyCliTests : IDisposable
         Assert.Contains("apply: NOTE: the preflight probe events", r.Err);
         Assert.Contains("PROBE-WRITE", r.Err);
         Assert.Contains("PROBE-REMOVE", r.Err);
+        // ...and to one machine-readable probe record on stdout, ahead of the walk's records.
+        var first = r.Out.Split('\n', StringSplitOptions.RemoveEmptyEntries)[0];
+        using var p = JsonDocument.Parse(first);
+        var probe = p.RootElement.GetProperty("probe");
+        Assert.True(probe.GetProperty("passed").GetBoolean());
+        var kinds = probe.GetProperty("events").EnumerateArray().Select(e => e.GetProperty("kind").GetString()).ToList();
+        Assert.Contains("write", kinds, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("remove", kinds, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -345,7 +371,9 @@ public sealed class ApplyCliTests : IDisposable
         Assert.Equal(1, r.Code);
         Assert.Contains("audit bypass", r.Err);
         Assert.Contains("nothing in the tree was written", r.Err);
-        Assert.Empty(r.Out);
+        // No walk record; only decision 18's probe record (no --evidence-dir), which says it failed.
+        using (var p = JsonDocument.Parse(Assert.Single(r.Out.Split('\n', StringSplitOptions.RemoveEmptyEntries))))
+            Assert.False(p.RootElement.GetProperty("probe").GetProperty("passed").GetBoolean());
         Assert.False(TreeWritten(tree));
         Assert.DoesNotContain(tree.Writes, w => (w.Info & SecurityInformation.Sacl) != 0);   // K12: no SACL was stored
         Assert.DoesNotContain(tree.Objs.Keys, k => k.StartsWith(Preflight.Prefix));

@@ -80,7 +80,9 @@ public sealed class Evidence : IDisposable
             {
                 Status = m.Reasons.Count == 0 ? "complete" : "incomplete",
                 Records = records,
-                Shards = [new ManifestShard(ShardName, digest, size, records)],
+                // The preflight shard (design 7.2), when the caller passes one, is bound first: it
+                // was written first.
+                Shards = [.. m.Shards ?? [], new ManifestShard(ShardName, digest, size, records)],
             };
             File.WriteAllText(Path.Combine(dir, "manifest.json"), JsonSerializer.Serialize(full, Json) + "\n");
         }
@@ -102,14 +104,16 @@ public sealed class Evidence : IDisposable
 
 // ProbeShard is the preflight shard of smb/DESIGN-sacl-write.md section 6 (section 11, decision
 // 18): one line per probe event in preflight-shard-000001.log, in an evidence directory
-// Evidence.CheckDir allows. It writes no manifest: the run's own manifest (apply) or summary
-// (check) carries the preflight line. Each line is flushed to stable storage right away, the 7.2
-// rule applied to the probe.
+// Evidence.CheckDir allows. It writes no manifest itself: Entry() is the shard's SHA-256, size and
+// record count, which apply binds in its manifest beside the walk's shard (7.2). Each line is
+// flushed to stable storage right away, the 7.2 rule applied to the probe.
 public sealed class ProbeShard : IDisposable
 {
     public const string ShardName = "preflight-shard-000001.log";
 
     readonly FileStream shard;
+    readonly IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+    long records, size;
 
     // checkDir is off when the probe shard shares apply's evidence directory with Evidence, whose
     // own CheckDir has already vetted it; check uses the probe shard alone, so it checks.
@@ -129,9 +133,20 @@ public sealed class ProbeShard : IDisposable
         var b = Encoding.UTF8.GetBytes(Line(e).Replace("\n", " ") + "\n");
         shard.Write(b);
         shard.Flush(true);
+        hash.AppendData(b);
+        records++;
+        size += b.Length;
     }
 
-    public void Dispose() => shard.Dispose();
+    // Entry is the manifest line for what has been recorded so far.
+    public ManifestShard Entry() =>
+        new(ShardName, Convert.ToHexString(hash.GetCurrentHash()).ToLowerInvariant(), size, records);
+
+    public void Dispose()
+    {
+        shard.Dispose();
+        hash.Dispose();
+    }
 }
 
 public sealed record ManifestShard(string Name, string Sha256, long Size, long Records);
@@ -158,4 +173,7 @@ public sealed record Manifest(
     IReadOnlyList<ManifestShard>? Shards = null,
     // --write-order as apply ran it (design 4.2: the order is recorded in the manifest; it is not
     // bound in the checkpoint, decision 11).
-    string? WriteOrder = null);
+    string? WriteOrder = null,
+    // The SACL form counts (7.2), on a plan whose rules set sacl: only, so a phase 2 manifest is
+    // unchanged.
+    IReadOnlyDictionary<string, long>? SaclForms = null);

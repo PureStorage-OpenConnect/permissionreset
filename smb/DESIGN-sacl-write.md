@@ -582,7 +582,10 @@ Phase 2's shard format is kept. Its before- and after-images are already read wi
 - the preflight shard: the probe's write, read-back and removal (section 6). `apply` records it in
   its evidence directory. `check` takes an optional `--evidence-dir`; with it, the shard goes
   there, and without it the probe goes to a NOTE line plus the summary JSON (section 11, decision
-  18);
+  18). As built, the summary JSON is one `{"probe": {"passed", "detail", "events"}}` line on
+  stdout ahead of the walk's records (a walk record is keyed by `path`, so the two never collide),
+  for `check` and for `apply` alike. With an evidence directory, `apply`'s manifest binds the
+  preflight shard's SHA-256, size and record count beside the walk's shard;
 - **each evidence line is flushed to stable storage before the next write starts.** Phase 2's shard
   is buffered, and a hard kill in qualification lost one before-image. For audit changes, which are
   compliance-sensitive, one flush per written object costs little next to two SMB round trips and a

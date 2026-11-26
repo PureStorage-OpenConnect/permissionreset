@@ -113,8 +113,11 @@ and neither is one whose audit ACEs name nobody or an id >= 1e9 (`ErrUnpreservab
 
 `smb/` holds `permissionreset-smb`, the SMB-native .NET 8 tool for FlashArray
 (`docs/decision-flasharray-smb-20261107.md`). `smb-v0.1.0` is released (tag on `959c505`): `check`
-(read-only) and `apply` (DACL writes, phase 2), qualified on FlashArray at `2e0ad61` with targeted
-reruns at `959c505` and on the released exe (`smb/README.md` status). SACL writes are not built.
+(writes nothing to the tree's objects) and `apply` (DACL writes, phase 2), qualified on FlashArray
+at `2e0ad61` with targeted reruns at `959c505` and on the released exe (`smb/README.md` status).
+Phase 3 SACL writes are built but not yet qualified. On a plan with a `sacl:` rule, `check` creates
+and removes a disposable probe under `--probe-dir` or ROOT to prove the audit bypass, so it is no
+longer read-only on the share (`smb/DESIGN-sacl-write.md` section 6).
 Build, test and layout live in `smb/CLAUDE.md`.
 
 ## Tuning sweeper
