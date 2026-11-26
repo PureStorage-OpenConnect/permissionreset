@@ -117,7 +117,9 @@ and neither is one whose audit ACEs name nobody or an id >= 1e9 (`ErrUnpreservab
 at `2e0ad61` with targeted reruns at `959c505` and on the released exe (`smb/README.md` status).
 Phase 3 SACL writes are built but not yet qualified. On a plan with a `sacl:` rule, `check` creates
 and removes a disposable probe under `--probe-dir` or ROOT to prove the audit bypass, so it is no
-longer read-only on the share (`smb/DESIGN-sacl-write.md` section 6).
+longer read-only on the share (`smb/DESIGN-sacl-write.md` section 6). `apply --checkpoint` writes
+checkpoint v2 (7.1): it records each directory's compare-time SACL before any write in it, `--resume`
+works on schema 3 plans, and a v1 checkpoint is never resumed.
 Build, test and layout live in `smb/CLAUDE.md`.
 
 ## Tuning sweeper

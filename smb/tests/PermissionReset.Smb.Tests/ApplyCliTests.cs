@@ -142,7 +142,7 @@ public sealed class ApplyCliTests : IDisposable
         r = Run(tree, "apply", "--checkpoint", cp, plan, "R");
         Assert.Equal(0, r.Code);
         Assert.Contains("apply: complete", r.Err);
-        Assert.StartsWith("permissionreset-smb checkpoint v1 ", File.ReadLines(cp).First());
+        Assert.StartsWith("permissionreset-smb checkpoint v2 ", File.ReadLines(cp).First());
     }
 
     [Fact]
@@ -314,6 +314,28 @@ public sealed class ApplyCliTests : IDisposable
     }
 
     [Fact]
+    public void TheSummaryCountsSaclFormsOnASaclPlanOnly()
+    {
+        // win01-lab's #93 probe, finding a: the forms: line counts DACL forms only, so a keep_dacl
+        // run showed all zeros. A plan with a sacl: rule adds a sacl forms: line after it, in check
+        // and in apply; a plan without one prints the phase 2 summary unchanged.
+        foreach (var cmd in new[] { "check", "apply" })
+        {
+            var r = Run(NeverAudited(), cmd, PlanFile(AuditedPlan()), @"\\array\share\dept");
+            Assert.True(r.Code == 0, r.Err);
+            var forms = r.Err.Split('\n').ToList();
+            int d = forms.FindIndex(l => l.StartsWith($"{cmd}: forms: "));
+            int sl = forms.FindIndex(l => l.StartsWith($"{cmd}: sacl forms: "));
+            Assert.True(d >= 0 && sl == d + 1, r.Err);
+            Assert.Matches(@"inherits [1-9]", forms[sl]);       // a and a/f.txt inherit the root's audit ACEs
+            Assert.Matches(@"protected [1-9]", forms[sl]);      // the root
+        }
+        var plain = Run(NeverAudited(), "check", PlanFile(Usual), "R");
+        Assert.Contains("check: forms: ", plain.Err);
+        Assert.DoesNotContain("sacl forms:", plain.Err);
+    }
+
+    [Fact]
     public void ApplyWithASaclPlanAndNoEvidenceDirPrintsTheProbeEventsAsNotes()
     {
         // Decision 18: without an evidence directory the probe's writes, read-backs and removals
@@ -399,6 +421,40 @@ public sealed class ApplyCliTests : IDisposable
         var plan = PlanFile(Usual);
         Assert.Equal(0, Run(tree, "check", "--validate", plan, "R").Code);
         Assert.Equal(1, Run(tree, "check", "--validate", "--root-protected", plan, "R").Code);
+    }
+
+    // ---- phase 3: checkpoint v2 (smb/DESIGN-sacl-write.md 7.1) -----------------------------------------
+
+    [Fact]
+    public void ASaclPlanCheckpointResumesAndItsHeaderBindsTheRun()
+    {
+        var cp = Temp("cp");
+        var plan = PlanFile(AuditedPlan());
+        var tree = NeverAudited();
+        Assert.Equal(0, Run(tree, "apply", "--checkpoint", cp, plan, "R").Code);
+        var header = File.ReadLines(cp).First();
+        Assert.Contains("checkpoint v2 ", header);
+        Assert.Contains("root-sacl-protected=False", header);
+        Assert.Contains("principals=", header);
+        Assert.Contains("sai-rule=protected-clear,unprotected-set", header);
+        Assert.Contains(File.ReadLines(cp), l => l.StartsWith("{\"dir\":"));   // the per-directory records
+
+        var resumed = Run(tree, "apply", "--checkpoint", cp, "--resume", plan, "R");
+        Assert.Equal(0, resumed.Code);
+        Assert.Contains("apply: complete", resumed.Err);
+    }
+
+    [Fact]
+    public void AV1CheckpointIsRefusedOnResumeAndNothingIsWritten()
+    {
+        var cp = Temp("cp");
+        File.WriteAllText(cp, "permissionreset-smb checkpoint v1 plan=x root=R root-protected=False\n\"\"\n");
+        var tree = NeverAudited();
+        var r = Run(tree, "apply", "--checkpoint", cp, "--resume", PlanFile(AuditedPlan()), "R");
+        Assert.Equal(1, r.Code);
+        Assert.Contains("checkpoint v1", r.Err);
+        Assert.Contains("never resumes a v1 checkpoint", r.Err);
+        Assert.False(TreeWritten(tree));
     }
 
     [Theory]

@@ -637,26 +637,172 @@ public class SaclWalkTests
         Assert.Equal([AuditDir], tree.Objs[""].Sacl);
     }
 
-    // ---- resume in saclMode (DESIGN-Q until checkpoint v2) ---------------------------------------------------
+    // ---- the pre-run SACL in memory (7.1, decision 13; #92 review question Q1) -----------------------
+
+    [Fact]
+    public void AGrandchildThatShouldHaveFollowedThisRunsWriteStopsOnG1Sacl()
+    {
+        // P (the root) is written and C follows its write by propagation, so C's fresh read already
+        // carries the parent's post-write output. Its grandchild G reads S:AI empty (made to not
+        // follow). C's compare-time read is what it passed down before any write — nothing — so G
+        // should have followed this run's write and did not: G1-SACL, not a plain Write (#92 review
+        // Q1; without the pre-run reconstruction this comes out Write).
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["c"] = new(true, DirInherited, false),
+            ["c/g"] = new(true, DirInherited, false),
+        });
+        tree.AfterWrite = rel =>
+        {
+            if (rel == "") lock (tree.Objs) tree.Objs["c/g"] = tree.Objs["c/g"] with { Sacl = null };
+        };
+        var (recs, s) = Apply(AuditedPlan(), tree);
+        Assert.False(s.Complete);
+        Assert.StartsWith("G1-SACL:", s.Stop);
+        Assert.Equal(Outcome.Ok, At(recs, "c").Outcome);           // it followed the write, as the array does (K10)
+        var g = At(recs, "c/g");
+        Assert.Equal(Outcome.Error, g.Outcome);
+        Assert.Contains("G1-SACL:", g.Detail);
+        Assert.Equal(Outcome.Error, g.SaclOutcome);
+        Assert.Single(tree.Writes);                                // the root, before the guard fired
+    }
+
+    [Fact]
+    public void AFrozenCopyThatEqualsTheNewOutputIsTakenForAFollowerAndStopsOnG1Sacl()
+    {
+        // The state the in-memory reconstruction cannot tell apart (PR #95 review, finding 1). The
+        // root passed nothing before the run. C holds a frozen copy of its inherited audit ACEs that
+        // equals what the root passes after this run's write. G reads S:AI empty. C did not follow
+        // (its inherited part never matched what the root passed), so G is really a pre-run freeze,
+        // a Write. But C's fresh read is the same bytes a follower would hold, so the walk takes C
+        // for a follower and G for a child that should have followed: G1-SACL. The walk resolves
+        // this toward the stop, which writes nothing below the root. A fresh run without --resume
+        // converges, because the root is then right and not written, so nothing is reconstructed.
+        var frozen = Inheritance.Inherit([AuditDir], childIsDir: true).ToArray();
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true),
+            ["c"] = new(true, DirInherited, false, Sacl: frozen, SaclEverWritten: true),
+            ["c/g"] = new(true, DirInherited, false, SaclEverWritten: true),
+        });
+        var (recs, s) = Apply(AuditedPlan(), tree);
+        Assert.False(s.Complete);
+        Assert.StartsWith("G1-SACL:", s.Stop);
+        Assert.Contains("G1-SACL:", At(recs, "c/g").Detail);
+        Assert.Single(tree.Writes);                                // the root only
+        var (again, s2) = Apply(AuditedPlan(), tree);
+        Assert.Null(s2.Stop);
+        Assert.Equal(Outcome.Written, At(again, "c/g").Outcome);   // the pre-run freeze, rewritten
+    }
+
+    // ---- resume in saclMode, checkpoint v2 (7.1, decision 13) ------------------------------------------------
 
     sealed class MemCheckpoint(params string[] done) : ICheckpoint
     {
         public readonly HashSet<string> Set = [.. done];
+        public readonly Dictionary<string, IReadOnlyList<Ace>> Sacls = new(StringComparer.Ordinal);
         public bool IsDone(string rel) => Set.Contains(rel);
         public void Done(string rel) { lock (Set) Set.Add(rel); }
+        public bool TryGetCompareSacl(string rel, out IReadOnlyList<Ace> sacl) => Sacls.TryGetValue(rel, out sacl!);
+        public void RecordCompareSacl(string rel, IReadOnlyList<Ace> sacl) { lock (Set) Sacls.TryAdd(rel, sacl); }
+    }
+
+    // The root after an earlier run wrote its SACL (S:P, ever written), with a never-ACL-written
+    // child directory that did not follow (S:AI empty).
+    static FakeTree WrittenRoot() => new(new()
+    {
+        [""] = new(true, DirWant, true, Sacl: [AuditDir], SaclProtected: true, SaclEverWritten: true),
+        ["c"] = new(true, DirInherited, false),
+    });
+
+    [Fact]
+    public void AResumeTellsG1SaclFromTheCheckpointRecord()
+    {
+        // Run 2 of a run whose P passed nothing down before its write (its record says so). Without
+        // the in-memory compare-time read the record is what stops C from reading as a pre-run
+        // freeze: C should have followed run 1's write and did not, so the resume stops on G1-SACL.
+        var tree = WrittenRoot();
+        var cp = new MemCheckpoint();
+        cp.Sacls[""] = [];
+        var (recs, s) = Apply(AuditedPlan(), tree, cp: cp);
+        Assert.False(s.Complete);
+        Assert.StartsWith("G1-SACL:", s.Stop);
+        var c = At(recs, "c");
+        Assert.Equal(Outcome.Error, c.Outcome);
+        Assert.Contains("G1-SACL:", c.Detail);
+        Assert.Empty(tree.Writes);                               // a guard writes nothing
+
+        // The same tree, a checkpoint with no record for P: the fresh read stands in as the
+        // compare-time state (a pre-run freeze: P already passed ACEs down), so C is a plain Write.
+        var (again, s2) = Apply(AuditedPlan(), WrittenRoot(), cp: new MemCheckpoint());
+        Assert.Null(s2.Stop);
+        Assert.Equal(Outcome.Written, At(again, "c").SaclOutcome);
+        Assert.Contains("frozen copy from before this run", At(again, "c").Detail);
     }
 
     [Fact]
-    public void SaclModeIgnoresCheckpointDirectoryCompleteness()
+    public void AResumeTellsAPreRunFreezeFromTheCheckpointRecord()
     {
-        // DESIGN-Q: a v1 checkpoint's done-directories do not skip files in saclMode — complete in
-        // v1 means right on the DACL only, and a resume must still see every SACL. Checkpoint v2
-        // (7.1, decision 13) records the compare-time SACL and restores skipping; it is a later
-        // slice.
-        var tree = FreezeTree();
-        var (recs, s) = Apply(AuditedPlan(), tree, cp: new MemCheckpoint("a"));
-        Assert.Equal(0, s.Resumed);
-        Assert.Contains(recs, r => r.Path == "a/f.txt");
+        // The record says P passed audit ACEs down before any write of run 1, so C's S:AI empty
+        // state predates the run: a plain Write that makes it dynamic (3.2, K10), never a stop.
+        var tree = WrittenRoot();
+        var cp = new MemCheckpoint();
+        cp.Sacls[""] = [AuditDir];
+        var (recs, s) = Apply(AuditedPlan(), tree, cp: cp);
         Assert.True(s.Complete);
+        var c = At(recs, "c");
+        Assert.Equal(Outcome.Written, c.Outcome);
+        Assert.Equal(Outcome.Written, c.SaclOutcome);
+        Assert.Contains("frozen copy from before this run", c.Detail);
+        Assert.Equal(SecurityInformation.Sacl | SecurityInformation.UnprotectedSacl, Assert.Single(tree.Writes).Info);
+    }
+
+    [Fact]
+    public void SaclModeResumeSkipsTheFilesOfCompleteDirectories()
+    {
+        // 7.1: done(ok) already requires both part verdicts right, so a done directory's files are
+        // right on every part and the resume skips them without reading, as phase 2 does.
+        var tree = new FakeTree(new()
+        {
+            [""] = new(true, DirWant, true, Sacl: [AuditDir], SaclProtected: true, SaclEverWritten: true),
+            ["d"] = new(true, DirInherited, false, Sacl: [AU(ID | OI | CI | SA | FA, Users)], SaclEverWritten: true),
+            ["d/f.txt"] = new(false, FileInherited, false, Sacl: [AU(ID | OI | SA | FA, Users)], SaclEverWritten: true),
+        });
+        var (recs, s) = Apply(AuditedPlan(), tree, cp: new MemCheckpoint("d"));
+        Assert.True(s.Complete);
+        Assert.Equal(1, s.Resumed);
+        Assert.DoesNotContain(recs, r => r.Path == "d/f.txt");
+        Assert.DoesNotContain(tree.SaclReads, r => r == "d/f.txt");   // skipped without being read
+        Assert.Equal(Outcome.Ok, At(recs, "d").Outcome);              // the directory is still visited
+    }
+
+    [Fact]
+    public void APersistentFileErrorKeepsItsDirectoryIncompleteAndTheResumeRereadsIt()
+    {
+        // G8 (decision 19, 7.1's PS-11 rule): a file whose read fails keeps its directory out of
+        // the checkpoint, so the resume reads the file again — as the Go tool's PS-11 rule does —
+        // and nothing is skipped silently.
+        FakeTree Tree() => new(new()
+        {
+            [""] = new(true, DirWant, true, Sacl: [AuditDir], SaclProtected: true, SaclEverWritten: true),
+            ["e"] = new(true, DirInherited, false, Sacl: [AU(ID | OI | CI | SA | FA, Users)], SaclEverWritten: true),
+            ["e/bad.txt"] = new(false, FileInherited, false),
+        });
+        var cp = new MemCheckpoint();
+        var tree = Tree();
+        tree.SaclReadFails.Add("e/bad.txt");
+        var (_, s1) = Apply(AuditedPlan(), tree, cp: cp);
+        Assert.False(s1.Complete);
+        Assert.DoesNotContain("e", cp.Set);                     // a directory is done only when its own files are right
+        Assert.Contains("", cp.Set);                            // the root's own files are all right, so it is done
+
+        var tree2 = Tree();
+        tree2.SaclReadFails.Add("e/bad.txt");
+        var (recs2, s2) = Apply(AuditedPlan(), tree2, cp: cp);
+        Assert.False(s2.Complete);
+        Assert.Equal(0, s2.Resumed);
+        Assert.Equal(Outcome.Error, At(recs2, "e/bad.txt").Outcome);
+        Assert.Equal(1, tree2.SaclReads.Count(r => r == "e/bad.txt")); // re-read, like a fresh run
     }
 }
