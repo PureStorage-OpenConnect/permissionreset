@@ -488,6 +488,11 @@ public sealed class Checker
                 // unclassifiable; the DACL part stands on its own.
                 sp = new SaclPart(null, Outcome.Error, "parent's SACL holds an opaque ACE; cannot classify");
             else
+                // DESIGN-Q (accepted in #92 review, design question 1): in apply the compare-time
+                // SACL of an object under an ancestor written this run already reflects that
+                // write, so a child that should have followed and did not reads as a plain Write,
+                // not a G1-SACL stop. The object still ends right; checkpoint v2's per-directory
+                // record (7.1) is where this closes. G1-SACL does not fire in every such case.
                 sp = SaclClassifier.Classify(parent is null, opt.Apply, opt.RootSaclProtected, wantedSacl,
                     inheritedSacl, parentSaclNow, parentSaclCompare, storedSacl, storedSaclProtected, saclAncestorWrites);
             if (wantedSacl is not null && sp is { Form: not null })
@@ -514,9 +519,9 @@ public sealed class Checker
 
         bool Right(Outcome o) => o is Outcome.Ok or Outcome.Written or Outcome.Keep;
 
-        // The node the directory's children need. BuildNode is reached only when the object ended
-        // classified (writes may have failed in a way that leaves the parent's state knowable to
-        // the walk, like an encode refusal; the Fail paths above are the ones that drop subtrees).
+        // The node the directory's children need. BuildNode is reached only when every part that
+        // needed a write was written (or none needed one); every part failure, an encode refusal
+        // included, drops the subtree through Fail instead.
         Node? BuildNode(bool daclWritten, bool saclWritten)
         {
             if (!isDir) return null;
@@ -591,6 +596,13 @@ public sealed class Checker
                     sacOut: saclNeedsWrite ? Outcome.Stopped : sp!.Outcome));
             }
 
+            // A directory with no acl: hands its stored DACL to its children, so phase 2's two
+            // refusals (an absent DACL, an ACE type a reset does not model) come before any write:
+            // a SACL-only write must not go out on a directory whose subtree is then dropped.
+            if (saclNeedsWrite && KeptDirDaclRefusal() is string refusal)
+                return Fail(Rec(Outcome.Error, Detail(og is null ? refusal : $"{og}; {refusal}", $"not written: {refusal}"),
+                    dacOut: Outcome.Error, sacOut: Outcome.Error));
+
             if (daclNeedsWrite || saclNeedsWrite)
             {
                 if (sp is null)
@@ -619,9 +631,10 @@ public sealed class Checker
                     return Fail(rec);
                 }
                 if (wr.DropSubtree)
-                    // DESIGN-Q: a directory whose SACL or two-part write failed drops its subtree,
-                    // as phase 2 does on a single-write failure (the record carries which parts
-                    // were written, and its parent directory is not checkpointed).
+                    // A directory whose SACL or two-part write failed, an encode refusal included,
+                    // drops its subtree, as phase 2 does on a single-write failure (the record
+                    // carries which parts were written, and its parent directory is not
+                    // checkpointed).
                     return Fail(rec);
                 emit(rec);
                 done?.Invoke(Right(dacFinal) && Right(sacFinal));
@@ -634,16 +647,17 @@ public sealed class Checker
         var merged = sp is null ? dacOutcome : SaclClassifier.MergeOutcome(dacOutcome, sp.Outcome);
         emit(Rec(merged, Detail(dacDetail, sp?.Detail)));
         done?.Invoke(Right(dacOutcome) && (sp is null || Right(sp.Outcome)));
-        if (wanted is null && isDir)
-        {
-            // An absent DACL (everyone full control) is not an empty one: there is nothing for the
-            // children to inherit from that a reset models.
-            if (stored.Dacl is null)
-                return Fail(new CheckRecord(rel, true, rule.Label, null, Outcome.Error, "its DACL is absent, so its children cannot be classified"));
-            if (storedAces.Any(a => a is null))
-                return Fail(new CheckRecord(rel, true, rule.Label, null, Outcome.Error, "its DACL holds an ACE type a reset does not model, so its children cannot be classified"));
-        }
+        if (KeptDirDaclRefusal() is string keptRefusal)
+            return Fail(new CheckRecord(rel, true, rule.Label, null, Outcome.Error, keptRefusal));
         return BuildNode(daclWritten: false, saclWritten: false);
+
+        // An absent DACL (everyone full control) is not an empty one: there is nothing for the
+        // children to inherit from that a reset models.
+        string? KeptDirDaclRefusal() =>
+            wanted is not null || !isDir ? null
+            : stored.Dacl is null ? "its DACL is absent, so its children cannot be classified"
+            : storedAces.Any(a => a is null) ? "its DACL holds an ACE type a reset does not model, so its children cannot be classified"
+            : null;
     }
 
     static string Show(string rel) => rel.Length == 0 ? "the root" : rel;
@@ -715,8 +729,9 @@ public sealed class Checker
     // actually written in write order. DropSubtree marks failures after which the walk can no
     // longer trust what the object holds (a write error, a G2 failure, a changed object): below a
     // directory the part failure becomes a dropped subtree, as phase 2 does. Guard marks a
-    // run-stopper (G2, or a write whose result is unknowable, 4.4). An encode refusal is neither:
-    // the object was never written, so its children go on.
+    // run-stopper (G2, or a write whose result is unknowable, 4.4). An encode refusal is not a
+    // run-stopper, but it drops the subtree too: the part was not written, so the directory does
+    // not hold what its children would be classified against.
     readonly record struct TwoPartWrite(Outcome? Dacl, string? DaclDetail, Outcome? Sacl, string? SaclDetail,
         string? Parts, string? Before, string? After, string? Error, bool Guard, bool DropSubtree);
 
@@ -816,7 +831,11 @@ public sealed class Checker
             }
             if (encode is not null)
             {
+                // The part was never sent, but the directory does not hold what its children
+                // would be classified against, so its subtree is dropped as phase 2 drops it on
+                // any write error (4.2: children are queued only after every part passed G2).
                 Failed(Outcome.Error, encode);
+                drop = true;
                 continue;
             }
             Descriptor preThis = before;
