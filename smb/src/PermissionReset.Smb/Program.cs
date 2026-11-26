@@ -163,6 +163,12 @@ static class Cli
         try { deps.EnablePrivilege("SeBackupPrivilege"); }
         catch (Win32Exception e) { return Fail(stderr, $"check: {e.Message} (Win32 error {e.NativeErrorCode})", 1); }
         var root = pos[1];
+        // Phase 3 (smb/DESIGN-sacl-write.md, section 6): no tree object's SACL is read before a probe
+        // proves the audit bypass, and the probe is not wired into check yet. Until it is, a plan
+        // with a sacl: rule is refused here, before anything is read.
+        var saclRules = plan.Rules.Prepend(plan.Default).Where(r => r.SaclSet).Select(r => r.Label).ToList();
+        if (saclRules.Count > 0)
+            return Fail(stderr, $"check: rule(s) {string.Join(", ", saclRules)} set sacl:, and this build does not yet prove the audit bypass before reading SACLs (phase 3); use a plan without sacl: here", 1);
         // Principal resolution happens inside the Checker's constructor, before any tree read. A
         // lookup failure that the Checker could not classify as an unresolved principal (a thrown
         // domain/trust error is folded in; this is the belt for anything else) is still refused,

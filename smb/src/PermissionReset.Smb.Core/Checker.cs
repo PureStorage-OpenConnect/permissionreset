@@ -55,42 +55,59 @@ public readonly record struct TreeObject(byte[] Descriptor, bool IsDir, bool IsR
 //   Excluded, Reparse (skipped, never followed), Error.
 public enum Outcome { Ok, Write, Follows, Written, Stopped, Keep, Excluded, Reparse, Error }
 
-// Parts names what a write set ("dacl", "dacl,owner"); Before and After are the raw descriptors,
-// base64, around a write. Only Written records carry them.
+// Parts names what a write set ("dacl", "dacl,owner"; in saclMode "sacl" and the two-write
+// combinations like "sacl,dacl", smb/DESIGN-sacl-write.md 4.2), Before and After are the raw
+// descriptors, base64, around a write. SaclForm is the desired SACL form, DaclOutcome and
+// SaclOutcome the two part verdicts (saclMode only, 4.6; a wholly excluded, reparse or failed
+// object has no parts). Only in saclMode do records carry the SACL fields.
 public sealed record CheckRecord(string Path, bool IsDir, string? Rule, Form? Form, Outcome Outcome, string? Detail,
-    string? Parts = null, string? Before = null, string? After = null);
+    string? Parts = null, string? Before = null, string? After = null,
+    Form? SaclForm = null, Outcome? DaclOutcome = null, Outcome? SaclOutcome = null);
 
 public sealed class CheckSummary
 {
     readonly ConcurrentDictionary<Outcome, long> outcomes = new();
     readonly ConcurrentDictionary<Form, long> forms = new();
+    readonly ConcurrentDictionary<Form, long> saclForms = new();
     public long NotProcessed;   // directories whose children were not reached
     public long Resumed;        // files skipped because the checkpoint had their directory complete
-    public string? Stop;        // why an apply stopped (G1, G2), or null
+    public string? Stop;        // why an apply stopped (G1, G1-SACL, G2), or null
 
     public void Add(CheckRecord r)
     {
         outcomes.AddOrUpdate(r.Outcome, 1, (_, n) => n + 1);
         if (r.Form is Form f) forms.AddOrUpdate(f, 1, (_, n) => n + 1);
+        if (r.SaclForm is Form sf) saclForms.AddOrUpdate(sf, 1, (_, n) => n + 1);
     }
 
     public long Count(Outcome o) => outcomes.GetValueOrDefault(o);
     public long Count(Form f) => forms.GetValueOrDefault(f);
+    public long CountSacl(Form f) => saclForms.GetValueOrDefault(f);
 
     // Complete is true when every object was reached, none failed and nothing stopped the run.
     public bool Complete => Stop is null && NotProcessed == 0 && Count(Outcome.Error) == 0 && Count(Outcome.Stopped) == 0;
 }
 
-// Options for a walk. Apply needs an IWritableTree. RootProtected forces the root's form to
-// Protected (design 2.2: a frozen ID copy on the root cannot be detected).
-public sealed record WalkOptions(bool Apply = false, bool RootProtected = false);
+// WriteOrder picks which of a two-part object's writes goes first when both its DACL and its SACL
+// differ (smb/DESIGN-sacl-write.md, 4.2): the right order is customer-specific, so it is a switch.
+// SaclFirst is the default because a failed run should not leave newly granted access unaudited.
+public enum WriteOrder { SaclFirst, DaclFirst }
 
-// Checker is the top-down walk of the write path (smb/DESIGN-write-path.md, sections 2, 3 and 5).
-// For every object it picks the desired DACL from the plan and the parent's desired DACL, reads
-// what is stored, and says whether the object is right. A dry run (check) stops there. Apply
-// (phase 2) writes each object that differs, the DACL only, plus owner and group when the rule
-// names them, and reads it back; a directory is finished before its children are read, so each
-// child is compared with a parent that is already right.
+// Options for a walk. Apply needs an IWritableTree. RootProtected forces the root's DACL form to
+// Protected (design 2.2: a frozen ID copy on the root cannot be detected); RootSaclProtected does
+// the same for its SACL, independently (3.2, decision 4). Order applies only to objects whose two
+// parts are both written.
+public sealed record WalkOptions(bool Apply = false, bool RootProtected = false,
+    WriteOrder Order = WriteOrder.SaclFirst, bool RootSaclProtected = false);
+
+// Checker is the top-down walk of the write path (smb/DESIGN-write-path.md, sections 2, 3 and 5;
+// the SACL half is smb/DESIGN-sacl-write.md). For every object it picks the desired DACL from the
+// plan and the parent's desired DACL, reads what is stored, and says whether the object is right.
+// A dry run (check) stops there. Apply (phase 2) writes each object that differs, the DACL only,
+// plus owner and group when the rule names them, and reads it back; a directory is finished before
+// its children are read, so each child is compared with a parent that is already right. When any
+// rule sets sacl: (saclMode, smb/DESIGN-sacl-write.md 2.3) every object's SACL is classified too,
+// both parts are written (each as its own call, 4.1) and the record carries the two part verdicts.
 public sealed class Checker
 {
     readonly Plan plan;
@@ -98,7 +115,14 @@ public sealed class Checker
     readonly ITree tree;
     readonly WalkOptions opt;
     readonly Dictionary<PlanRule, List<Ace>?> want = new(ReferenceEqualityComparer.Instance);
+    readonly Dictionary<PlanRule, List<Ace>?> wantSacl = new(ReferenceEqualityComparer.Instance);
     readonly Dictionary<PlanRule, (string? Owner, string? Group)> ownerGroup = new(ReferenceEqualityComparer.Instance);
+
+    // saclMode is "any rule sets sacl:" (2.3): the compare read then covers the SACL and every
+    // object's SACL is classified, rules without a sacl: key included (a kept SACL is still a
+    // follower, a frozen copy an error, never a write). Keyed off sacl_set, never off the list
+    // being empty: sacl: [] is a present-empty S:P write, not an absent key.
+    public bool SaclMode { get; }
 
     // Principals is every name the plan gives without a SID, with the SID it resolved to on this
     // host (design 2.3: printed and recorded in the evidence).
@@ -114,12 +138,11 @@ public sealed class Checker
     // (RuleSelector.RootName of the ROOT argument), which the rules match the root by.
     public Checker(Plan plan, ITree tree, string rootName, Func<string, string?> resolve, WalkOptions? options = null)
     {
-        // DESIGN-Q: smb/DESIGN-sacl-write.md 2.1 has phase 3 accept schema 3, but this slice
-        // builds only its plan checks (#78, 2.2); SACL classification and writes are another
-        // slice, and running a schema 3 plan under DACL-only meaning would misreport. Refused
-        // here until that slice lands.
-        if (plan.Schema != Plan.SmbSchema)
-            throw new PlanException($"check needs a schema {Plan.SmbSchema} plan (a DACL-only build-spec --smb-plan; schema 3 SACL plans are not walkable yet); this one is schema {plan.Schema}");
+        // Phase 3 accepts schema 3 (the plan-side SACL fields it needs were checked at load) and
+        // keeps reading schema 2 with its phase 2 meaning: schema 2 with a sacl: rule is refused
+        // at load (2.1), so here schema 2 means DACL-only.
+        if (plan.Schema is not (Plan.SmbSchema or Plan.SmbSaclSchema))
+            throw new PlanException($"check needs a schema {Plan.SmbSchema} or {Plan.SmbSaclSchema} plan (a build-spec --smb-plan; schema 3 when any rule sets sacl:); this one is schema {plan.Schema}");
         opt = options ?? new WalkOptions();
         if (opt.Apply && tree is not IWritableTree)
             throw new ArgumentException("apply needs a writable tree", nameof(tree));
@@ -144,25 +167,46 @@ public sealed class Checker
             else resolved[principal] = s;
             return s;
         }
+        var creatorRefused = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var r in plan.Rules.Prepend(plan.Default))
         {
             want[r] = r.Dacl?.Select(a => new Ace(a.WindowsType, a.WindowsFlags, a.WindowsMask, Sid(a.Principal, a.Sid) ?? "")).ToList();
-            // Principals that appear only in sacl: entries resolve here too (#78). Nothing is
-            // built from them yet: the SACL classification slice turns planRule.Sacl into per-rule
-            // lists, the way want holds the DACL ones.
-            foreach (var a in r.Sacl ?? []) Sid(a.Principal, a.Sid);
+            wantSacl[r] = r.SaclSet
+                ? (r.Sacl ?? []).Select(a => new Ace(a.WindowsType, a.WindowsFlags, a.WindowsMask, Sid(a.Principal, a.Sid) ?? "")).ToList()
+                : null;
+            // smb/DESIGN-sacl-write.md 2.2 item 3 (decision 11): a name that *resolves* to one of
+            // the four creator SIDs is refused the way Plan.CheckAces refuses the literal SIDs —
+            // what a creator SID inherits as depends on who created each object, so a directory
+            // whose desired SACL names one would leave every child unclassifiable.
+            foreach (var a in r.Sacl ?? [])
+            {
+                var sid = Sid(a.Principal, a.Sid);
+                if (sid is not null && Inheritance.CreatorSids.Contains(sid))
+                    creatorRefused.Add(a.Principal.Length > 0 ? a.Principal : sid);
+            }
             ownerGroup[r] = (r.Owner.Length > 0 ? Sid(r.Owner, "") : null, r.Group.Length > 0 ? Sid(r.Group, "") : null);
             SetsOwnerOrGroup |= r.Owner.Length > 0 || r.Group.Length > 0;
         }
         if (unresolved.Count > 0)
             throw new PlanException($"these principals do not resolve to a SID on this host: {string.Join(", ", unresolved)}");
+        if (creatorRefused.Count > 0)
+            throw new PlanException($"these sacl: principals resolve to a creator SID (S-1-3-0 to S-1-3-3), which is refused (smb/DESIGN-sacl-write.md 2.2): {string.Join(", ", creatorRefused)}");
         Principals = resolved;
+        SaclMode = plan.Rules.Prepend(plan.Default).Any(r => r.SaclSet);
     }
 
     // Node is a directory waiting to be listed, with what its children need from it: its desired
     // DACL (the input to their inheritance after the run's writes), its stored DACL (the input to
-    // their dynamic-tracking evidence), and whether it or an ancestor will be written.
-    sealed record Node(string Rel, List<Ace> Acl, List<Ace> StoredAcl, bool AncestorWrites);
+    // their dynamic-tracking evidence), and whether it or an ancestor will be written. In saclMode
+    // the SACL counterparts join them (2.4, 3.2): Sacl is the SACL the children inherit from (its
+    // desired one, or its stored one for a kept directory), StoredSaclNow what it passes down
+    // after this run's write of it, StoredSaclAtCompare the read before any write of this run —
+    // the state that tells a pre-run freeze from G1-SACL (3.2, 4.4) —, SaclAncestorWrites whether
+    // an ancestor's SACL will be written, and SaclOpaqueReason why the children's SACL parts
+    // cannot be classified (an opaque ACE in an unwritten stored SACL above them, 3.2).
+    sealed record Node(string Rel, List<Ace> Acl, List<Ace> StoredAcl, bool AncestorWrites,
+        List<Ace>? Sacl = null, List<Ace>? StoredSaclNow = null, List<Ace>? StoredSaclAtCompare = null,
+        bool SaclAncestorWrites = false, string? SaclOpaqueReason = null);
 
     // stop is set once, by the first G1 or G2 failure; after it no new write starts and no new
     // directory is listed. A write already past its check finishes and is read back.
@@ -230,7 +274,13 @@ public sealed class Checker
                         Interlocked.Increment(ref summary.NotProcessed);
                         continue;
                     }
-                    bool resumed = opt.Apply && checkpoint?.IsDone(n.Rel) == true;
+                    // DESIGN-Q: in saclMode a v1 checkpoint's done-directories are not trusted to
+                    // skip files — complete in v1 means right on the DACL only, and a resume must
+                    // still tell a pre-run freeze from G1-SACL on the objects it re-reads, which
+                    // needs the compare-time SACL the v1 format does not record. Checkpoint v2
+                    // (smb/DESIGN-sacl-write.md 7.1, decision 13) is a later slice; until it lands
+                    // a saclMode apply re-reads every file.
+                    bool resumed = opt.Apply && !SaclMode && checkpoint?.IsDone(n.Rel) == true;
                     bool filesRight = true;
                     foreach (var e in entries)
                     {
@@ -287,6 +337,9 @@ public sealed class Checker
     static List<Ace> StoredInherited(Descriptor d) =>
         (d.Dacl?.Aces ?? []).Select(Ace.FromView).Where(a => a is { Inherited: true }).Select(a => a!.Value).ToList();
 
+    static List<Ace> StoredInheritedSacl(Descriptor d) =>
+        (d.Sacl?.Aces ?? []).Select(Ace.FromView).Where(a => a is { Inherited: true }).Select(a => a!.Value).ToList();
+
     static bool IsProtected(Descriptor d) => (d.Control & Control.DaclProtected) != 0;
 
     // Visit handles one object and, for a directory, returns the node its children need (null when
@@ -306,9 +359,11 @@ public sealed class Checker
 
         TreeObject read;
         Descriptor stored;
-        // A DACL-only read for the compare, in apply too: most objects need no write, and the SACL
-        // (G2's before-image) is read only for those that do, just before the write (Write).
-        try { read = tree.Read(rel, withSacl: false); stored = Descriptor.Decode(read.Descriptor); }
+        // saclMode's compare read covers the SACL (2.3: every object is classified on both parts,
+        // and the compare-time SACL is what a pre-run freeze is told from G1-SACL against, 3.2).
+        // Without a sacl: rule the DACL-only compare read of phase 2 stands, and the SACL is read
+        // only just before a write, as G2's before-image.
+        try { read = tree.Read(rel, withSacl: SaclMode); stored = Descriptor.Decode(read.Descriptor); }
         catch (Exception e)
         {
             return Fail(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Error, $"read: {e.Message}"));
@@ -331,98 +386,278 @@ public sealed class Checker
         // What the stored parent currently passes down (the dynamic-tracking evidence of F2), and
         // what this object would inherit once the run's parents are written: from its parent's
         // desired DACL, or for the root, what the array says it inherits now (its stored ID ACEs;
-        // design 2.2).
+        // design 2.2). In saclMode the SACL halves are computed alongside.
         List<Ace>? parentPropagates = null;
         List<Ace> inherited;
+        AclView? storedSacl = null;
+        bool storedSaclProtected = false;
+        List<Ace> storedSaclAces = [], inheritedSacl = [], parentSaclNow = [], parentSaclCompare = [];
         try
         {
             if (parent is not null) parentPropagates = Inheritance.Inherit(parent.StoredAcl, isDir);
             inherited = parent is null ? StoredInherited(stored) : Inheritance.Inherit(parent.Acl, isDir);
+            if (SaclMode)
+            {
+                storedSacl = stored.Sacl;
+                storedSaclProtected = (stored.Control & Control.SaclProtected) != 0;
+                storedSaclAces = (stored.Sacl?.Aces ?? []).Select(Ace.FromView).Where(a => a is not null).Select(a => a!.Value).ToList();
+                inheritedSacl = parent is null ? StoredInheritedSacl(stored) : Inheritance.Inherit(parent.Sacl!, isDir);
+                // The root has no in-walk parent to compare its inherited part against: its stored
+                // ID audit ACEs stand in, so a kept root reads as tracking by construction, as the
+                // DACL side takes the root's stored ID DACL ACEs for its desired inherited part.
+                parentSaclNow = parent is null ? inheritedSacl : Inheritance.Inherit(parent.StoredSaclNow!, isDir);
+                parentSaclCompare = parent is null ? inheritedSacl : Inheritance.Inherit(parent.StoredSaclAtCompare!, isDir);
+            }
         }
         catch (NotSupportedException e)
         {
             return Fail(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Error, e.Message));
         }
         bool ancestorWrites = parent?.AncestorWrites ?? false;
+        bool saclAncestorWrites = parent?.SaclAncestorWrites ?? false;
 
         var og = OwnerGroupDiff(rule, stored);
         var wanted = want[rule];
+
+        // ---- the DACL part verdict (phase 2's logic, unchanged) ---------------------------------
+        Outcome dacOutcome;
+        string? dacDetail;
+        Form? dacForm = null;
+        Desired? daclDesired = null;
+        string? daclDiff = null, diff, g1Dacl = null;
+        bool daclNeedsWrite = false;
         if (wanted is null)
         {
             // No acl: here. The DACL is left alone, but a named owner or group is still the
             // reset's to check, independently of the DACL (a rule can name owner:/group: alone).
             // Apply writes nothing on a rule without acl:, so a difference there is an error the
             // operator sees, not a silent Keep.
-            if (og is null) emit(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Keep, null));
-            else if (!opt.Apply) emit(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Write, og));
-            else emit(new CheckRecord(rel, isDir, rule.Label, null, Outcome.Error,
-                $"{og}; apply does not write owner or group on a rule without acl:, so it was not written"));
-            done?.Invoke(og is null);
-            if (!isDir) return null;
-            // An absent DACL (everyone full control) is not an empty one: there is nothing for the
-            // children to inherit from that a reset models.
-            if (stored.Dacl is null)
-                return Fail(new CheckRecord(rel, true, rule.Label, null, Outcome.Error, "its DACL is absent, so its children cannot be classified"));
-            if (storedAces.Any(a => a is null))
-                return Fail(new CheckRecord(rel, true, rule.Label, null, Outcome.Error, "its DACL holds an ACE type a reset does not model, so its children cannot be classified"));
-            // The children inherit what is actually stored. The inherited part is substituted for
-            // the re-derived one only when this directory provably tracks its parent and an
-            // ancestor will be written (F2, F3); otherwise nothing above changes it.
-            var acl = storedAces.Select(a => a!.Value).ToList();
-            if (!storedProtected && ancestorWrites && Tracks(acl, parentPropagates))
-                acl = acl.Where(a => !a.Inherited).Concat(inherited).ToList();
-            return new Node(rel, acl, storedAcl, ancestorWrites);
-        }
-
-        var desired = DesiredFor(wanted, inherited, parent is null);
-        var daclDiff = desired.Matches(stored.Dacl, storedProtected);
-        var diff = daclDiff ?? og;
-        // An absent DACL never follows: the array has no inherited part to re-derive.
-        bool follows = stored.Dacl is not null && Follows(desired, storedAces, storedProtected, parentPropagates);
-        Outcome outcome;
-        string? parts = null, before = null, after = null;
-        if (diff is null) outcome = Outcome.Ok;
-        else if (!opt.Apply)
-        {
-            if (ancestorWrites && follows && og is null) outcome = Outcome.Follows;
-            else
-            {
-                outcome = Outcome.Write;
-                // The frozen-copy note explains a DACL difference; it says nothing about an owner or
-                // group difference on a DACL that matched.
-                if (daclDiff is not null && desired.Form != Form.Protected && TrackableShape(desired, storedAces, storedProtected))
-                    diff += "; its inherited part does not follow its parent (a frozen copy)";
-            }
+            dacOutcome = og is null ? Outcome.Keep : (!opt.Apply ? Outcome.Write : Outcome.Error);
+            dacDetail = og is null || !opt.Apply ? og
+                : $"{og}; apply does not write owner or group on a rule without acl:, so it was not written";
+            diff = og;
         }
         else
         {
-            // Apply. The parent is already right (written and read back, or found right), so an
-            // object whose stored DACL has the shape the array keeps in step with its parent, yet
-            // whose inherited part differs from what this run computes, means Inheritance.Inherit
-            // disagrees with the array or the parent is not what the run thinks. Writing it would
-            // freeze it with no visible sign (F2). G1 (design 5.1): stop, no override.
-            if (daclDiff is not null && desired.Form != Form.Protected && TrackableShape(desired, storedAces, storedProtected))
+            daclDesired = DesiredFor(wanted, inherited, parent is null);
+            dacForm = daclDesired.Form;
+            daclDiff = daclDesired.Matches(stored.Dacl, storedProtected);
+            diff = daclDiff ?? og;
+            bool follows = stored.Dacl is not null && Follows(daclDesired, storedAces, storedProtected, parentPropagates);
+            if (diff is null) { dacOutcome = Outcome.Ok; dacDetail = null; }
+            else if (!opt.Apply)
             {
-                var why = $"G1: {Show(rel)}: its inherited part is not what its parent passes down ({daclDiff}); " +
-                    "either the inheritance function disagrees with the array or this object holds a frozen copy. No further writes were started.";
-                Stop(summary, why);
-                return Fail(new CheckRecord(rel, isDir, rule.Label, desired.Form, Outcome.Error, why));
+                if (ancestorWrites && follows && og is null) { dacOutcome = Outcome.Follows; dacDetail = diff; }
+                else
+                {
+                    dacOutcome = Outcome.Write;
+                    dacDetail = diff;
+                    // The frozen-copy note explains a DACL difference; it says nothing about an
+                    // owner or group difference on a DACL that matched.
+                    if (daclDiff is not null && daclDesired.Form != Form.Protected && TrackableShape(daclDesired, storedAces, storedProtected))
+                        dacDetail += "; its inherited part does not follow its parent (a frozen copy)";
+                }
             }
-            if (Stopped)
-                return Fail(new CheckRecord(rel, isDir, rule.Label, desired.Form, Outcome.Stopped, $"not written, the run stopped: {diff}"));
-
-            var w = Write(rel, rule, desired, stored, daclDiff is not null);
-            if (w.Error is not null)
+            else
             {
-                if (w.Guard) Stop(summary, w.Error);
-                return Fail(new CheckRecord(rel, isDir, rule.Label, desired.Form, Outcome.Error, w.Error, w.Parts, w.Before, w.After));
+                // Apply. The parent is already right (written and read back, or found right), so an
+                // object whose stored DACL has the shape the array keeps in step with its parent,
+                // yet whose inherited part differs from what this run computes, means
+                // Inheritance.Inherit disagrees with the array or the parent is not what the run
+                // thinks. Writing it would freeze it with no visible sign (F2). G1 (design 5.1):
+                // stop, no override.
+                if (daclDiff is not null && daclDesired.Form != Form.Protected && TrackableShape(daclDesired, storedAces, storedProtected))
+                {
+                    g1Dacl = $"G1: {Show(rel)}: its inherited part is not what its parent passes down ({daclDiff}); " +
+                        "either the inheritance function disagrees with the array or this object holds a frozen copy. No further writes were started.";
+                }
+                dacOutcome = Outcome.Write;
+                dacDetail = diff;
+                daclNeedsWrite = true;
             }
-            outcome = Outcome.Written;
-            (parts, before, after) = (w.Parts, w.Before, w.After);
         }
-        emit(new CheckRecord(rel, isDir, rule.Label, desired.Form, outcome, diff, parts, before, after));
-        done?.Invoke(outcome is Outcome.Ok or Outcome.Written);
-        return isDir ? new Node(rel, desired.Aces.ToList(), outcome == Outcome.Written ? desired.Aces.ToList() : storedAcl, !opt.Apply && (ancestorWrites || outcome == Outcome.Write)) : null;
+
+        // ---- the SACL part verdict (4.6) --------------------------------------------------------
+        SaclPart? sp = null;
+        Desired? saclDesired = null;
+        var wantedSacl = SaclMode ? wantSacl[rule] : null;
+        if (SaclMode)
+        {
+            if (parent?.SaclOpaqueReason is not null)
+                // 3.2: an opaque ACE in a stored SACL above makes the children's SACL parts
+                // unclassifiable; the DACL part stands on its own.
+                sp = new SaclPart(null, Outcome.Error, "parent's SACL holds an opaque ACE; cannot classify");
+            else
+                // DESIGN-Q (accepted in #92 review, design question 1): in apply the compare-time
+                // SACL of an object under an ancestor written this run already reflects that
+                // write, so a child that should have followed and did not reads as a plain Write,
+                // not a G1-SACL stop. The object still ends right; checkpoint v2's per-directory
+                // record (7.1) is where this closes. G1-SACL does not fire in every such case.
+                sp = SaclClassifier.Classify(parent is null, opt.Apply, opt.RootSaclProtected, wantedSacl,
+                    inheritedSacl, parentSaclNow, parentSaclCompare, storedSacl, storedSaclProtected, saclAncestorWrites);
+            if (wantedSacl is not null && sp is { Form: not null })
+                saclDesired = SaclModel.DesiredForSacl(wantedSacl, inheritedSacl, parent is null, opt.RootSaclProtected);
+        }
+
+        // The record carries the two part verdicts in saclMode, and is byte-identical to phase 2
+        // otherwise.
+        CheckRecord Rec(Outcome outcome, string? detail, string? parts = null, string? before = null, string? after = null,
+            Outcome? dacOut = null, Outcome? sacOut = null) =>
+            sp is null
+                ? new CheckRecord(rel, isDir, rule.Label, dacForm, outcome, detail, parts, before, after)
+                : new CheckRecord(rel, isDir, rule.Label, dacForm, outcome, detail, parts, before, after,
+                    sp.Form, dacOut ?? dacOutcome, sacOut ?? sp.Outcome);
+
+        static string? Both(string? d, string? s) => (d, s) switch
+        {
+            (null, null) => null,
+            (string dd, null) => $"dacl: {dd}",
+            (null, string ss) => $"sacl: {ss}",
+            (string dd, string ss) => $"dacl: {dd}; sacl: {ss}",
+        };
+        string? Detail(string? d, string? s) => sp is null ? d : Both(d, s);
+
+        bool Right(Outcome o) => o is Outcome.Ok or Outcome.Written or Outcome.Keep;
+
+        // The node the directory's children need. BuildNode is reached only when every part that
+        // needed a write was written (or none needed one); every part failure, an encode refusal
+        // included, drops the subtree through Fail instead.
+        Node? BuildNode(bool daclWritten, bool saclWritten)
+        {
+            if (!isDir) return null;
+            List<Ace> acl, storedNowAcl;
+            if (wanted is not null)
+            {
+                acl = daclDesired!.Aces.ToList();
+                storedNowAcl = daclWritten ? daclDesired!.Aces.ToList() : storedAcl;
+            }
+            else
+            {
+                // The children inherit what is actually stored. The inherited part is substituted
+                // for the re-derived one only when this directory provably tracks its parent and an
+                // ancestor will be written (F2, F3); otherwise nothing above changes it.
+                acl = storedAces.Select(a => a!.Value).ToList();
+                if (!storedProtected && ancestorWrites && Tracks(acl, parentPropagates))
+                    acl = acl.Where(a => !a.Inherited).Concat(inherited).ToList();
+                storedNowAcl = storedAcl;
+            }
+            var aw = !opt.Apply && (ancestorWrites || dacOutcome == Outcome.Write);
+            if (sp is null) return new Node(rel, acl, storedNowAcl, aw);
+
+            string? saclOpaque = parent?.SaclOpaqueReason;
+            if (saclOpaque is null && !saclWritten)
+                saclOpaque = SaclModel.OpaqueReason(storedSacl);
+            List<Ace> saclForChildren, storedNowSacl;
+            if (saclOpaque is null && wantedSacl is not null && saclDesired is not null)
+            {
+                saclForChildren = saclDesired.Aces.ToList();
+                storedNowSacl = saclWritten ? saclDesired.Aces.ToList() : storedSaclAces;
+            }
+            else
+            {
+                // A kept directory (3.2): the stored SACL is passed down as it is, the inherited
+                // part substituted for the re-derived one only when the directory provably tracks
+                // its parent and an ancestor's SACL will be written. The same stored-as-is stands
+                // when an opaque ACE made the desired form untrustworthy.
+                saclForChildren = storedSaclAces;
+                if (saclOpaque is null && !storedSaclProtected && saclAncestorWrites && TracksSacl(storedSaclAces, parentSaclNow))
+                    saclForChildren = storedSaclAces.Where(a => !a.Inherited).Concat(inheritedSacl).ToList();
+                storedNowSacl = storedSaclAces;
+            }
+            var saw = !opt.Apply && (saclAncestorWrites || sp!.Outcome == Outcome.Write);
+            return new Node(rel, acl, storedNowAcl, aw, saclForChildren, storedNowSacl, storedSaclAces, saw, saclOpaque);
+        }
+
+        // ---- apply: guards, then the writes ------------------------------------------------------
+        if (opt.Apply)
+        {
+            if (g1Dacl is not null)
+            {
+                Stop(summary, g1Dacl);
+                return Fail(Rec(Outcome.Error, Detail(g1Dacl, sp?.Detail), dacOut: Outcome.Error));
+            }
+            if (sp is { Guard: true })
+            {
+                // G1-SACL (4.4): a child that should have followed this run's parent write and did
+                // not, or a frozen ID audit copy. No override, as for the DACL's G1.
+                const string prefix = "G1-SACL: ";
+                var why = $"G1-SACL: {Show(rel)}: {(sp.Detail!.StartsWith(prefix, StringComparison.Ordinal) ? sp.Detail[prefix.Length..] : sp.Detail)}. No further writes were started.";
+                Stop(summary, why);
+                return Fail(Rec(Outcome.Error, Detail(dacDetail, why), sacOut: Outcome.Error));
+            }
+
+            bool saclNeedsWrite = sp is { Outcome: Outcome.Write };
+            if (Stopped && (daclNeedsWrite || saclNeedsWrite))
+            {
+                return Fail(Rec(Outcome.Stopped,
+                    Detail(daclNeedsWrite ? $"not written, the run stopped: {diff}" : dacDetail,
+                        saclNeedsWrite ? $"not written, the run stopped: {sp!.Detail}" : sp?.Detail),
+                    dacOut: daclNeedsWrite ? Outcome.Stopped : dacOutcome,
+                    sacOut: saclNeedsWrite ? Outcome.Stopped : sp!.Outcome));
+            }
+
+            // A directory with no acl: hands its stored DACL to its children, so phase 2's two
+            // refusals (an absent DACL, an ACE type a reset does not model) come before any write:
+            // a SACL-only write must not go out on a directory whose subtree is then dropped.
+            if (saclNeedsWrite && KeptDirDaclRefusal() is string refusal)
+                return Fail(Rec(Outcome.Error, Detail(og is null ? refusal : $"{og}; {refusal}", $"not written: {refusal}"),
+                    dacOut: Outcome.Error, sacOut: Outcome.Error));
+
+            if (daclNeedsWrite || saclNeedsWrite)
+            {
+                if (sp is null)
+                {
+                    // Phase 2's DACL-only write path, unchanged.
+                    var w = Write(rel, rule, daclDesired!, stored, daclDiff is not null);
+                    if (w.Error is not null)
+                    {
+                        if (w.Guard) Stop(summary, w.Error);
+                        return Fail(new CheckRecord(rel, isDir, rule.Label, daclDesired!.Form, Outcome.Error, w.Error, w.Parts, w.Before, w.After));
+                    }
+                    emit(new CheckRecord(rel, isDir, rule.Label, daclDesired!.Form, Outcome.Written, diff, w.Parts, w.Before, w.After));
+                    done?.Invoke(true);
+                    return isDir ? BuildNode(daclWritten: true, saclWritten: false) : null;
+                }
+
+                var wr = WriteParts(rel, rule, daclDesired, daclNeedsWrite, daclDiff is not null, saclDesired, saclNeedsWrite, stored);
+                var dacFinal = wr.Dacl ?? dacOutcome;
+                var sacFinal = wr.Sacl ?? sp.Outcome;
+                var rec = Rec(SaclClassifier.MergeOutcome(dacFinal, sacFinal),
+                    Detail(wr.DaclDetail ?? dacDetail, wr.SaclDetail ?? sp.Detail),
+                    wr.Parts, wr.Before, wr.After, dacFinal, sacFinal);
+                if (wr.Guard && wr.Error is not null)
+                {
+                    Stop(summary, wr.Error);
+                    return Fail(rec);
+                }
+                if (wr.DropSubtree)
+                    // A directory whose SACL or two-part write failed, an encode refusal included,
+                    // drops its subtree, as phase 2 does on a single-write failure (the record
+                    // carries which parts were written, and its parent directory is not
+                    // checkpointed).
+                    return Fail(rec);
+                emit(rec);
+                done?.Invoke(Right(dacFinal) && Right(sacFinal));
+                return BuildNode(daclWritten: wr.Dacl is Outcome.Written, saclWritten: wr.Sacl is Outcome.Written);
+            }
+        }
+
+        // No write: check, or apply with nothing to change. The record merges the two part verdicts;
+        // in phase 2 shape it is exactly what it was.
+        var merged = sp is null ? dacOutcome : SaclClassifier.MergeOutcome(dacOutcome, sp.Outcome);
+        emit(Rec(merged, Detail(dacDetail, sp?.Detail)));
+        done?.Invoke(Right(dacOutcome) && (sp is null || Right(sp.Outcome)));
+        if (KeptDirDaclRefusal() is string keptRefusal)
+            return Fail(new CheckRecord(rel, true, rule.Label, null, Outcome.Error, keptRefusal));
+        return BuildNode(daclWritten: false, saclWritten: false);
+
+        // An absent DACL (everyone full control) is not an empty one: there is nothing for the
+        // children to inherit from that a reset models.
+        string? KeptDirDaclRefusal() =>
+            wanted is not null || !isDir ? null
+            : stored.Dacl is null ? "its DACL is absent, so its children cannot be classified"
+            : storedAces.Any(a => a is null) ? "its DACL holds an ACE type a reset does not model, so its children cannot be classified"
+            : null;
     }
 
     static string Show(string rel) => rel.Length == 0 ? "the root" : rel;
@@ -490,6 +725,214 @@ public sealed class Checker
         return new WriteResult(partList, before.Raw, after.Raw, null, false);
     }
 
+    // Dacl and Sacl are each part's final outcome (null: the part had no call), Parts what was
+    // actually written in write order. DropSubtree marks failures after which the walk can no
+    // longer trust what the object holds (a write error, a G2 failure, a changed object): below a
+    // directory the part failure becomes a dropped subtree, as phase 2 does. Guard marks a
+    // run-stopper (G2, or a write whose result is unknowable, 4.4). An encode refusal is not a
+    // run-stopper, but it drops the subtree too: the part was not written, so the directory does
+    // not hold what its children would be classified against.
+    readonly record struct TwoPartWrite(Outcome? Dacl, string? DaclDetail, Outcome? Sacl, string? SaclDetail,
+        string? Parts, string? Before, string? After, string? Error, bool Guard, bool DropSubtree);
+
+    // WriteParts is the saclMode write path (smb/DESIGN-sacl-write.md, 4.1, 4.2, 4.4 and 4.5). Each
+    // part is its own Write call, never a combined DACL|SACL one (Q-SACL-COMBINED): the DACL call
+    // carries owner and group when the rule names them and they differ (4.1, decision 15) and never
+    // names the SACL; the SACL call carries the SACL with exactly one protection flag stated and
+    // the control word of 4.1, and never names anything else. When both parts differ the order is
+    // opt.Order (4.2). compareSeen is the compare-time read, with the SACL.
+    //
+    // The first write's pre-write check covers every part against the compare-time read; before
+    // the second write the part the first write changed is compared against the first write's
+    // read-back and every other part against the compare-time read. Both descriptors are encoded
+    // and size-checked before either is sent (4.5): an encode failure errors that part only. Every
+    // write is followed by its own G2 read-back (4.1, K13); a G2 failure stops the run.
+    TwoPartWrite WriteParts(string rel, PlanRule rule, Desired? daclDesired, bool daclCall, bool daclInCall,
+        Desired? saclDesired, bool saclCall, Descriptor compareSeen)
+    {
+        Descriptor before;
+        try { before = Descriptor.Decode(tree.Read(rel, withSacl: true).Descriptor); }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            return WholeError(null, null, $"read with SACL before writing: {e.Message}; nothing was written");
+        }
+        const ushort daclControlBits = Control.DaclProtected | Control.DaclAutoInherited;
+        const ushort saclControlBits = Control.SaclPresent | Control.SaclProtected | Control.SaclAutoInherited;
+        if (AclKey(before.Dacl) != AclKey(compareSeen.Dacl) || before.Owner != compareSeen.Owner || before.Group != compareSeen.Group
+            || (before.Control & daclControlBits) != (compareSeen.Control & daclControlBits)
+            || AclKey(before.Sacl) != AclKey(compareSeen.Sacl)
+            || (before.Control & saclControlBits) != (compareSeen.Control & saclControlBits))
+            return WholeError(null, before.Raw, $"{Show(rel)} changed between the compare and the write; nothing was written, rerun to pick it up");
+
+        var (wantOwner, wantGroup) = ownerGroup[rule];
+        bool owner = daclCall && wantOwner is not null && wantOwner != before.Owner;
+        bool group = daclCall && wantGroup is not null && wantGroup != before.Group;
+
+        // 4.5: both descriptors are encoded and size-checked before either is sent, so a SID the
+        // encoder rejects or a SACL past the 64 KiB limit errors one part and writes nothing for it.
+        uint daclInfo = 0;
+        byte[]? daclSd = null;
+        string? daclEncode = null;
+        var daclParts = new List<string>();
+        if (daclCall)
+        {
+            if (daclInCall)
+            {
+                daclInfo |= SecurityInformation.Dacl | (daclDesired!.Protected ? SecurityInformation.ProtectedDacl : SecurityInformation.UnprotectedDacl);
+                daclParts.Add("dacl");
+            }
+            if (owner) { daclInfo |= SecurityInformation.Owner; daclParts.Add("owner"); }
+            if (group) { daclInfo |= SecurityInformation.Group; daclParts.Add("group"); }
+            // The control word states what the array stores (F5); with no DACL in the call it is
+            // ignored, as phase 2 does for an owner-only write.
+            ushort control = daclDesired!.Protected ? Control.DaclProtected : Control.DaclAutoInherited;
+            try { daclSd = DescriptorBuilder.Build(control, owner ? wantOwner : null, group ? wantGroup : null, null, daclInCall ? daclDesired.Aces : null); }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                daclEncode = $"encode {string.Join(",", daclParts)}: {e.Message}; that part was not written";
+            }
+        }
+        uint saclInfo = 0;
+        byte[]? saclSd = null;
+        string? saclEncode = null;
+        if (saclCall)
+        {
+            saclInfo = SaclModel.WriteInfo(saclDesired!.Protected);
+            try { saclSd = DescriptorBuilder.Build(SaclModel.WriteControl(saclDesired.Protected), null, null, saclDesired.Aces, null); }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                saclEncode = $"encode sacl: {e.Message}; that part was not written";
+            }
+        }
+
+        var calls = (daclCall, saclCall) switch
+        {
+            (true, true) => opt.Order == WriteOrder.DaclFirst ? new[] { "dacl", "sacl" } : new[] { "sacl", "dacl" },
+            (true, false) => new[] { "dacl" },
+            _ => new[] { "sacl" },
+        };
+
+        var parts = new List<string>();
+        Descriptor lastRead = before;
+        bool anyReadBack = false;
+        Outcome? daclFinal = null, saclFinal = null;
+        string? daclDetail = null, saclDetail = null, error = null;
+        bool guard = false, drop = false;
+
+        for (int i = 0; i < calls.Length; i++)
+        {
+            bool isDacl = calls[i] == "dacl";
+            var encode = isDacl ? daclEncode : saclEncode;
+            var callParts = isDacl ? daclParts : new List<string> { "sacl" };
+            void Failed(Outcome o, string detail)
+            {
+                if (isDacl) { daclFinal = o; daclDetail = detail; }
+                else { saclFinal = o; saclDetail = detail; }
+            }
+            if (encode is not null)
+            {
+                // The part was never sent, but the directory does not hold what its children
+                // would be classified against, so its subtree is dropped as phase 2 drops it on
+                // any write error (4.2: children are queued only after every part passed G2).
+                Failed(Outcome.Error, encode);
+                drop = true;
+                continue;
+            }
+            Descriptor preThis = before;
+            if (i == 1)
+            {
+                // 4.2's second pre-write check: the part the first write changed is compared with
+                // the first write's read-back, every other part with the compare-time read.
+                bool firstDacl = calls[0] == "dacl";
+                try { preThis = Descriptor.Decode(tree.Read(rel, withSacl: true).Descriptor); }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    error = $"read with SACL before writing the {calls[1]} part: {e.Message}; nothing more was written";
+                    Failed(Outcome.Error, error);
+                    drop = true;
+                    break;
+                }
+                var daclBase = firstDacl ? lastRead : compareSeen;
+                var saclBase = firstDacl ? compareSeen : lastRead;
+                if (AclKey(preThis.Dacl) != AclKey(daclBase.Dacl)
+                    || (preThis.Control & daclControlBits) != (daclBase.Control & daclControlBits)
+                    || AclKey(preThis.Sacl) != AclKey(saclBase.Sacl)
+                    || (preThis.Control & saclControlBits) != (saclBase.Control & saclControlBits)
+                    || (firstDacl && owner ? preThis.Owner != lastRead.Owner : preThis.Owner != compareSeen.Owner)
+                    || (firstDacl && group ? preThis.Group != lastRead.Group : preThis.Group != compareSeen.Group))
+                {
+                    error = $"{Show(rel)} changed between the first write and the second ({calls[0]} written); nothing more was written, rerun to pick it up";
+                    Failed(Outcome.Error, error);
+                    drop = true;
+                    break;
+                }
+            }
+            uint info = isDacl ? daclInfo : saclInfo;
+            byte[] sd = (isDacl ? daclSd : saclSd)!;
+            var partList = string.Join(",", callParts);
+
+            try { ((IWritableTree)tree).Write(rel, info, sd); }
+            catch (Exception e)
+            {
+                // A write API error is not proof that nothing changed, any more than success is
+                // proof of what was stored (K13, 4.4): read the object back.
+                try
+                {
+                    lastRead = Descriptor.Decode(tree.Read(rel, withSacl: true).Descriptor);
+                    anyReadBack = true;
+                    error = $"write {partList}: {e.Message}; the read back shows what is stored in the after image";
+                }
+                catch (Exception e2)
+                {
+                    // The stored state is unknowable: 4.4 records it as unknown and stops the run.
+                    error = $"write {partList}: {e.Message}; the read back to learn what is stored failed too ({e2.Message}), so what is stored of {Show(rel)} is unknown. No further writes were started.";
+                    guard = true;
+                }
+                Failed(Outcome.Error, error);
+                drop = true;
+                break;
+            }
+            Descriptor afterThis;
+            try { afterThis = Descriptor.Decode(tree.Read(rel, withSacl: true).Descriptor); }
+            catch (Exception e)
+            {
+                error = $"G2: {Show(rel)}: written ({partList}) but could not be read back: {e.Message}. No further writes were started.";
+                guard = true;
+                parts.AddRange(callParts);
+                Failed(Outcome.Error, error);
+                drop = true;
+                break;
+            }
+            // The read-back is the evidence of what is stored, failure included (K13): it is the
+            // record's after image even when the comparison below fails.
+            lastRead = afterThis;
+            anyReadBack = true;
+            var g2 = isDacl
+                ? ReadbackDiff(daclDesired!, preThis, afterThis, owner ? wantOwner : preThis.Owner, group ? wantGroup : preThis.Group, daclInCall)
+                : SaclModel.ReadbackDiff(saclDesired!, preThis, afterThis);
+            if (g2 is not null)
+            {
+                error = $"G2: {Show(rel)}: after writing {partList}, {g2}. No further writes were started.";
+                guard = true;
+                parts.AddRange(callParts);
+                Failed(Outcome.Error, error);
+                drop = true;
+                break;
+            }
+            parts.AddRange(callParts);
+            if (isDacl) daclFinal = Outcome.Written; else saclFinal = Outcome.Written;
+        }
+        return new TwoPartWrite(daclFinal, daclDetail, saclFinal, saclDetail,
+            parts.Count > 0 ? string.Join(",", parts) : null, before.Raw, anyReadBack ? lastRead.Raw : null,
+            error, guard, drop);
+
+        // A failure that touched nothing readable past the first read: both called parts are errors
+        // and the run keeps going below only when nothing was written.
+        TwoPartWrite WholeError(string? parts0, string? before0, string msg) => new(
+            daclCall ? Outcome.Error : null, msg, saclCall ? Outcome.Error : null, msg,
+            parts0, before0, null, msg, false, true);
+    }
+
     const ushort KeptControl = Control.SaclAutoInherited | Control.SaclProtected | Control.SaclPresent;
 
     // ReadbackDiff compares a read after a write with what it should hold, raw (3.2): the desired
@@ -541,6 +984,17 @@ public sealed class Checker
         if (parentPropagates is not { Count: > 0 } || !TrackableShape(d, stored, storedProtected)) return false;
         var explicitCount = d.Aces.Count(a => !a.Inherited);
         return stored.Skip(explicitCount).Select(a => a!.Value).SequenceEqual(parentPropagates);
+    }
+
+    // TracksSacl is Tracks for a kept directory's SACL (3.2, K10), one step wider: an S:AI empty
+    // SACL under a parent that passes nothing down tracks too, and picks up a later parent SACL.
+    // An explicit-only SACL does not (decision 22; Q-EXP for the DACL), and a mismatching ID part
+    // is a frozen copy.
+    static bool TracksSacl(List<Ace> sacl, List<Ace> parentPropagates)
+    {
+        var inheritedPart = sacl.Where(a => a.Inherited).ToList();
+        if (inheritedPart.Count == 0 && sacl.Count > 0) return false;
+        return inheritedPart.SequenceEqual(parentPropagates);
     }
 
     // Tracks is the same evidence for a directory whose own DACL is kept: its stored inherited

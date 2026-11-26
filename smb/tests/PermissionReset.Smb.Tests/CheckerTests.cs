@@ -40,6 +40,7 @@ public class CheckerTests
         public readonly HashSet<byte> DropSaclAceTypes = [];   // accept SACL writes, silently drop these ACE types (K13)
         public Action<string>? AfterWrite;                     // runs after each write, to corrupt it
         public readonly List<(string Rel, uint Info)> Writes = [];
+        public readonly List<(string Rel, uint Info, byte[] Sd)> SentWrites = [];   // exact bytes, for the phase 2 byte-equality check
         public readonly Dictionary<string, ushort> SentControl = [];  // the control word of each object's last write
         public readonly Dictionary<string, Obj> Objs = objs;
 
@@ -96,6 +97,7 @@ public class CheckerTests
             lock (Objs)
             {
                 Writes.Add((rel, info));
+                SentWrites.Add((rel, info, sd));
                 SentControl[rel] = d.Control;
                 var o = Objs[rel];
                 if ((info & SecurityInformation.Owner) != 0) o = o with { Owner = d.Owner! };

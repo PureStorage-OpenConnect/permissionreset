@@ -269,9 +269,10 @@ This does not cover:
 inherited audit part from its **stored** SACL. The phase 1 fix applies to the SACL too: the stored
 inherited part is replaced by the re-derived one only when the directory provably tracks its parent
 and an ancestor's SACL will be written. Otherwise the stored SACL is passed down as it is. If the
-stored SACL holds an opaque ACE type the model does not handle (K8), its children's SACL parts are
-not classified; each such child's SACL part is reported as an error and not written, while its
-DACL part is classified and written on its own. The refusal is per part, as in 4.5 (section 11,
+stored SACL holds an opaque ACE type the model does not handle (K8), the SACL parts of its whole
+subtree are not classified (a grandchild's inheritance input passes through the opaque directory);
+each such object's SACL part is reported as an error and not written, while its DACL part is
+classified and written on its own. The refusal is per part, as in 4.5 (section 11,
 decision 16).
 
 **The root.** Its `desired(parent).sacl` is read from the array as its stored `ID` audit ACEs, as
@@ -429,7 +430,10 @@ only, and the object's DACL part still proceeds: it is written if it differs. A 
 cannot delete an ACE it never names, and the SACL's opaque ACE is outside the DACL write. The
 object's recorded outcome is `Error`, since the SACL part is one of its two part verdicts (4.6).
 
-Both the DACL and the SACL are encoded and size-checked before either is written.
+Both the DACL and the SACL are encoded and size-checked before either is written. A part refused
+at encode is not written, but the other part still is. On a directory, any part refused at encode
+drops the subtree, as phase 2 drops it on any write error: the directory does not hold what its
+children would be classified against (4.2: children are queued only after every part passed G2).
 
 ### 4.6 Check and classify
 
