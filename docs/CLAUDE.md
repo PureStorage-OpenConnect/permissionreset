@@ -23,6 +23,9 @@ Operator-facing documentation, design documents, and field deployment materials.
 | `rfc8881-one-session-violation.md` | Developers | Analysis of the one-session-per-client-ID constraint |
 | `plan-readdir-bundling.md` | Developers | Design notes on READDIR operation bundling |
 | `design-acl-restore.md` | Developers, maintainers | `--restore-from` mode (built in `internal/restore`, not yet qualified): byte-for-byte ACL restore from a snapshot or reference tree (#56); paired walk, guards, qualification, open question, as-built deviations (section 10) |
+| `plan-smb-dotnet10.md` | Developers, maintainers | Plan (not built): move the `smb/` solution from .NET 8 (end of support 2026-11-10) to .NET 10; output-identity check, requalification, patch cadence |
+| `plan-smb-run-control.md` | Developers, maintainers | Plan (not built): `--state-dir`, stop file, `--resume`, `status.json` and exit code 3 for `permissionreset-smb check`, later `apply` |
+| `plan-smb-gui.md` | Designers, developers | Plan (not built): the WPF Windows GUI for `permissionreset-smb`: architecture, ACE description engine, identity modes, every screen, design system, phases |
 | `decision-flasharray-smb-20261107.md` | Maintainers, developers | FlashArray work moves to an SMB-native Windows tool (`permissionreset-smb`, proposed) in this repository; naming, layout, tags and CI proposals; open questions |
 
 `transports.md`, `tuning-sweep.md`, `performance.md` and `limitations.md` were split out of the
