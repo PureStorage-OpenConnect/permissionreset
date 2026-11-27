@@ -132,7 +132,7 @@ public class ApplyTests
         var (recs, s) = Apply(Usual, tree);
         Assert.True(s.Complete);
         Assert.Equal(Outcome.Written, At(recs, "a").Outcome);
-        Assert.Equal([Audit], tree.Objs["a"].Sacl);
+        Assert.Equal([Audit], (IEnumerable<Ace>?)tree.Objs["a"].Sacl);
         Assert.DoesNotContain(tree.Writes, x => (x.Info & SecurityInformation.Sacl) != 0);
     }
 

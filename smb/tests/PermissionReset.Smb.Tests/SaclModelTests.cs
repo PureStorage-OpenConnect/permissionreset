@@ -136,10 +136,10 @@ public class SaclModelTests
         var tree = NeverWrittenTree();
         WriteSacl(tree, "", prot: false, [AuditFd]);
         Assert.Single(tree.Writes);
-        Assert.Equal([AuditDirId], tree.Objs["a"].Sacl);
-        Assert.Equal([AuditFileId], tree.Objs["a/f.txt"].Sacl);
-        Assert.Equal([AuditDirId], tree.Objs["a/b"].Sacl);
-        Assert.Equal([AuditFileId], tree.Objs["a/b/g.txt"].Sacl);
+        Assert.Equal([AuditDirId], (IEnumerable<Ace>?)tree.Objs["a"].Sacl);
+        Assert.Equal([AuditFileId], (IEnumerable<Ace>?)tree.Objs["a/f.txt"].Sacl);
+        Assert.Equal([AuditDirId], (IEnumerable<Ace>?)tree.Objs["a/b"].Sacl);
+        Assert.Equal([AuditFileId], (IEnumerable<Ace>?)tree.Objs["a/b/g.txt"].Sacl);
         var d = Read(tree, "a/f.txt");
         Assert.NotEqual(0, d.Control & Control.SaclAutoInherited);
         Assert.Equal(0, d.Control & Control.SaclProtected);
@@ -154,8 +154,8 @@ public class SaclModelTests
         WriteSacl(tree, "", prot: false, [AuditFd]);
         WriteSacl(tree, "", prot: false, [AuditFdOther]);
         Assert.Equal(2, tree.Writes.Count);
-        Assert.Equal([AuditFdOther with { Flags = (byte)(OI | CI | SA | FA | ID) }], tree.Objs["a"].Sacl);
-        Assert.Equal([AuditFdOther with { Flags = (byte)(SA | FA | ID) }], tree.Objs["a/b/g.txt"].Sacl);
+        Assert.Equal([AuditFdOther with { Flags = (byte)(OI | CI | SA | FA | ID) }], (IEnumerable<Ace>?)tree.Objs["a"].Sacl);
+        Assert.Equal([AuditFdOther with { Flags = (byte)(SA | FA | ID) }], (IEnumerable<Ace>?)tree.Objs["a/b/g.txt"].Sacl);
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class SaclModelTests
             ["f.txt"] = new(false, FileInherited, false, Sacl: [own], SaclEverWritten: true, ExtraControl: Control.SaclAutoInherited),
         });
         WriteSacl(tree, "", prot: false, [AuditFd]);
-        Assert.Equal([own], tree.Objs["f.txt"].Sacl);
+        Assert.Equal([own], (IEnumerable<Ace>?)tree.Objs["f.txt"].Sacl);
     }
 
     [Fact]
@@ -223,7 +223,7 @@ public class SaclModelTests
         Assert.Equal(0, d.Control & Control.SaclAutoInherited);
         WriteSacl(tree, "", prot: false, [AuditFd]);
         Assert.Single(tree.Writes);
-        Assert.Equal([new Ace(AceTypes.Audit, SA, 0x1, Users)], tree.Objs["a"].Sacl);
+        Assert.Equal([new Ace(AceTypes.Audit, SA, 0x1, Users)], (IEnumerable<Ace>?)tree.Objs["a"].Sacl);
         Assert.True(tree.Objs["a"].SaclProtected);
         Assert.Null(tree.Objs["a/f.txt"].Sacl);
     }
@@ -238,11 +238,11 @@ public class SaclModelTests
             [""] = new(true, DirWant, true, Sacl: [AuditFd], SaclEverWritten: true),
         });
         tree.CreateFile("n.txt");
-        Assert.Equal([AuditFileId], tree.Objs["n.txt"].Sacl);
+        Assert.Equal([AuditFileId], (IEnumerable<Ace>?)tree.Objs["n.txt"].Sacl);
         Assert.False(tree.Objs["n.txt"].SaclEverWritten);
         WriteSacl(tree, "", prot: false, [AuditFdOther]);
         Assert.Single(tree.Writes);
-        Assert.Equal([AuditFdOther with { Flags = (byte)(SA | FA | ID) }], tree.Objs["n.txt"].Sacl);
+        Assert.Equal([AuditFdOther with { Flags = (byte)(SA | FA | ID) }], (IEnumerable<Ace>?)tree.Objs["n.txt"].Sacl);
     }
 
     // ---- K13: success is not proof of what was stored ----------------------------------------------
@@ -270,7 +270,7 @@ public class SaclModelTests
         tree.DropSaclAceTypes.Add(9);
         var audit = new Ace(AceTypes.Audit, SA, 0x1, Users);
         WriteSacl(tree, "", prot: true, [audit, new Ace(9, 0, 0x1, Users)]);   // a callback-shaped ACE
-        Assert.Equal([audit], tree.Objs[""].Sacl);
+        Assert.Equal([audit], (IEnumerable<Ace>?)tree.Objs[""].Sacl);
     }
 
     // ---- G2 for a SACL write (4.4) -------------------------------------------------------------------

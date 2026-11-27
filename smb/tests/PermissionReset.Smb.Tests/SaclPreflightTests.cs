@@ -263,7 +263,7 @@ public class SaclPreflightTests : IDisposable
         Assert.Contains("preflight passed", e);
         Assert.DoesNotContain(tree.Writes, w => !w.Rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal));
         Assert.Single(tree.Objs.Keys);                                 // the probe was removed
-        Assert.Empty(tree.SaclReads.Where(rel => !rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal) && rel != ""));
+        Assert.DoesNotContain(tree.SaclReads, rel => !rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal) && rel != "");
         Assert.Single(tree.SaclReads, rel => rel == "");               // the walk's compare read, after the proof
         var shard = File.ReadAllText(Path.Combine(evidence, ProbeShard.ShardName));
         Assert.Contains("PROBE-WRITE", shard);

@@ -144,7 +144,7 @@ public class SaclWalkTests
         }
         // Exactly what the array was measured to store: the ACE with S:P, S:AI clear (K9, K11).
         var ro = tree.Objs[""];
-        Assert.Equal([AuditDir], ro.Sacl);
+        Assert.Equal([AuditDir], (IEnumerable<Ace>?)ro.Sacl);
         Assert.True(ro.SaclProtected);
         Assert.True(ro.SaclEverWritten);
         // A rerun converges.
@@ -556,7 +556,7 @@ public class SaclWalkTests
         var t3 = TwoPartTree();
         var (_, s3) = Apply(AuditedPlan(), t3, new WalkOptions(Apply: true, Order: WriteOrder.DaclFirst));
         Assert.True(s3.Complete);
-        var daclFirst = Assert.Single(t3.SentWrites.Where(w => w.Rel == "x.txt" && (w.Info & SecurityInformation.Dacl) != 0));
+        var daclFirst = Assert.Single(t3.SentWrites, w => w.Rel == "x.txt" && (w.Info & SecurityInformation.Dacl) != 0);
         Assert.Equal(phase2.Info, daclFirst.Info);
         Assert.Equal(phase2.Sd, daclFirst.Sd);
     }
@@ -648,7 +648,7 @@ public class SaclWalkTests
         Assert.All(tree.Writes, w => Assert.Equal(SecurityInformation.Sacl | SecurityInformation.ProtectedSacl, w.Info));
         foreach (var (p, o) in tree.Objs)
         {
-            Assert.Equal([], o.Sacl);
+            Assert.Equal([], (IEnumerable<Ace>?)o.Sacl);
             Assert.True(o.SaclProtected, p);
         }
         Assert.All(tree.SentControl.Values, c => Assert.Equal(0, c & (Control.SaclAutoInherited | Control.DaclProtected | Control.DaclAutoInherited)));
@@ -675,7 +675,7 @@ public class SaclWalkTests
         Assert.Equal(Form.Protected, f.SaclForm);
         Assert.Equal(Outcome.Written, f.SaclOutcome);
         Assert.True(tree.Objs[""].SaclProtected);
-        Assert.Equal([AuditDir], tree.Objs[""].Sacl);
+        Assert.Equal([AuditDir], (IEnumerable<Ace>?)tree.Objs[""].Sacl);
     }
 
     // ---- the pre-run SACL in memory (7.1, decision 13; #92 review question Q1) -----------------------

@@ -25,6 +25,18 @@ public sealed class CheckCliTests : IDisposable
         foreach (var f in _planFiles) File.Delete(f);
     }
 
+    [Fact]
+    public void VersionNamesTheToolAndTheRuntime()
+    {
+        // docs/plan-smb-dotnet10.md 3.3: "permissionreset-smb 0.1.0 (.NET 10.0.x)", so a binary can
+        // be tied to the runtime it carries.
+        var o = new StringWriter();
+        Assert.Equal(0, Cli.Run(["version"], o, new StringWriter()));
+        var v = typeof(Cli).Assembly.GetName().Version!.ToString(3);
+        Assert.Equal($"permissionreset-smb {v} ({System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription})", o.ToString().TrimEnd());
+        Assert.Matches(@"^permissionreset-smb \d+\.\d+\.\d+ \(\.NET 10\.0\.\d+\)$", o.ToString().TrimEnd());
+    }
+
     static (int Code, string Out, string Err) Run(FakeTree tree, string? missingPrivilege, params string[] args)
     {
         var deps = new CheckDeps(

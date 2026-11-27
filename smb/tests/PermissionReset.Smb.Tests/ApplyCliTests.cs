@@ -285,7 +285,7 @@ public sealed class ApplyCliTests : IDisposable
         Assert.True(writesBeforeRootSaclRead > 0);
         Assert.Contains(tree.Writes[..writesBeforeRootSaclRead],
             w => w.Rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal) && (w.Info & SecurityInformation.Sacl) != 0);
-        var w = Assert.Single(tree.Writes.Where(x => !x.Rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal)));
+        var w = Assert.Single(tree.Writes, x => !x.Rel.StartsWith(Preflight.Prefix, StringComparison.Ordinal));
         Assert.Equal("", w.Rel);
         Assert.Equal(SecurityInformation.Sacl | SecurityInformation.ProtectedSacl, w.Info);
         Assert.Contains("\"sacl_outcome\":\"written\"", r.Out);
