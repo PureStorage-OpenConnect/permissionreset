@@ -89,8 +89,10 @@ try {
     if ($LASTEXITCODE -ne 0 -or $sdkHave -ne $sdkWant) {
         throw "pack: needs .NET SDK $sdkWant (smb/global.json), found '$sdkHave' in $dotnetDir"
     }
+    # Every Microsoft.NETCore.App the private SDK copy sees, whatever its major version, so the
+    # check does not go stale on the next framework move: it must be exactly the SDK's own.
     $runtimes = @(& $dotnetExe --list-runtimes | ForEach-Object {
-        if ($_ -match '^Microsoft\.NETCore\.App (8\.\d+\.\d+) ') { $Matches[1] } })
+        if ($_ -match '^Microsoft\.NETCore\.App (\d+\.\d+\.\d+\S*) ') { $Matches[1] } })
     if ($runtimes.Count -ne 1 -or $runtimes[0] -ne $runtimeWant) {
         throw "pack: the compiler must see only runtime $runtimeWant (SDK $sdkWant's own), sees: $($runtimes -join ', ')"
     }
