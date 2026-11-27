@@ -1,6 +1,7 @@
 # Plan: run control for permissionreset-smb (state dir, stop, resume, status)
 
-Status: **plan only. Nothing here is implemented.** Written against `main` at `2980615`.
+Status: **sections 2 to 7 are built for `check` (not `apply`), qualification (section 8) pending.**
+Written against `main` at `2980615`.
 Depends on: nothing. It can land before or after [plan-smb-dotnet10.md](plan-smb-dotnet10.md).
 Needed by: the Run monitor of the Windows GUI ([plan-smb-gui.md](plan-smb-gui.md), section 8).
 
@@ -237,3 +238,21 @@ Report passed, failed and skipped cases separately.
 - The qualification in section 8 is requested and reported as pending until it passes.
 - `DESIGN-write-path.md`, section 3.4, gets a line that points here as the as-built mechanism for
   `check`, to be reused by `apply`.
+
+## As built
+
+- 5.2 step 3 differs: a resume does not load counts from the last `status.json` (objects re-checked
+  in an incomplete directory would be counted twice). Each `checkpoint.jsonl` line carries the
+  counts of its whole subtree (`objects`, `outcomes`, `forms`, `sacl_forms`); a resume seeds the
+  totals from the sum of the outermost entries, a pruned subtree's counts join its parent's, and
+  the root's final line holds the whole run's counts. The final counts equal a single
+  uninterrupted run's.
+- A stop request that arrives after the walk already reached everything is a completed run
+  (exit 0), not a stopped one: there is nothing to resume.
+- Segments record `pid` and `process_start` (5.2's second-process refusal), and `--resume` of a
+  completed run is refused with exit 2.
+- Measured on a generated fake tree of 2,254,421 objects (100 files per directory, three
+  subdirectory levels): after a completed run `records.jsonl` was 210,948,298 bytes and
+  `checkpoint.jsonl` 64,853 bytes (343 lines, one per completed subtree at an interval flush; the
+  load keeps the outermost); after a stop at about half, `records.jsonl` was 104,990,746 bytes and
+  `checkpoint.jsonl` 63,518 bytes (336 lines).

@@ -186,7 +186,9 @@ ancestors are written (computed, not read).
 
 Directory-level, like the NFSv4 tool: a directory is recorded complete after it and its files are
 done. Resume restarts from the last incomplete directories. Rewalking a completed part is safe,
-because the compare finds it right and writes nothing.
+because the compare finds it right and writes nothing. The mechanism as built for `check` (state
+dir, stop file, resume, status) is [../docs/plan-smb-run-control.md](../docs/plan-smb-run-control.md);
+`apply` reuses it.
 
 ## 4. Privileges, identity and preflight
 
