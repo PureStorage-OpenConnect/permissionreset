@@ -79,7 +79,10 @@ process), `records.jsonl` (the same lines as stdout, so a reader takes the last 
 `checkpoint.jsonl` (one line per completed subtree, with its counts), `status.json` (progress,
 rewritten every `--status-interval` seconds, default 1; `previous_total` names the last completed
 run with the same root and plan from a sibling state dir, when there is one) and `segments/NNN.log`
-(a copy of the segment's stderr). A `STOP` file in DIR asks for a clean stop, as do Ctrl+C and
+(a copy of the segment's stderr). `run.json` and `status.json` are replaced by a rename, never
+rewritten in place; a reader (the GUI, a script) opens them with sharing for read, write and
+delete (`FileShare.ReadWrite | FileShare.Delete`), so the rename is not blocked, and retries an
+open that fails on Windows during the rename. A `STOP` file in DIR asks for a clean stop, as do Ctrl+C and
 closing the console: the object in progress finishes, the state is flushed, and the run exits 3.
 `--resume --state-dir DIR` continues a stopped (or failed) run, re-checking only what no completed
 subtree covers; it is refused when the plan hash, root or command differ, while the run's last

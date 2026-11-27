@@ -417,11 +417,18 @@ sealed class RunControlState : IDisposable
 
     // AtomicWrite is plan 2's temp-then-rename in the same directory: a reader of run.json or
     // status.json never sees half a file.
+    // On Windows the rename is refused while a reader holds the old file open without
+    // FILE_SHARE_DELETE, or catches it mid-delete, so the rename is retried briefly; a reader that
+    // opens with FileShare.Delete (README) never blocks it.
     static void AtomicWrite(string path, string content)
     {
         var tmp = $"{path}.{Environment.ProcessId}.tmp";
         File.WriteAllText(tmp, content);
-        File.Move(tmp, path, overwrite: true);
+        for (int attempt = 1; ; attempt++)
+        {
+            try { File.Move(tmp, path, overwrite: true); return; }
+            catch (Exception e) when (attempt < 50 && e is IOException or UnauthorizedAccessException) { Thread.Sleep(10); }
+        }
     }
 
     public void Dispose()

@@ -83,7 +83,7 @@ public sealed class RunControlCliTests : IDisposable
         // the last line per path is the record (plan 4.3).
         var m = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var o in outputs)
-            foreach (var line in o.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            foreach (var line in o.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
                 using var doc = JsonDocument.Parse(line);
                 m[doc.RootElement.GetProperty("path").GetString()!] = line;
@@ -92,7 +92,7 @@ public sealed class RunControlCliTests : IDisposable
     }
 
     static string SummaryLine(string err) =>
-        err.Split('\n', StringSplitOptions.RemoveEmptyEntries).First(l => l.StartsWith("check: ok ", StringComparison.Ordinal));
+        err.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).First(l => l.StartsWith("check: ok ", StringComparison.Ordinal));
 
     JsonElement StatusDoc(string dir)
     {
@@ -242,8 +242,8 @@ public sealed class RunControlCliTests : IDisposable
 
         // records.jsonl is exactly the concatenated stdout of both segments.
         var lines = File.ReadAllLines(Path.Combine(dir, "records.jsonl"));
-        Assert.Equal(seg1.Out.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Concat(resume.Out.Split('\n', StringSplitOptions.RemoveEmptyEntries)), lines);
+        Assert.Equal(seg1.Out.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Concat(resume.Out.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)), lines);
     }
 
     [Fact]
@@ -374,12 +374,23 @@ public sealed class RunControlCliTests : IDisposable
             while (!Volatile.Read(ref stop))
             {
                 if (!File.Exists(p)) continue;
+                // A reader opens as the README says (share Read, Write and Delete, so the writer's
+                // rename can replace the file under it) and retries an open that lands on the
+                // rename itself. What must never happen is a parse error: half a file.
+                string text;
                 try
                 {
-                    using var doc = JsonDocument.Parse(File.ReadAllText(p));
+                    using var fs = new FileStream(p, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                    using var sr = new StreamReader(fs);
+                    text = sr.ReadToEnd();
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { continue; }
+                try
+                {
+                    using var doc = JsonDocument.Parse(text);
                     _ = doc.RootElement.GetProperty("objects").GetInt64();
                 }
-                catch (Exception e) when (e is JsonException or IOException) { Volatile.Write(ref failure, $"{e.GetType().Name}: {e.Message}"); return; }
+                catch (JsonException e) { Volatile.Write(ref failure, $"{e.GetType().Name}: {e.Message}"); return; }
             }
         });
         var (code, _, _) = RunCli(tree, Deps(tree), "--state-dir", dir, "--status-interval", "0.005", plan, "R");
@@ -449,7 +460,9 @@ public sealed class RunControlCliTests : IDisposable
         var one = RunCli(oneTree, Deps(oneTree), plan, "R");
         var (code2, out2, err2) = RunCli(tree, Deps(tree), "--state-dir", dir, "--resume", plan, "R");
         Assert.Equal(0, code2);
-        Assert.Contains("locked/g.txt", out2);
+        // FullPath joins with the platform's separator for a bare root, so match on the parsed path.
+        Assert.Contains(out2.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            l => { using var d = JsonDocument.Parse(l); return d.RootElement.GetProperty("path").GetString()!.Replace('\\', '/').EndsWith("locked/g.txt", StringComparison.Ordinal); });
         // records.jsonl holds both segments; the last record per path equals the one-shot run.
         Assert.Equal(LastRecords(one.Out), LastRecords(File.ReadAllText(Path.Combine(dir, "records.jsonl"))));
         Assert.Equal(SummaryLine(one.Err), SummaryLine(err2));
