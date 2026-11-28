@@ -35,6 +35,7 @@ public class CheckerTests
         public HashSet<string> ReadFails = [], ListFails = [], WriteFails = [], DeleteFails = [], SaclReadFails = [];
         public bool RefuseSaclAccess;                  // K12: no audit bypass; SACL-bit reads/writes fail with error 5, nothing returned or stored
         public Action<string>? BeforeSaclRead;                 // runs before each read with the SACL
+        public Action<string>? BeforeRead;                     // runs at the start of every read (run-control stop hooks)
         public readonly List<string> SaclReads = [];
         public Func<IReadOnlyList<Ace>, bool, List<Ace>> ArrayInherit = Inheritance.Inherit;
         public bool DropSacl;                                  // accept SACL writes, keep nothing
@@ -61,6 +62,7 @@ public class CheckerTests
 
         public TreeObject Read(string rel, bool withSacl)
         {
+            BeforeRead?.Invoke(rel);
             if (ReadFails.Contains(rel)) throw new IOException("Access is denied.");
             if (withSacl)
             {

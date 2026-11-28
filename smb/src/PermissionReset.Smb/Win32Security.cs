@@ -52,6 +52,43 @@ static partial class Win32Security
     // success even when the token lacks it, so ERROR_NOT_ALL_ASSIGNED (1300) is checked too.
     public static void EnablePrivilege(string name) => AdjustPrivilege(name, enable: true);
 
+    // IsElevated is run.json's "elevated" (run control plan 4.1): the process token holds the
+    // Administrators role.
+    public static bool IsElevated()
+    {
+        using var id = System.Security.Principal.WindowsIdentity.GetCurrent();
+        return new System.Security.Principal.WindowsPrincipal(id).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+    }
+
+    delegate bool ConsoleCtrlHandler(uint controlType);
+
+    static ConsoleCtrlHandler? closeHandler;
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetConsoleCtrlHandler(ConsoleCtrlHandler handler, [MarshalAs(UnmanagedType.Bool)] bool add);
+
+    // RegisterCloseHandler is the console-close stop source of the run control plan (5.1): on
+    // CTRL_CLOSE_EVENT Windows gives the process about 5 seconds, so the handler asks for the
+    // clean stop, waits deadline for Main's flush-and-exit-3 sequence, and then forces the exit.
+    // The handler stays for the process's life; the delegate is kept reachable.
+    public static void RegisterCloseHandler(Action cancel, TimeSpan deadline)
+    {
+        const uint CTRL_CLOSE_EVENT = 2;
+        ConsoleCtrlHandler handler = type =>
+        {
+            if (type != CTRL_CLOSE_EVENT) return false;
+            cancel();
+            Thread.Sleep(deadline);
+            Environment.Exit(3);
+            return true;
+        };
+        // Rooted in a static field: the OS holds only a raw function pointer, so a delegate the GC
+        // collected would crash the process when the close event arrives.
+        closeHandler = handler;
+        SetConsoleCtrlHandler(handler, true);
+    }
+
     // DisablePrivilege turns a privilege off for this process (design 4: SeRestorePrivilege stays
     // off unless the plan sets owner or group). A token that does not hold it is already there.
     public static void DisablePrivilege(string name)

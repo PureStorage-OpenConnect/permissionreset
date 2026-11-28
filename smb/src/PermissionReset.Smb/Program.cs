@@ -4,7 +4,20 @@ using System.Text.Json.Serialization;
 using PermissionReset.Smb;
 using PermissionReset.Smb.Core;
 
-return Cli.Run(args, Console.Out, Console.Error);
+// The console stop sources of the run control plan 5.1 are wired here, in the real process entry
+// only: Cli.Run calls from tests never register a console handler. Ctrl+C/Ctrl+Break ask for a
+// clean stop (e.Cancel = true so the process lives to flush and exit 3); a console window close
+// gets a short deadline from the Windows handler.
+// Only check watches the token, so only check takes the console over: Ctrl+C on apply, inspect
+// or plan must still end the process at once, as it always has.
+using var consoleStop = new CancellationTokenSource();
+if (args.Length > 0 && args[0] == "check")
+{
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; consoleStop.Cancel(); };
+    if (OperatingSystem.IsWindows()) Win32Security.RegisterCloseHandler(consoleStop.Cancel, TimeSpan.FromSeconds(3));
+}
+
+return Cli.Run(args, Console.Out, Console.Error, consoleStop: consoleStop.Token);
 
 static class Cli
 {
@@ -17,7 +30,8 @@ static class Cli
                                         stored, and the raw bytes. Read-only.
           check [--validate] [--workers N] [--root-protected] [--root-sacl-protected]
                 [--write-order sacl-first|dacl-first] [--probe-dir DIR] [--evidence-dir DIR]
-                [--accept-unproven-read] PLAN.json ROOT
+                [--accept-unproven-read] [--state-dir DIR [--resume] [--status-interval SECONDS]]
+                PLAN.json ROOT
                                         walk ROOT and say, per object, whether its DACL (and SACL,
                                         when a rule sets sacl:) is what the plan wants (ok), needs
                                         its own write (write), or will be right once an ancestor is
@@ -33,6 +47,16 @@ static class Cli
                                         a "probe" JSON line on stdout. --write-order has no effect
                                         on check (a NOTE says so). --root-sacl-protected forces the
                                         root's SACL form to protected.
+                                        --state-dir writes run state to DIR (run.json,
+                                        records.jsonl, checkpoint.jsonl, status.json, segments/);
+                                        a STOP file there asks for a clean stop, as do Ctrl+C and
+                                        closing the console. --resume continues the run in DIR
+                                        (refused when the plan, root or command differ, while the
+                                        run is still alive elsewhere, or once it completed).
+                                        --status-interval (default 1 second, decimal allowed) sets
+                                        how often status.json and the checkpoint flush. A stopped
+                                        run exits 3 and can be resumed; without --state-dir a stop
+                                        exits 3 with nothing left to resume.
           apply [--workers N] [--root-protected] [--root-sacl-protected]
                 [--write-order sacl-first|dacl-first] [--probe-dir DIR] [--checkpoint FILE [--resume]]
                 [--evidence-dir DIR] PLAN.json ROOT
@@ -64,8 +88,10 @@ static class Cli
     };
 
     // reader is the descriptor source for inspect; null means the Win32 reader (Windows only).
-    // Tests pass a fake so the CLI's output and exit codes are checked on any OS.
-    public static int Run(string[] args, TextWriter stdout, TextWriter stderr, IDescriptorReader? reader = null, CheckDeps? check = null)
+    // consoleStop is the console's stop request (Ctrl+C, console close), wired only by the real
+    // process entry. Tests pass a fake so the CLI's output and exit codes are checked on any OS.
+    public static int Run(string[] args, TextWriter stdout, TextWriter stderr, IDescriptorReader? reader = null, CheckDeps? check = null,
+        CancellationToken consoleStop = default)
     {
         if (args.Length == 0) { stderr.WriteLine(Usage); return 2; }
         try
@@ -74,7 +100,7 @@ static class Cli
             {
                 "inspect" => Inspect(args[1..], stdout, stderr, reader),
                 "plan" => PlanCmd(args[1..], stdout, stderr),
-                "check" => Check(args[1..], stdout, stderr, check),
+                "check" => Check(args[1..], stdout, stderr, check, consoleStop),
                 "apply" => Apply(args[1..], stdout, stderr, check),
                 "version" => Version(stdout),
                 "-h" or "--help" or "help" => Help(stdout),
@@ -157,14 +183,15 @@ static class Cli
 
     // Check exits 0 when every object was checked (and, with --validate, every one is ok), 1 when
     // any object or directory failed, a privilege is missing, or --validate found a difference,
-    // and 2 on a usage error.
-    static int Check(string[] args, TextWriter stdout, TextWriter stderr, CheckDeps? deps)
+    // 2 on a usage error, and 3 on a clean stop (run control plan 5.3: exit 3 wins over 1).
+    static int Check(string[] args, TextWriter stdout, TextWriter stderr, CheckDeps? deps, CancellationToken consoleStop)
     {
         bool validate = false, rootProtected = false, rootSaclProtected = false, acceptUnprovenRead = false;
         WriteOrder order = WriteOrder.SaclFirst;
-        bool orderGiven = false;
+        bool orderGiven = false, resume = false, intervalGiven = false;
         int workers = 16;
-        string? probeDir = null, evidenceDir = null;
+        double statusInterval = 1;
+        string? probeDir = null, evidenceDir = null, stateDir = null;
         var pos = new List<string>();
         for (int i = 0; i < args.Length; i++)
         {
@@ -174,6 +201,7 @@ static class Cli
             else if (a == "--root-protected") rootProtected = true;
             else if (a == "--root-sacl-protected") rootSaclProtected = true;   // independent of --root-protected (decision 4)
             else if (a == "--accept-unproven-read") acceptUnprovenRead = true;
+            else if (a == "--resume") resume = true;
             else if (a == "--write-order")
             {
                 if (Value() is not ("sacl-first" or "dacl-first")) return Fail(stderr, "check: --write-order needs sacl-first or dacl-first");
@@ -187,24 +215,47 @@ static class Cli
             }
             else if (a == "--probe-dir") { if ((probeDir = Value()) is null) return Fail(stderr, "check: --probe-dir needs a directory"); }
             else if (a == "--evidence-dir") { if ((evidenceDir = Value()) is null) return Fail(stderr, "check: --evidence-dir needs a directory"); }
+            else if (a == "--state-dir") { if ((stateDir = Value()) is null) return Fail(stderr, "check: --state-dir needs a directory"); }
+            else if (a == "--status-interval")
+            {
+                // A positive decimal number of seconds (run control plan 3): 0.05 lets tests and
+                // small runs get more than one flush; 0, a negative or garbage is a usage error.
+                if (Value() is not string iv || !double.TryParse(iv, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out statusInterval) || statusInterval <= 0)
+                    return Fail(stderr, "check: --status-interval needs a positive number of seconds");
+                intervalGiven = true;
+            }
             else if (a.StartsWith('-')) return Fail(stderr, $"check: unknown option {a}");
             else pos.Add(a);
         }
         if (pos.Count != 2) return Fail(stderr, "check: needs PLAN.json and ROOT");
+        if (resume && stateDir is null) return Fail(stderr, "check: --resume needs --state-dir");
+        if (intervalGiven && stateDir is null) return Fail(stderr, "check: --status-interval needs --state-dir");
         if (deps is null)
         {
             if (!OperatingSystem.IsWindows()) return Fail(stderr, "check reads descriptors over SMB and runs only on Windows", 1);
             deps = CheckDeps.Windows();
         }
 
-        var plan = Plan.Load(pos[0]);
+        string planPath = pos[0], root = pos[1];
+        var planBytes = Plan.ReadBytes(planPath);
+        var planSha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(planBytes)).ToLowerInvariant();
+        var plan = Plan.Parse(planBytes);
         // The order picks which of a two-part object's writes goes first, and check writes none,
         // so a check run says nothing about an order (#93 review, 6).
         if (orderGiven)
             stderr.WriteLine("check: NOTE: --write-order has no effect on check; it orders apply's two writes, and check validates no order");
+        // Privileges before the state dir: run.json records the ones the check enabled (plan 4.1),
+        // and a missing one leaves no run state behind.
+        var privileges = new List<string> { "SeBackupPrivilege" };
         try { deps.EnablePrivilege("SeBackupPrivilege"); }
         catch (Win32Exception e) { return Fail(stderr, $"check: {e.Message} (Win32 error {e.NativeErrorCode})", 1); }
-        var root = pos[1];
+        if (plan.Rules.Prepend(plan.Default).Any(r => r.SaclSet))
+        {
+            try { deps.EnablePrivilege("SeSecurityPrivilege"); }
+            catch (Win32Exception e) { return Fail(stderr, $"check: {e.Message} (Win32 error {e.NativeErrorCode}); nothing was read", 1); }
+            privileges.Add("SeSecurityPrivilege");
+        }
         // Every plan and principal check comes before any probe or read (design 2.2): principal
         // resolution and the creator-SID refusal happen inside the Checker's constructor, before
         // any tree read. A lookup failure that the Checker could not classify as an unresolved
@@ -214,26 +265,83 @@ static class Cli
         try { checker = new Checker(plan, deps.Tree(root), RuleSelector.RootName(root), deps.Resolve, new WalkOptions(RootProtected: rootProtected, Order: order, RootSaclProtected: rootSaclProtected)); }
         catch (PlanException) { throw; }   // the outer handler prints it and exits 1
         catch (Exception e) { return Fail(stderr, $"check: the plan's principals could not be prepared: {e.Message}", 1); }
+
+        // Run control (docs/plan-smb-run-control.md): the state dir, before any probe or walk, so
+        // everything after is tee'd into segments/NNN.log and a later refusal closes the segment
+        // as failed. Resumes that the manifest refuses are usage errors here.
+        RunControlState? ctl = null;
+        if (stateDir is not null)
+        {
+            try { ctl = RunControlState.Open(stateDir, resume, plan, planPath, planSha, root, workers, privileges, checker.SaclMode, deps); }
+            catch (RunControlException e) { return Fail(stderr, $"check: {e.Message}"); }
+        }
+        using var ctlScope = ctl;
+        TextWriter err = ctl?.Tee(stderr) ?? stderr;
+
+        // The segment's stop token: the console (the real entry only), the test seam on CheckDeps,
+        // and the STOP file the interval poll finds.
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(consoleStop, deps.Stop);
+        RunHooks? hooks = ctl?.Hooks();
+        using var timer = ctl is null ? null : new System.Threading.Timer(_ =>
+        {
+            try { ctl.Tick(hooks!.Summary, hooks, cts.IsCancellationRequested || (File.Exists(ctl.StopPath) && RequestStop(cts))); }
+            catch { /* a status or flush failure must never fault the walk */ }
+        }, null, TimeSpan.FromSeconds(statusInterval), TimeSpan.FromSeconds(statusInterval));
+
         // Phase 3 plumbing (design 5 and 6), after the plan checks and before the walk: a plan
         // with a sacl: rule needs SeSecurityPrivilege and the probe's bypass proof before any
         // tree object's SACL is read.
-        if (CheckSaclPreflight(plan, deps, root, probeDir, evidenceDir, acceptUnprovenRead, stdout, stderr) is { } refusedCheck)
+        if (CheckSaclPreflight(plan, deps, root, probeDir, evidenceDir, acceptUnprovenRead, stdout, err) is { } refusedCheck)
+        {
+            if (ctl is not null) FinishSegment(ctl, hooks!, refusedCheck, canceled: false);
             return refusedCheck;
+        }
 
-        foreach (var (name, sid) in checker.Principals) stderr.WriteLine($"check: principal {name} = {sid}");
-        var summary = checker.Run(r => stdout.WriteLine(JsonSerializer.Serialize(r with { Path = FullPath(root, r.Path) }, Json)), workers);
+        foreach (var (name, sid) in checker.Principals) err.WriteLine($"check: principal {name} = {sid}");
+        var summary = checker.Run(r =>
+        {
+            var line = JsonSerializer.Serialize(r with { Path = FullPath(root, r.Path) }, Json);
+            stdout.WriteLine(line);
+            ctl?.Record(line);   // records.jsonl is the same line as stdout (plan 4.3)
+        }, workers, hooks: hooks, stop: cts.Token);
 
-        PrintSummary(stderr, "check", summary, checker.SaclMode);
-        if (summary.Stop is not null) stderr.WriteLine($"check: stopped: {summary.Stop}; the check is incomplete");
-        if (summary.NotProcessed > 0) stderr.WriteLine($"check: {summary.NotProcessed} director(ies) could not be read, listed or classified, so what is below them was not checked; the check is incomplete");
+        // A stop request that lands after the walk already reached everything (nothing went
+        // unprocessed) is a completed run, not a stopped one: exit 3 means "resumable", and here
+        // there is nothing left to resume.
+        bool canceled = summary.StopSkipped > 0;
+        bool failed = summary.Count(Outcome.Error) > 0 || summary.NotProcessed > 0 || summary.Stop is not null;
+        bool differs = summary.Count(Outcome.Write) + summary.Count(Outcome.Follows) > 0;
+        var exit = canceled ? 3 : failed || (validate && differs) ? 1 : 0;
+        if (ctl is not null) FinishSegment(ctl, hooks!, exit, canceled);
+
+        PrintSummary(err, "check", summary, checker.SaclMode);
+        if (canceled)
+            err.WriteLine(ctl is not null
+                ? $"check: stopped; resume with --resume --state-dir {stateDir}"
+                : "check: stopped; nothing to resume (no --state-dir)");
+        if (summary.Stop is not null) err.WriteLine($"check: stopped: {summary.Stop}; the check is incomplete");
+        if (summary.NotProcessed > 0) err.WriteLine($"check: {summary.NotProcessed} director(ies) could not be read, listed or classified, so what is below them was not checked; the check is incomplete");
         var nothing = checker.SaclMode && !acceptUnprovenRead
             ? "nothing in the tree was written (the preflight probe was created and removed)"
             : "nothing was written";
-        stderr.WriteLine(validate ? $"check: validate; {nothing}" : $"check: dry run; {nothing}");
+        err.WriteLine(validate ? $"check: validate; {nothing}" : $"check: dry run; {nothing}");
+        return exit;
 
-        bool failed = summary.Count(Outcome.Error) > 0 || summary.NotProcessed > 0 || summary.Stop is not null;
-        bool differs = summary.Count(Outcome.Write) + summary.Count(Outcome.Follows) > 0;
-        return failed || (validate && differs) ? 1 : 0;
+        // RequestStop flips a found STOP file (and any other stop source) into the segment's
+        // token; the run's end deletes the file itself on a clean stop.
+        static bool RequestStop(CancellationTokenSource c)
+        {
+            if (!c.IsCancellationRequested) c.Cancel();
+            return true;
+        }
+
+        // FinishSegment closes the state dir for the run's end (plan 5.1, steps 4 to 7): the final
+        // flush and status.json, run.json with end and exit, and STOP deleted on a clean stop.
+        static void FinishSegment(RunControlState ctl, RunHooks hooks, int exit, bool canceled)
+        {
+            var end = canceled ? "stopped" : exit == 0 ? "completed" : "failed";
+            ctl.Finish(end, exit, hooks.Summary ?? new CheckSummary(), hooks);
+        }
     }
 
     // CheckSaclPreflight is the phase 3 check preflight for a plan whose rules set sacl: (design 5
@@ -515,11 +623,37 @@ static class Cli
 sealed record InspectLine(string Path, Descriptor? Descriptor, bool? SaclRead, string? Error, int? Win32Error);
 
 // CheckDeps is what check and apply need from the OS. Tests pass fakes so the CLI's records and
-// exit codes are checked on any OS; Windows() is the real thing.
-sealed record CheckDeps(Action<string> EnablePrivilege, Func<string, IWritableTree> Tree, Func<string, string?> Resolve, Action<string>? Disable = null)
+// exit codes are checked on any OS; Windows() is the real thing. Stop is the test seam of the run
+// control plan (5.1): the CLI links it into the segment's token, so a test can stop a run from a
+// fake-tree read hook. Alive, Identity and Elevated feed run.json and the resume's liveness check
+// (plan 4.1, 5.2); their defaults are the real values, so tests on any OS are stable.
+sealed record CheckDeps(Action<string> EnablePrivilege, Func<string, IWritableTree> Tree, Func<string, string?> Resolve,
+    Action<string>? Disable = null, CancellationToken Stop = default,
+    Func<int, DateTime, bool>? Alive = null, Func<string>? Identity = null, Func<bool>? Elevated = null)
 {
     public void DisablePrivilege(string name) => Disable?.Invoke(name);
 
+    public string UserIdentity() => Identity?.Invoke() ?? $"{Environment.UserDomainName}\\{Environment.UserName}";
+
+    public bool IsElevated() => Elevated?.Invoke() ?? IsElevatedReal();
+
+    // ProcessAlive is the resume's second-process check (plan 5.2, step 1): the segment's process
+    // counts as the same one only when its start time matches too, so a reused pid is not it. The
+    // default runs on any OS; tests inject a stub.
+    public bool ProcessAlive(int pid, DateTime startUtc)
+    {
+        if (Alive is not null) return Alive(pid, startUtc);
+        try
+        {
+            using var p = System.Diagnostics.Process.GetProcessById(pid);
+            return Math.Abs((p.StartTime.ToUniversalTime() - startUtc).TotalSeconds) < 60;
+        }
+        catch { return false; }
+    }
+
+    static bool IsElevatedReal() => OperatingSystem.IsWindows() && Win32Security.IsElevated();
+
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    public static CheckDeps Windows() => new(Win32Security.EnablePrivilege, root => new Win32Tree(root), Win32Tree.Resolve, Win32Security.DisablePrivilege);
+    public static CheckDeps Windows() => new(Win32Security.EnablePrivilege, root => new Win32Tree(root), Win32Tree.Resolve, Win32Security.DisablePrivilege,
+        Elevated: Win32Security.IsElevated);
 }

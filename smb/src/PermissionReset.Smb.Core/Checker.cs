@@ -77,6 +77,8 @@ public sealed class CheckSummary
     public long NotProcessed;   // directories whose children were not reached
     public long Resumed;        // files skipped because the checkpoint had their directory complete
     public string? Stop;        // why an apply stopped (G1, G1-SACL, G2), or null
+    public bool StopRequested;  // the walk's CancellationToken was cancelled (run control stop, plan 5.1)
+    public long StopSkipped;    // directories a stop request left unvisited or half visited (resumable, not failed)
 
     public void Add(CheckRecord r)
     {
@@ -88,6 +90,16 @@ public sealed class CheckSummary
     public long Count(Outcome o) => outcomes.GetValueOrDefault(o);
     public long Count(Form f) => forms.GetValueOrDefault(f);
     public long CountSacl(Form f) => saclForms.GetValueOrDefault(f);
+
+    // Total counts every object with a record: the sum over the outcomes.
+    public long Objects() => outcomes.Values.Sum();
+
+    // The Seed* methods start a resumed segment's totals from the outermost checkpoint entries of
+    // the earlier segments (docs/plan-smb-run-control.md 4.4, resume step 3), so the final counts
+    // equal a single uninterrupted run's.
+    public void SeedOutcome(Outcome o, long n) { if (n > 0) outcomes.AddOrUpdate(o, n, (_, a) => a + n); }
+    public void SeedForm(Form f, long n) { if (n > 0) forms.AddOrUpdate(f, n, (_, a) => a + n); }
+    public void SeedSaclForm(Form f, long n) { if (n > 0) saclForms.AddOrUpdate(f, n, (_, a) => a + n); }
 
     // Complete is true when every object was reached, none failed and nothing stopped the run.
     public bool Complete => Stop is null && NotProcessed == 0 && Count(Outcome.Error) == 0 && Count(Outcome.Stopped) == 0;
@@ -235,18 +247,35 @@ public sealed class Checker
     }
 
     // Run walks the tree. emit is called once per object, from worker threads, under a lock.
-    // checkpoint is used only by apply. Nothing thrown inside the walk escapes Run: a record or
+    // checkpoint is used only by apply. hooks carries check's run control (run control plan 4.4):
+    // the completed-subtree set a resume prunes against, the pending-count tracking whose
+    // completions become checkpoint.jsonl lines, and the counters status.json reads. stop is the
+    // run-control CancellationToken (plan 5.1): a worker checks it before taking a directory and
+    // between the entries of the one it is on, and the object in progress finishes; a stopped walk
+    // ends with summary.StopRequested set. Nothing thrown inside the walk escapes Run: a record or
     // checkpoint line that cannot be written (a full evidence volume, a closed stdout), or any
     // unexpected failure, stops the run the way a guard does, so the caller still gets a summary
     // and can close its evidence with the reason.
-    public CheckSummary Run(Action<CheckRecord> emit, int workers = 1, ICheckpoint? checkpoint = null)
+    public CheckSummary Run(Action<CheckRecord> emit, int workers = 1, ICheckpoint? checkpoint = null,
+        RunHooks? hooks = null, CancellationToken stop = default)
     {
         walkCheckpoint = checkpoint;
         var summary = new CheckSummary();
+        if (hooks is not null)
+        {
+            hooks.Seed?.Invoke(summary);   // a resume starts from its loaded subtree counts (plan 4.4)
+            hooks.Summary = summary;
+        }
+        SubtreeTracker? tracker = hooks is null ? null : new SubtreeTracker(hooks);
+        // The root's node exists before its Visit, so its record has an owner and its pending
+        // count is the 1 for its own listing, as for every queued directory (plan 4.4).
+        tracker?.Create("", null);
+        bool Cancelled() => stop.IsCancellationRequested;
         var gate = new object();
         void Emit(CheckRecord r)
         {
             summary.Add(r);
+            tracker?.Record(r);
             try { lock (gate) emit(r); }
             catch (Exception e) when (e is not OutOfMemoryException)
             {
@@ -269,13 +298,20 @@ public sealed class Checker
         var queue = new BlockingCollection<Node>();
         int pending = 1;
         queue.Add(root);
+        if (hooks is not null) Interlocked.Increment(ref hooks.DirsQueued);
         void Work()
         {
             foreach (var n in queue.GetConsumingEnumerable())
             {
                 try
                 {
+                    if (hooks is not null) hooks.ActiveDirs[n.Rel] = 0;
+                    // A stop (guard, walk fault or a run-control stop request) takes no new
+                    // directory from the queue (plan 5.1, step 2).
+                    // A guard stop is a failure (NotProcessed); a stop request is not, and is
+                    // counted apart so exit 3 and the stderr lines can tell them apart.
                     if (Stopped) { Interlocked.Increment(ref summary.NotProcessed); continue; }
+                    if (Cancelled()) { Interlocked.Increment(ref summary.StopSkipped); continue; }
                     IReadOnlyList<TreeEntry> entries;
                     try { entries = tree.List(n.Rel); }
                     catch (Exception e)
@@ -293,18 +329,44 @@ public sealed class Checker
                     // re-reads it.
                     bool resumed = opt.Apply && checkpoint?.IsDone(n.Rel) == true;
                     bool filesRight = true;
+                    bool stoppedMidList = false;
                     foreach (var e in entries)
                     {
-                        if (Stopped) { filesRight = false; Interlocked.Increment(ref summary.NotProcessed); break; }
+                        // Between entries is the second stop check (plan 4.4 keeps the entry loop
+                        // as the directory's completion point): a directory whose loop broke stays
+                        // incomplete, and its ancestors with it.
+                        if (Stopped || Cancelled())
+                        {
+                            filesRight = false; stoppedMidList = true;
+                            Interlocked.Increment(ref Stopped ? ref summary.NotProcessed : ref summary.StopSkipped);
+                            break;
+                        }
                         var rel = n.Rel.Length == 0 ? e.Name : n.Rel + "/" + e.Name;
                         if (e.IsReparse) { Emit(new CheckRecord(rel, e.IsDir, null, null, Outcome.Reparse, null)); continue; }
                         if (rules.IsExcluded(rel)) { Emit(new CheckRecord(rel, e.IsDir, null, null, Outcome.Excluded, null)); continue; }
+                        // Run-control resume pruning (plan 5.2, step 4): a subdirectory in the
+                        // completed set is not visited, recorded or queued; its counts came from
+                        // its checkpoint line, seeded into the summary by the CLI.
+                        if (e.IsDir && hooks?.IsComplete?.Invoke(rel) == true)
+                        {
+                            // Its loaded counts join the parent's, so an ancestor's completion
+                            // line still carries the run's full subtree counts.
+                            if (hooks.PrunedCounts?.Invoke(rel) is { } pruned) tracker?.AddPruned(n.Rel, pruned);
+                            Interlocked.Increment(ref hooks.DirsDone);
+                            continue;
+                        }
                         if (resumed && !e.IsDir) { Interlocked.Increment(ref summary.Resumed); continue; }
+                        // The tracker node exists before the directory's Visit, so the directory's
+                        // own record lands in its own subtree counts. A failed Visit leaves the
+                        // node (and the parent's extra pending) in place: an incomplete child keeps
+                        // every ancestor incomplete (plan 4.4).
+                        if (e.IsDir) tracker?.AddChild(n.Rel, rel);
                         var child = Visit(rel, e.IsDir, n, Emit, summary, ok => { if (!e.IsDir && !ok) filesRight = false; });
                         if (child is not null)
                         {
                             Interlocked.Increment(ref pending);
                             queue.Add(child);
+                            if (hooks is not null) Interlocked.Increment(ref hooks.DirsQueued);
                         }
                     }
                     if (opt.Apply && filesRight && !resumed && !Stopped)
@@ -315,17 +377,106 @@ public sealed class Checker
                             Stop(summary, $"could not record {Show(n.Rel)} as complete in the checkpoint: {e.Message}. No further writes were started.");
                         }
                     }
+                    // The directory's listing is done when its entry loop ran to the end, its
+                    // subdirectory subtrees complete it through the tracker (plan 4.4). A guard
+                    // stop, a stop request or a listing failure leaves it, and its ancestors,
+                    // incomplete.
+                    if (!stoppedMidList && !Stopped && !Cancelled())
+                    {
+                        tracker?.EntriesDone(n.Rel);
+                        if (hooks is not null) Interlocked.Increment(ref hooks.DirsDone);
+                    }
                 }
                 catch (Exception e) when (e is not OutOfMemoryException) { Unexpected(n.Rel, e); }
                 finally
                 {
+                    if (hooks is not null) hooks.ActiveDirs.TryRemove(n.Rel, out _);
                     if (Interlocked.Decrement(ref pending) == 0) queue.CompleteAdding();
                 }
             }
         }
         var threads = Enumerable.Range(0, Math.Max(1, workers)).Select(_ => Task.Run(Work)).ToArray();
         Task.WaitAll(threads);
+        summary.StopRequested = Cancelled();
         return summary;
+    }
+
+    // SubtreeTracker is plan 4.4's pending-count bookkeeping, one node per directory queued this
+    // segment: 1 for its own listing plus 1 for each subdirectory queued. EntriesDone takes the
+    // listing's 1; a completed child's subtree counts fold into the parent before the parent is
+    // checked, so a directory's SubtreeComplete report (its checkpoint.jsonl line) covers its
+    // whole subtree. A count that reaches 0 completes the directory; the chain toward the root is
+    // a loop, not recursion, so a deep tree completes its tail without a deep stack.
+    sealed class SubtreeTracker
+    {
+        sealed class Tracked(string? parent)
+        {
+            public int Pending = 1;
+            public readonly string? Parent = parent;
+            public readonly SubtreeCounts Counts = new();
+        }
+
+        readonly RunHooks hooks;
+        readonly Dictionary<string, Tracked> nodes = new(StringComparer.Ordinal);
+        readonly object gate = new();
+
+        public SubtreeTracker(RunHooks hooks) => this.hooks = hooks;
+
+        public void Create(string rel, string? parent)
+        {
+            lock (gate) nodes[rel] = new Tracked(parent);
+        }
+
+        public void AddChild(string parent, string child)
+        {
+            lock (gate)
+            {
+                if (nodes.TryGetValue(parent, out var p)) p.Pending++;
+                nodes[child] = new Tracked(parent);
+            }
+        }
+
+        // AddPruned folds a pruned (already complete) child subtree's loaded counts into its
+        // parent: the child is never visited this segment, so nothing else carries them upward.
+        public void AddPruned(string parent, SubtreeCounts counts)
+        {
+            lock (gate)
+            {
+                if (nodes.TryGetValue(parent, out var p)) p.Counts.Add(counts);
+            }
+        }
+
+        // Record folds one emitted record into its owning directory: the directory's own node when
+        // it was queued, else the nearest queued ancestor (a file, an error record for a directory
+        // whose subtree was dropped).
+        public void Record(CheckRecord r)
+        {
+            lock (gate)
+            {
+                var d = r.Path;
+                while (d.Length > 0 && !nodes.ContainsKey(d))
+                {
+                    var slash = d.LastIndexOf('/');
+                    d = slash < 0 ? "" : d[..slash];
+                }
+                if (nodes.TryGetValue(d, out var n)) n.Counts.Add(r);
+            }
+        }
+
+        public void EntriesDone(string rel)
+        {
+            lock (gate)
+            {
+                string? cur = rel;
+                while (cur is not null && nodes.TryGetValue(cur, out var n) && --n.Pending <= 0)
+                {
+                    nodes.Remove(cur);
+                    hooks.SubtreeComplete?.Invoke(cur, n.Counts);
+                    cur = n.Parent;
+                    if (cur is not null && nodes.TryGetValue(cur, out var pn)) pn.Counts.Add(n.Counts);
+                }
+            }
+        }
     }
 
     // RootAcl is the DACL the root's children will inherit from once the root is right, from a
