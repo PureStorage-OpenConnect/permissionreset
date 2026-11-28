@@ -48,7 +48,7 @@ if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 # URL, which differs between a fork, an SSH clone and the runner's checkout.
 #
 # The compiler records the runtime it ran on in the embedded PDB, and it rolls forward to the
-# newest 8.0 runtime it can find, so a machine with a newer 8.0 patch than the SDK's own (the
+# newest 10.0 runtime it can find, so a machine with a newer 10.0 patch than the SDK's own (the
 # hosted runner image) gives a different exe. So publish uses a private copy of the SDK pinned in
 # smb/global.json, installed by Microsoft's dotnet-install script into a directory of its own
 # under the temp directory and reused on later runs, with multilevel lookup off, so the SDK's
@@ -89,8 +89,10 @@ try {
     if ($LASTEXITCODE -ne 0 -or $sdkHave -ne $sdkWant) {
         throw "pack: needs .NET SDK $sdkWant (smb/global.json), found '$sdkHave' in $dotnetDir"
     }
+    # Every Microsoft.NETCore.App the private SDK copy sees, whatever its major version, so the
+    # check does not go stale on the next framework move: it must be exactly the SDK's own.
     $runtimes = @(& $dotnetExe --list-runtimes | ForEach-Object {
-        if ($_ -match '^Microsoft\.NETCore\.App (8\.\d+\.\d+) ') { $Matches[1] } })
+        if ($_ -match '^Microsoft\.NETCore\.App (\d+\.\d+\.\d+\S*) ') { $Matches[1] } })
     if ($runtimes.Count -ne 1 -or $runtimes[0] -ne $runtimeWant) {
         throw "pack: the compiler must see only runtime $runtimeWant (SDK $sdkWant's own), sees: $($runtimes -join ', ')"
     }
@@ -160,7 +162,9 @@ try {
     $exe = Join-Path $top[0].FullName 'permissionreset-smb.exe'
     $v = (& $exe version | Out-String).Trim()
     if ($LASTEXITCODE -ne 0) { throw "pack: version exited $LASTEXITCODE" }
-    if ($v -ne "permissionreset-smb $core") { throw "pack: version printed '$v', want 'permissionreset-smb $core'" }
+    # The exe is self-contained, so the runtime it prints is the one the SDK published into it.
+    $vWant = "permissionreset-smb $core (.NET $runtimeWant)"
+    if ($v -ne $vWant) { throw "pack: version printed '$v', want '$vWant'" }
     foreach ($p in 'saclplan.golden.json', 'smbplan.golden.json') {
         & $exe plan (Join-Path $root "cmd/build_spec/testdata/$p") | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "pack: plan $p exited $LASTEXITCODE" }

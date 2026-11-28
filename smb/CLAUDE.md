@@ -1,6 +1,6 @@
 # smb/ — permissionreset-smb
 
-.NET 8 solution for the SMB-native tool. Read `README.md` and
+.NET 10 solution for the SMB-native tool. Read `README.md` and
 `../docs/decision-flasharray-smb-20261107.md` (sections 4–8) first.
 
 - `src/PermissionReset.Smb.Core/` — portable logic only, no Win32: `Plan` (build-spec
@@ -18,7 +18,7 @@
   `smb-windows` CI job and by `.github/workflows/release-smb.yml` on `smb-v*` tags (draft only).
   The exe is reproducible: keep the SDK pinned exactly in `global.json`, and keep the publish on
   the script's private SDK copy with multilevel lookup off. Roslyn records the runtime it ran on in
-  the PDB, so a newer 8.0 patch on the machine changes the exe. Keep `ContinuousIntegrationBuild`
+  the PDB, so a newer 10.0 patch on the machine changes the exe. Keep `ContinuousIntegrationBuild`
   on and SourceLink off too. The `smb-windows` job builds the PR head, not the merge commit,
   because the commit SHA is in the informational version. A local pack and the workflow's must
   give the same exe SHA-256 for one commit.

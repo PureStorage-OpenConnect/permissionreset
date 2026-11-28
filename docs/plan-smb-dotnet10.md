@@ -1,6 +1,7 @@
 # Plan: move permissionreset-smb from .NET 8 to .NET 10
 
-Status: **plan only. Nothing here is implemented.** Written against `main` at `2980615`.
+Status: sections 3 and 4.1 are implemented on branch `smb/dotnet10` (SDK `10.0.115`, runtime
+10.0.15). Sections 4.2, 4.3 and 4.4 are pending. Written against `main` at `2980615`.
 
 Owner of the code work: the developer who takes this plan. Hardware qualification of the result
 is arranged by the maintainers ([MAINTAINERS.md](../MAINTAINERS.md), section 4).

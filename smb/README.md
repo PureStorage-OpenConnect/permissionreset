@@ -120,7 +120,7 @@ when the preflight passed and every object is right, 1 otherwise, 2 on a usage e
 
 ## Build and test
 
-Needs a .NET 8 SDK. `smb/global.json` pins the release SDK exactly, with `rollForward` off, and
+Needs a .NET 10 SDK. `smb/global.json` pins the release SDK exactly, with `rollForward` off, and
 dotnet reads it only when run from `smb/` or below. Run from the repository root, as shown, these
 commands use the machine's newest SDK, which is fine for development.
 
@@ -129,8 +129,8 @@ commit, gives an exe with the same SHA-256 as the release workflow's build of th
 prints that hash. Pass the same `-Version` the tag carries. To get there, the script installs the
 pinned SDK into a private directory under the temp directory (with Microsoft's `dotnet-install`
 script, downloaded on first use and reused afterwards). It then builds with that copy alone, so
-the compiler runs on the SDK's own runtime rather than a newer 8.0 patch installed on the machine,
-and it refuses to build if it sees any other 8.0 runtime. The zip also matches when it is packed
+the compiler runs on the SDK's own runtime rather than a newer 10.0 patch installed on the machine,
+and it refuses to build if it sees any other 10.0 runtime. The zip also matches when it is packed
 under the same PowerShell and .NET major version as the runner, since its compressed bytes come
 from that runtime.
 
@@ -158,3 +158,9 @@ writes `SHA256SUMS`. Both go to a **draft** release that does not become the rep
 qualification runs on those exact assets before a maintainer publishes it. The tag's X.Y.Z must
 equal `<Version>` in `Directory.Build.props`, so bump that file first. CI runs the same pack script
 on every pull request, without publishing.
+
+The release exe carries its own .NET runtime (.NET 10 LTS, supported until 2028-11-14). Windows
+Update and Microsoft Update never patch it. A release is rebuilt with the patched SDK for each .NET
+security release that applies to the code paths this tool uses, and published as a new patch
+version. `permissionreset-smb version` prints the runtime it carries, for example
+`permissionreset-smb 0.1.0 (.NET 10.0.15)`, so a binary and a scanner report can be tied to it.

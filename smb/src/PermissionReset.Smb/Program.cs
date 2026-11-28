@@ -93,10 +93,14 @@ static class Cli
         return code;
     }
 
+    // Version names the .NET runtime too ("permissionreset-smb 0.1.0 (.NET 10.0.15)"). The release
+    // exe is self-contained and carries its runtime, which Windows Update never patches, so an
+    // operator, an auditor or a scanner report can tie a binary to the runtime inside it
+    // (docs/plan-smb-dotnet10.md, 3.3 and 5).
     static int Version(TextWriter o)
     {
         var v = typeof(Cli).Assembly.GetName().Version;
-        o.WriteLine($"permissionreset-smb {v?.ToString(3) ?? "unknown"}");
+        o.WriteLine($"permissionreset-smb {v?.ToString(3) ?? "unknown"} ({System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription})");
         return 0;
     }
 

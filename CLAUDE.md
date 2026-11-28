@@ -111,7 +111,7 @@ and neither is one whose audit ACEs name nobody or an id >= 1e9 (`ErrUnpreservab
 
 ## permissionreset-smb
 
-`smb/` holds `permissionreset-smb`, the SMB-native .NET 8 tool for FlashArray
+`smb/` holds `permissionreset-smb`, the SMB-native .NET 10 tool for FlashArray
 (`docs/decision-flasharray-smb-20261107.md`). `smb-v0.1.0` is released (tag on `959c505`): `check`
 (writes nothing to the tree's objects) and `apply` (DACL writes, phase 2), qualified on FlashArray
 at `2e0ad61` with targeted reruns at `959c505` and on the released exe (`smb/README.md` status).
